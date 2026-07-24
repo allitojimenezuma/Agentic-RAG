@@ -13,9 +13,21 @@ app = typer.Typer(help="Agentic RAG — LLM Wiki CLI")
 @app.command()
 def ingest(path: str = typer.Argument(..., help="Path to the source file to ingest")):
     """Ingest a source file into the wiki. HITL prompts inline."""
+    from pathlib import Path
+
     from agentic_rag.config import Settings
 
-    settings = Settings()
+    # Validate source file exists
+    if not Path(path).is_file():
+        typer.echo(f"Error: Source file not found: {path}", err=True)
+        raise typer.Exit(1)
+
+    try:
+        settings = Settings()
+    except Exception as e:
+        typer.echo(f"Error loading settings: {e}", err=True)
+        raise typer.Exit(1)
+
     from agentic_rag.agents.ingest import build_ingest_agent
 
     agent = build_ingest_agent(settings)
@@ -24,9 +36,13 @@ def ingest(path: str = typer.Argument(..., help="Path to the source file to inge
         "recursion_limit": settings.recursion_limit,
     }
 
-    result = agent.invoke(
-        {"messages": [{"role": "user", "content": f"Ingest {path}"}]}, config=config
-    )
+    try:
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": f"Ingest {path}"}]}, config=config
+        )
+    except Exception as e:
+        typer.echo(f"Error during ingestion: {e}", err=True)
+        raise typer.Exit(1)
 
     while "__interrupt__" in result:
         interrupt = result["__interrupt__"]
@@ -59,9 +75,14 @@ def ingest(path: str = typer.Argument(..., help="Path to the source file to inge
 @app.command()
 def query(question: str = typer.Argument(..., help="Question to ask the wiki")):
     """Query the wiki (read-only)."""
-    from agentic_rag.config import Settings
+    try:
+        from agentic_rag.config import Settings
 
-    settings = Settings()
+        settings = Settings()
+    except Exception as e:
+        typer.echo(f"Error loading settings: {e}", err=True)
+        raise typer.Exit(1)
+
     from agentic_rag.agents.query import build_query_agent
 
     agent = build_query_agent(settings)
@@ -70,18 +91,28 @@ def query(question: str = typer.Argument(..., help="Question to ask the wiki")):
         "recursion_limit": settings.recursion_limit,
     }
 
-    result = agent.invoke(
-        {"messages": [{"role": "user", "content": question}]}, config=config
-    )
+    try:
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": question}]}, config=config
+        )
+    except Exception as e:
+        typer.echo(f"Error during query: {e}", err=True)
+        raise typer.Exit(1)
+
     typer.echo(result["messages"][-1].content)
 
 
 @app.command()
 def lint():
     """Run wiki health check. Writes report to wiki/lint-report-YYYY-MM-DD.md."""
-    from agentic_rag.config import Settings
+    try:
+        from agentic_rag.config import Settings
 
-    settings = Settings()
+        settings = Settings()
+    except Exception as e:
+        typer.echo(f"Error loading settings: {e}", err=True)
+        raise typer.Exit(1)
+
     from agentic_rag.agents.lint import build_lint_agent
 
     agent = build_lint_agent(settings)
@@ -90,17 +121,21 @@ def lint():
         "recursion_limit": settings.recursion_limit,
     }
 
-    result = agent.invoke(
-        {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "Run a full wiki health check. Report orphans, contradictions, missing links, and data gaps.",
-                }
-            ]
-        },
-        config=config,
-    )
+    try:
+        result = agent.invoke(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Run a full wiki health check. Report orphans, contradictions, missing links, and data gaps.",
+                    }
+                ]
+            },
+            config=config,
+        )
+    except Exception as e:
+        typer.echo(f"Error during lint: {e}", err=True)
+        raise typer.Exit(1)
 
     while "__interrupt__" in result:
         interrupt = result["__interrupt__"]
@@ -122,12 +157,18 @@ def lint():
 @app.command()
 def status():
     """Show wiki status: page counts, last log entry, quick orphan scan."""
-    from agentic_rag.config import Settings
+    try:
+        from agentic_rag.config import Settings
+
+        settings = Settings()
+    except Exception as e:
+        typer.echo(f"Error loading settings: {e}", err=True)
+        raise typer.Exit(1)
+
     from agentic_rag.io.index_manager import read_index
     from agentic_rag.io.log_manager import tail_log
     from agentic_rag.io.wiki_io import list_pages
 
-    settings = Settings()
     pages = list_pages(settings.wiki_path)
     index = read_index(settings.wiki_path)
     last_log = tail_log(settings.wiki_path, 1)
@@ -145,10 +186,16 @@ def log_cmd(
     tail: int = typer.Option(10, help="Number of log entries to show"),
 ):
     """Tail the wiki log."""
-    from agentic_rag.config import Settings
+    try:
+        from agentic_rag.config import Settings
+
+        settings = Settings()
+    except Exception as e:
+        typer.echo(f"Error loading settings: {e}", err=True)
+        raise typer.Exit(1)
+
     from agentic_rag.io.log_manager import tail_log
 
-    settings = Settings()
     entries = tail_log(settings.wiki_path, tail)
     for entry in entries:
         typer.echo(f"[{entry.timestamp}] {entry.op} | {entry.title}")

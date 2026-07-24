@@ -34,6 +34,13 @@ class SourceLoader:
 
         Returns markdown with a leading "# Source: <filename>" heading.
         """
+        source_path = Path(source)
+        if source_path.exists():
+            if not source_path.is_file():
+                raise ValueError(f"Source path is not a file: {source}")
+        elif not source.startswith("http://") and not source.startswith("https://"):
+            raise FileNotFoundError(f"Source file not found: {source}")
+
         result = self._md.convert(str(source))
-        filename = Path(source).name
+        filename = source_path.name
         return f"# Source: {filename}\n\n{result.text_content}"
