@@ -38,15 +38,31 @@ def list_pages(wiki_path: Path) -> list[Path]:
     return pages
 
 
+def _resolve_page_path(wiki_path: Path, slug: str) -> Path:
+    """Resolve a slug to a page file path.
+
+    If the slug contains '/', treat it as a relative path (e.g. 'entities/mlx').
+    Otherwise, search recursively for the first matching .md file.
+    """
+    # Direct path (slug already has directory)
+    direct = wiki_path / f"{slug}.md"
+    if direct.is_file():
+        return direct
+    # Recursive search for simple slugs like 'mlx'
+    for md_file in wiki_path.rglob(f"{slug}.md"):
+        if md_file.is_file():
+            return md_file
+    raise FileNotFoundError(f"Wiki page not found: {slug}")
+
+
 def read_page(wiki_path: Path, slug: str) -> str:
     """Read raw markdown content of a wiki page by slug.
 
     The slug can be nested, e.g. 'entities/python' resolves to wiki_path/entities/python.md.
+    Simple slugs like 'mlx' are searched recursively.
     """
     _validate_slug(slug)
-    page_path = wiki_path / f"{slug}.md"
-    if not page_path.is_file():
-        raise FileNotFoundError(f"Wiki page not found: {slug}")
+    page_path = _resolve_page_path(wiki_path, slug)
     return page_path.read_text(encoding="utf-8")
 
 
@@ -103,12 +119,18 @@ def write_page(
 def delete_page(wiki_path: Path, slug: str) -> None:
     """Delete a wiki page file by slug."""
     _validate_slug(slug)
-    page_path = wiki_path / f"{slug}.md"
-    if page_path.is_file():
+    try:
+        page_path = _resolve_page_path(wiki_path, slug)
         page_path.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def page_exists(wiki_path: Path, slug: str) -> bool:
     """Check if a wiki page exists by slug."""
     _validate_slug(slug)
-    return (wiki_path / f"{slug}.md").is_file()
+    try:
+        _resolve_page_path(wiki_path, slug)
+        return True
+    except FileNotFoundError:
+        return False
