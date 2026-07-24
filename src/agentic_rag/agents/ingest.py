@@ -17,6 +17,7 @@ from agentic_rag.tools.ingest_tools import (
     update_page,
 )
 from agentic_rag.tools.shared import read_index, read_wiki_page, search_index
+from agentic_rag.agents.model import get_model
 
 
 def build_ingest_agent(settings) -> object:
@@ -49,7 +50,7 @@ def build_ingest_agent(settings) -> object:
         )
     ]
     return build_agent(
-        model=settings.openai_model,
+        model=get_model(settings),
         tools=tools,
         system_prompt=build_ingest_prompt(agents_md),
         middleware=middleware,

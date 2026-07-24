@@ -7,6 +7,7 @@ from agentic_rag.agents.prompts import build_query_prompt
 from agentic_rag.schemas.agents_md import load_agents_md
 from agentic_rag.tools.query_tools import find_relevant_pages
 from agentic_rag.tools.shared import read_index, read_wiki_page, search_index
+from agentic_rag.agents.model import get_model
 
 
 def build_query_agent(settings) -> object:
@@ -18,7 +19,7 @@ def build_query_agent(settings) -> object:
     agents_md = load_agents_md(settings.agents_md_path)
     tools = [read_index, search_index, read_wiki_page, find_relevant_pages]
     return build_agent(
-        model=settings.openai_model,
+        model=get_model(settings),
         tools=tools,
         system_prompt=build_query_prompt(agents_md),
     )

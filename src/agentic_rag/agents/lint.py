@@ -14,6 +14,7 @@ from agentic_rag.tools.lint_tools import (
     write_lint_report,
 )
 from agentic_rag.tools.shared import read_index
+from agentic_rag.agents.model import get_model
 
 
 def build_lint_agent(settings) -> object:
@@ -40,7 +41,7 @@ def build_lint_agent(settings) -> object:
         )
     ]
     return build_agent(
-        model=settings.openai_model,
+        model=get_model(settings),
         tools=tools,
         system_prompt=build_lint_prompt(agents_md),
         middleware=middleware,
