@@ -27,6 +27,7 @@ Agents are built with **LangChain `create_agent()`** + middleware:
 ### Prerequisites
 
 - Python 3.11+
+- [uv](https://docs.astral.sh/uv/) (fast Python package manager)
 - An OpenAI-compatible API key (OpenAI, Azure, OpenRouter, local proxy)
 
 ### Installation
@@ -36,11 +37,21 @@ Agents are built with **LangChain `create_agent()`** + middleware:
 git clone <repo-url>
 cd langchain-rag
 
+# Create and activate virtual environment with uv
+uv venv
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+
 # Install in development mode
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 
 # Verify installation
 agentic-rag --help
+```
+
+Or install directly with uv (no venv activation needed):
+
+```bash
+uv pip install -e ".[dev]"
 ```
 
 ### Configuration
@@ -133,18 +144,18 @@ agentic-rag log --tail 5
 
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run with verbose output
-pytest -v
+uv run pytest -v
 
 # Run specific test types
-pytest tests/unit/          # Unit tests (no network)
-pytest tests/integration/   # Integration tests (FakeChatModel)
-pytest tests/acceptance/    # Acceptance tests (real LLM, requires OPENAI_API_KEY)
+uv run pytest tests/unit/          # Unit tests (no network)
+uv run pytest tests/integration/   # Integration tests (FakeChatModel)
+uv run pytest tests/acceptance/    # Acceptance tests (real LLM, requires OPENAI_API_KEY)
 
 # Run with coverage
-pytest --cov=agentic_rag --cov-report=html
+uv run pytest --cov=agentic_rag --cov-report=html
 ```
 
 ### Test Structure
