@@ -52,6 +52,9 @@ def ingest(path: str = typer.Argument(..., help="Path to the source file to inge
             {"messages": [{"role": "user", "content": f"Ingest {path}"}]}, config=config
         )
         logger.info("Ingest agent completed")
+        # Log token usage summary
+        if hasattr(agent, "_token_tracker"):
+            agent._token_tracker.log_summary()
     except Exception as e:
         logger.error(f"Ingest agent failed: {e}\n{traceback.format_exc()}")
         typer.echo(f"Error during ingestion: {e}", err=True)
@@ -113,6 +116,9 @@ def query(question: str = typer.Argument(..., help="Question to ask the wiki")):
             {"messages": [{"role": "user", "content": question}]}, config=config
         )
         logger.info("Query agent completed")
+        # Log token usage summary
+        if hasattr(agent, "_token_tracker"):
+            agent._token_tracker.log_summary()
     except Exception as e:
         logger.error(f"Query agent failed: {e}\n{traceback.format_exc()}")
         typer.echo(f"Error during query: {e}", err=True)
@@ -155,6 +161,9 @@ def lint():
             config=config,
         )
         logger.info("Lint agent completed")
+        # Log token usage summary
+        if hasattr(agent, "_token_tracker"):
+            agent._token_tracker.log_summary()
     except Exception as e:
         logger.error(f"Lint agent failed: {e}\n{traceback.format_exc()}")
         typer.echo(f"Error during lint: {e}", err=True)

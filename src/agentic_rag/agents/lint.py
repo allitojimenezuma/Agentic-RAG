@@ -51,4 +51,5 @@ def build_lint_agent(settings) -> object:
         tools=tools,
         system_prompt=build_lint_prompt(agents_md),
         middleware=middleware,
+        model_name=settings.openai_model,
     )

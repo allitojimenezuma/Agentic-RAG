@@ -60,4 +60,5 @@ def build_ingest_agent(settings) -> object:
         tools=tools,
         system_prompt=build_ingest_prompt(agents_md),
         middleware=middleware,
+        model_name=settings.openai_model,
     )

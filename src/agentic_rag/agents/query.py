@@ -28,4 +28,5 @@ def build_query_agent(settings) -> object:
         model=get_model(settings),
         tools=tools,
         system_prompt=build_query_prompt(agents_md),
+        model_name=settings.openai_model,
     )

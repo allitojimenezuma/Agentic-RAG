@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     hitl_enabled: bool = True
 
     # Logging
-    log_level: str = "INFO"
+    log_level: str = "DEBUG"
     log_dir: Path | None = None  # None = console only
 
     # Retrieval (MVP: index-only)
