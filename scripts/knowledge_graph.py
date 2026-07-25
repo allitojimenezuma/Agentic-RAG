@@ -73,14 +73,27 @@ def build_graph(wiki_path: Path) -> dict:
         except Exception:
             continue
 
-    # Deduplicate edges
+    # Deduplicate and detect bidirectional edges
+    edge_set = set(edges)
+    bidirectional = set()
+    for src, tgt in edges:
+        if (tgt, src) in edge_set and (src, tgt) in edge_set:
+            bidirectional.add((min(src, tgt), max(src, tgt)))
+
     seen = set()
     unique_edges = []
     for src, tgt in edges:
-        key = (src, tgt)
-        if key not in seen:
-            seen.add(key)
-            unique_edges.append({"from": src, "to": tgt})
+        pair = (min(src, tgt), max(src, tgt))
+        if pair in bidirectional:
+            key = pair
+            if key not in seen:
+                seen.add(key)
+                unique_edges.append({"from": src, "to": tgt, "arrows": "both"})
+        else:
+            key = (src, tgt)
+            if key not in seen:
+                seen.add(key)
+                unique_edges.append({"from": src, "to": tgt, "arrows": "to"})
     edges = unique_edges
 
     return {"nodes": list(nodes.values()), "edges": edges}
@@ -108,10 +121,7 @@ def generate_html(graph: dict, output_path: Path) -> None:
         }
         for n in graph["nodes"]
     ])
-    edges_js = json.dumps([
-        {"from": e["from"], "to": e["to"], "arrows": "to"}
-        for e in graph["edges"]
-    ])
+    edges_js = json.dumps(graph["edges"])
 
     html = f"""<!DOCTYPE html>
 <html>

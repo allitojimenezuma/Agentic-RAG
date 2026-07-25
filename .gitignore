@@ -12,4 +12,4 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
-.pi-subagents/
+.pi-subagents/knowledge_graph.html
