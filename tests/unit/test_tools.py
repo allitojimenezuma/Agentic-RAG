@@ -12,7 +12,7 @@ from agentic_rag.io.log_manager import append_log
 from agentic_rag.io.markdown_parser import serialize_frontmatter
 from agentic_rag.io.wiki_io import write_page
 from agentic_rag.schemas.wiki import Frontmatter, IndexEntry, LogEntry
-from agentic_rag.tools.shared import read_index as tool_read_index
+from agentic_rag.tools.shared import init_shared_tools, read_index as tool_read_index
 from agentic_rag.tools.shared import read_wiki_page as tool_read_wiki_page
 from agentic_rag.tools.shared import search_index as tool_search_index
 from agentic_rag.tools.ingest_tools import (
@@ -77,36 +77,42 @@ def _create_test_log(wiki_path: Path) -> None:
 
 class TestReadIndex:
     def test_returns_formatted_index(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_index(wiki_path)
-        result = tool_read_index.invoke({"wiki_path": str(wiki_path)})
+        result = tool_read_index.invoke({})
         assert "python" in result
         assert "High-level programming language" in result
 
     def test_empty_index(self, wiki_path: Path) -> None:
-        result = tool_read_index.invoke({"wiki_path": str(wiki_path)})
+        init_shared_tools(wiki_path)
+        result = tool_read_index.invoke({})
         assert "Index is empty" in result
 
 
 class TestReadWikiPage:
     def test_reads_existing_page(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_page(wiki_path, "entities/python")
-        result = tool_read_wiki_page.invoke({"wiki_path": str(wiki_path), "slug": "entities/python"})
+        result = tool_read_wiki_page.invoke({"slug": "entities/python"})
         assert "Python" in result
         assert "A language" in result
 
     def test_errors_on_missing(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         with pytest.raises(FileNotFoundError):
-            tool_read_wiki_page.invoke({"wiki_path": str(wiki_path), "slug": "nonexistent"})
+            tool_read_wiki_page.invoke({"slug": "nonexistent"})
 
 
 class TestSearchIndex:
     def test_keyword_match(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_index(wiki_path)
-        result = tool_search_index.invoke({"wiki_path": str(wiki_path), "query": "python"})
+        result = tool_search_index.invoke({"query": "python"})
         assert "python" in result
 
     def test_no_match(self, wiki_path: Path) -> None:
-        result = tool_search_index.invoke({"wiki_path": str(wiki_path), "query": "rustlang"})
+        init_shared_tools(wiki_path)
+        result = tool_search_index.invoke({"query": "rustlang"})
         assert "No results" in result
 
 
@@ -124,8 +130,8 @@ class TestReadSource:
 
 class TestCreatePage:
     def test_creates_new_page(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         result = create_page.invoke({
-            "wiki_path": str(wiki_path),
             "slug": "concepts/ai",
             "page_type": "concept",
             "title": "Artificial Intelligence",
@@ -137,9 +143,9 @@ class TestCreatePage:
         assert (wiki_path / "concepts/ai.md").is_file()
 
     def test_errors_if_exists(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_page(wiki_path, "entities/python")
         result = create_page.invoke({
-            "wiki_path": str(wiki_path),
             "slug": "entities/python",
             "page_type": "entity",
             "title": "Python",
@@ -151,9 +157,9 @@ class TestCreatePage:
 
 class TestUpdatePage:
     def test_updates_existing_page(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_page(wiki_path, "entities/python")
         result = update_page.invoke({
-            "wiki_path": str(wiki_path),
             "slug": "entities/python",
             "content": "# Python\n\nUpdated content.",
             "sources": ["updated.pdf"],
@@ -163,8 +169,8 @@ class TestUpdatePage:
         assert "Updated content." in content
 
     def test_errors_if_missing(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         result = update_page.invoke({
-            "wiki_path": str(wiki_path),
             "slug": "nonexistent",
             "content": "nope",
         })
@@ -174,16 +180,17 @@ class TestUpdatePage:
 
 class TestDeleteWikiPage:
     def test_deletes_existing(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_page(wiki_path, "entities/python")
-        result = delete_wiki_page.invoke({"wiki_path": str(wiki_path), "slug": "entities/python"})
+        result = delete_wiki_page.invoke({"slug": "entities/python"})
         assert "Deleted" in result
         assert not (wiki_path / "entities/python.md").is_file()
 
 
 class TestUpdateIndex:
     def test_adds_entry(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         result = update_index.invoke({
-            "wiki_path": str(wiki_path),
             "slug": "python",
             "page_type": "entity",
             "summary": "Programming language",
@@ -197,8 +204,8 @@ class TestUpdateIndex:
 
 class TestAppendLog:
     def test_appends_entry(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         result = tool_append_log.invoke({
-            "wiki_path": str(wiki_path),
             "op": "ingest",
             "title": "sample.md",
             "details": "Created: [[Python]]",
@@ -211,8 +218,8 @@ class TestAppendLog:
 
 class TestFlagContradiction:
     def test_returns_contradiction_details(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         result = flag_contradiction.invoke({
-            "wiki_path": str(wiki_path),
             "page_slug": "entities/python",
             "existing_claim": "Python is interpreted",
             "new_claim": "Python can be compiled",
@@ -228,13 +235,15 @@ class TestFlagContradiction:
 
 class TestFindRelevantPages:
     def test_finds_direct_matches(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_index(wiki_path)
         _create_test_page(wiki_path, "entities/python")
-        result = find_relevant_pages.invoke({"wiki_path": str(wiki_path), "query": "python"})
+        result = find_relevant_pages.invoke({"query": "python"})
         assert "python" in result
         assert "direct match" in result
 
     def test_traverses_links(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_index(wiki_path)
         # Page at root slug (matches index slug "python") with link to ml-ai
         fm = Frontmatter(
@@ -249,13 +258,14 @@ class TestFindRelevantPages:
         )
         write_page(wiki_path, "ml-ai", serialize_frontmatter(fm2) + "# ML-AI\n")
 
-        result = find_relevant_pages.invoke({"wiki_path": str(wiki_path), "query": "python"})
+        result = find_relevant_pages.invoke({"query": "python"})
         assert "python" in result
         assert "ml-ai" in result
         assert "via links" in result
 
     def test_no_results(self, wiki_path: Path) -> None:
-        result = find_relevant_pages.invoke({"wiki_path": str(wiki_path), "query": "rust"})
+        init_shared_tools(wiki_path)
+        result = find_relevant_pages.invoke({"query": "rust"})
         assert "No pages found" in result
 
 
@@ -264,19 +274,22 @@ class TestFindRelevantPages:
 
 class TestReadAllPages:
     def test_returns_all_pages(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_page(wiki_path, "entities/python", "# Python\n\nA language.")
         _create_test_page(wiki_path, "concepts/ml", "# ML\n\nMachine learning.")
-        result = read_all_pages.invoke({"wiki_path": str(wiki_path)})
+        result = read_all_pages.invoke({})
         assert "python" in result
         assert "ml" in result
 
     def test_empty_wiki(self, wiki_path: Path) -> None:
-        result = read_all_pages.invoke({"wiki_path": str(wiki_path)})
+        init_shared_tools(wiki_path)
+        result = read_all_pages.invoke({})
         assert "No wiki pages" in result
 
 
 class TestFindInboundLinks:
     def test_finds_linking_pages(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         fm = Frontmatter(
             slug="entities/python", type="entity", title="Python",
             sources=[], updated=date(2025, 1, 1),
@@ -288,12 +301,13 @@ class TestFindInboundLinks:
         )
         write_page(wiki_path, "concepts/ml", serialize_frontmatter(fm2) + "# ML\n")
 
-        result = find_inbound_links.invoke({"wiki_path": str(wiki_path), "slug": "concepts/ml"})
+        result = find_inbound_links.invoke({"slug": "concepts/ml"})
         assert "entities/python" in result
 
     def test_no_inbound_links(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         _create_test_page(wiki_path, "entities/python")
-        result = find_inbound_links.invoke({"wiki_path": str(wiki_path), "slug": "entities/python"})
+        result = find_inbound_links.invoke({"slug": "entities/python"})
         assert "No pages link" in result
         assert "orphan" in result
 
@@ -314,8 +328,8 @@ class TestExtractConcepts:
 
 class TestWriteLintReport:
     def test_creates_report_file(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
         result = write_lint_report.invoke({
-            "wiki_path": str(wiki_path),
             "report": "# Lint Report\n\nAll good.",
         })
         assert "Lint report written" in result

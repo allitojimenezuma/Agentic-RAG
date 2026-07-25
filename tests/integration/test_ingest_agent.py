@@ -17,7 +17,7 @@ from agentic_rag.tools.ingest_tools import (
     read_source,
     update_index,
 )
-from agentic_rag.tools.shared import read_index, read_wiki_page, search_index
+from agentic_rag.tools.shared import init_shared_tools, read_index, read_wiki_page, search_index
 from tests.fixtures.fake_llm import ScriptedChatModel
 
 
@@ -97,6 +97,7 @@ class TestIngestFlow:
         """Full ingest flow: read_source -> search_index -> create_page x2 -> update_index x2 -> append_log."""
         wp = str(populated_wiki)
         sp = str(sample_source)
+        init_shared_tools(wp)
 
         model = ScriptedChatModel(
             responses=[
@@ -117,7 +118,7 @@ class TestIngestFlow:
                     tool_calls=[
                         ToolCall(
                             name="search_index",
-                            args={"wiki_path": wp, "query": "MLX"},
+                            args={"query": "MLX"},
                             id="tc-2",
                         )
                     ],
@@ -129,7 +130,6 @@ class TestIngestFlow:
                         ToolCall(
                             name="create_page",
                             args={
-                                "wiki_path": wp,
                                 "slug": "mlx",
                                 "page_type": "entity",
                                 "title": "MLX",
@@ -147,7 +147,6 @@ class TestIngestFlow:
                         ToolCall(
                             name="create_page",
                             args={
-                                "wiki_path": wp,
                                 "slug": "tool-calling",
                                 "page_type": "concept",
                                 "title": "Tool Calling",
@@ -165,7 +164,6 @@ class TestIngestFlow:
                         ToolCall(
                             name="update_index",
                             args={
-                                "wiki_path": wp,
                                 "slug": "mlx",
                                 "page_type": "entity",
                                 "summary": "Machine learning framework by Apple for Apple Silicon",
@@ -182,7 +180,6 @@ class TestIngestFlow:
                         ToolCall(
                             name="update_index",
                             args={
-                                "wiki_path": wp,
                                 "slug": "tool-calling",
                                 "page_type": "concept",
                                 "summary": "LLM function-invocation capability",
@@ -199,7 +196,6 @@ class TestIngestFlow:
                         ToolCall(
                             name="append_log",
                             args={
-                                "wiki_path": wp,
                                 "op": "ingest",
                                 "title": "sample.md",
                                 "details": "Created: [[MLX]], [[Tool Calling]]",

@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, ToolCall
 
 from agentic_rag.agents.prompts import build_query_prompt
 from agentic_rag.tools.query_tools import find_relevant_pages
-from agentic_rag.tools.shared import read_index, read_wiki_page, search_index
+from agentic_rag.tools.shared import init_shared_tools, read_index, read_wiki_page, search_index
 from tests.fixtures.fake_llm import ScriptedChatModel
 
 
@@ -61,6 +61,7 @@ class TestQueryFlow:
     def test_query_read_index_then_read_page(self, wiki_with_mlx):
         """Query flow: read_index -> read_wiki_page -> final answer with citation."""
         wp = str(wiki_with_mlx)
+        init_shared_tools(wp)
 
         model = ScriptedChatModel(
             responses=[
@@ -70,7 +71,7 @@ class TestQueryFlow:
                     tool_calls=[
                         ToolCall(
                             name="read_index",
-                            args={"wiki_path": wp},
+                            args={},
                             id="tc-1",
                         )
                     ],
@@ -81,7 +82,7 @@ class TestQueryFlow:
                     tool_calls=[
                         ToolCall(
                             name="read_wiki_page",
-                            args={"wiki_path": wp, "slug": "mlx"},
+                            args={"slug": "mlx"},
                             id="tc-2",
                         )
                     ],
@@ -116,6 +117,7 @@ class TestQueryFlow:
     def test_query_no_writes_called(self, wiki_with_mlx):
         """Query agent should never call write tools."""
         wp = str(wiki_with_mlx)
+        init_shared_tools(wp)
         write_tool_names = {"create_page", "update_page", "delete_wiki_page", "append_log", "update_index"}
         called_tools: list[str] = []
 
@@ -129,7 +131,7 @@ class TestQueryFlow:
                     tool_calls=[
                         ToolCall(
                             name="read_index",
-                            args={"wiki_path": wp},
+                            args={},
                             id="tc-1",
                         )
                     ],

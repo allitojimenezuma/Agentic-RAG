@@ -16,7 +16,7 @@ from agentic_rag.tools.lint_tools import (
     read_all_pages,
     write_lint_report,
 )
-from agentic_rag.tools.shared import read_index
+from agentic_rag.tools.shared import init_shared_tools, read_index
 from tests.fixtures.fake_llm import ScriptedChatModel
 
 
@@ -71,6 +71,7 @@ class TestLintFlow:
     def test_lint_writes_report(self, wiki_with_orphan):
         """Lint flow: read_all_pages -> find_inbound_links -> write_lint_report."""
         wp = str(wiki_with_orphan)
+        init_shared_tools(wp)
 
         model = ScriptedChatModel(
             responses=[
@@ -80,7 +81,7 @@ class TestLintFlow:
                     tool_calls=[
                         ToolCall(
                             name="read_all_pages",
-                            args={"wiki_path": wp},
+                            args={},
                             id="tc-1",
                         )
                     ],
@@ -91,7 +92,7 @@ class TestLintFlow:
                     tool_calls=[
                         ToolCall(
                             name="find_inbound_links",
-                            args={"wiki_path": wp, "slug": "orphan-concept"},
+                            args={"slug": "orphan-concept"},
                             id="tc-2",
                         )
                     ],
@@ -103,7 +104,6 @@ class TestLintFlow:
                         ToolCall(
                             name="write_lint_report",
                             args={
-                                "wiki_path": wp,
                                 "report": "# Lint Report\n\n## Orphan Pages\n\n- orphan-concept: No inbound links found.\n",
                             },
                             id="tc-3",

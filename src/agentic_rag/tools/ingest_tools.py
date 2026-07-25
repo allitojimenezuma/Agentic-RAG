@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime
-from pathlib import Path
 
 from langchain_core.tools import tool
 
@@ -18,6 +17,7 @@ from agentic_rag.io.wiki_io import (
     write_page as _write_page,
 )
 from agentic_rag.schemas.wiki import Frontmatter, IndexEntry, LogEntry
+from agentic_rag.tools.shared import get_wiki_path
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,6 @@ def read_source(source_path: str) -> str:
 
 @tool
 def create_page(
-    wiki_path: str,
     slug: str,
     page_type: str,
     title: str,
@@ -44,8 +43,7 @@ def create_page(
 ) -> str:
     """Create a new wiki page. Fails if the page already exists. Use update_page for existing pages."""
     logger.debug("Creating page: %s (type=%s)", slug, page_type)
-    path = Path(wiki_path)
-    if page_exists(path, slug):
+    if page_exists(get_wiki_path(), slug):
         logger.debug("Page already exists: %s", slug)
         return f"Error: Page '{slug}' already exists. Use update_page to modify it."
 
@@ -57,14 +55,13 @@ def create_page(
         updated=date.today(),
         tags=tags or [],
     )
-    _write_page(path, slug, content, frontmatter=fm)
-    logger.debug("Page written: %s -> %s", slug, path / f"{slug}.md")
+    _write_page(get_wiki_path(), slug, content, frontmatter=fm)
+    logger.debug("Page written: %s", slug)
     return f"Created page: {slug} (type={page_type}, title={title})"
 
 
 @tool
 def update_page(
-    wiki_path: str,
     slug: str,
     content: str,
     sources: list[str] | None = None,
@@ -72,33 +69,30 @@ def update_page(
 ) -> str:
     """Update an existing wiki page. Preserves frontmatter fields unless explicitly changed. Fails if the page does not exist."""
     logger.debug("Updating page: %s", slug)
-    path = Path(wiki_path)
-    if not page_exists(path, slug):
+    if not page_exists(get_wiki_path(), slug):
         logger.debug("Page does not exist: %s", slug)
         return f"Error: Page '{slug}' does not exist. Use create_page first."
 
-    fm, _body = _read_page_with_frontmatter(path, slug)
+    fm, _body = _read_page_with_frontmatter(get_wiki_path(), slug)
     fm.updated = date.today()
     if sources is not None:
         fm.sources = sources
     if tags is not None:
         fm.tags = tags
-    _write_page(path, slug, content, frontmatter=fm)
+    _write_page(get_wiki_path(), slug, content, frontmatter=fm)
     return f"Updated page: {slug}"
 
 
 @tool
-def delete_wiki_page(wiki_path: str, slug: str) -> str:
+def delete_wiki_page(slug: str) -> str:
     """Delete a wiki page. This action requires human approval (HITL). Will be paused for confirmation."""
     logger.debug("Deleting page: %s", slug)
-    path = Path(wiki_path)
-    _delete_page(path, slug)
+    _delete_page(get_wiki_path(), slug)
     return f"Deleted page: {slug}"
 
 
 @tool
 def update_index(
-    wiki_path: str,
     slug: str,
     page_type: str,
     summary: str,
@@ -106,7 +100,6 @@ def update_index(
 ) -> str:
     """Update the wiki index with a new or modified entry. Call this after creating or updating a page."""
     logger.debug("Updating index entry: %s", slug)
-    path = Path(wiki_path)
     entry = IndexEntry(
         slug=slug,
         summary=summary,
@@ -114,28 +107,26 @@ def update_index(
         sources=sources or [],
         updated=date.today(),
     )
-    _upsert_entry(path, entry)
+    _upsert_entry(get_wiki_path(), entry)
     return f"Index updated for: {slug}"
 
 
 @tool
-def append_log(wiki_path: str, op: str, title: str, details: str = "") -> str:
+def append_log(op: str, title: str, details: str = "") -> str:
     """Append an entry to the wiki log.md. Use op='ingest' for source ingestion, 'query' for queries, 'lint' for health checks."""
     logger.debug("Appending log entry: %s | %s", op, title)
-    path = Path(wiki_path)
     entry = LogEntry(
         timestamp=datetime.now(),
         op=op,
         title=title,
         details=details,
     )
-    _append_log(path, entry)
+    _append_log(get_wiki_path(), entry)
     return f"Log entry appended: [{op}] {title}"
 
 
 @tool
 def flag_contradiction(
-    wiki_path: str,
     page_slug: str,
     existing_claim: str,
     new_claim: str,

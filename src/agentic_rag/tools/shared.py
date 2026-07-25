@@ -12,13 +12,27 @@ from agentic_rag.io.wiki_io import read_page as _read_page
 
 logger = logging.getLogger(__name__)
 
+# Set once when agent is built via init_shared_tools()
+_WIKI_PATH: Path = Path("./wiki")
+
+
+def init_shared_tools(wiki_path: str | Path) -> None:
+    """Initialize the wiki path for all shared tools. Called once at agent build time."""
+    global _WIKI_PATH
+    _WIKI_PATH = Path(wiki_path)
+    logger.debug("Shared tools wiki_path set to %s", _WIKI_PATH)
+
+
+def get_wiki_path() -> Path:
+    """Get the current wiki path. Used by tool modules that import it."""
+    return _WIKI_PATH
+
 
 @tool
-def read_index(wiki_path: str) -> str:
+def read_index() -> str:
     """Read the wiki index.md and return its full content. Shows all entities, concepts, sources, and comparisons with summaries."""
-    logger.debug("Reading wiki index from %s", wiki_path)
-    path = Path(wiki_path)
-    idx = _read_index(path)
+    logger.debug("Reading wiki index from %s", _WIKI_PATH)
+    idx = _read_index(_WIKI_PATH)
     if not idx.categories:
         logger.debug("Index is empty")
         return "Index is empty."
@@ -40,19 +54,17 @@ def read_index(wiki_path: str) -> str:
 
 
 @tool
-def read_wiki_page(wiki_path: str, slug: str) -> str:
+def read_wiki_page(slug: str) -> str:
     """Read a wiki page by slug. Returns the full markdown content including frontmatter. Use this to get detailed information about any entity, concept, or source."""
     logger.debug("Reading wiki page: %s", slug)
-    path = Path(wiki_path)
-    return _read_page(path, slug)
+    return _read_page(_WIKI_PATH, slug)
 
 
 @tool
-def search_index(wiki_path: str, query: str) -> str:
+def search_index(query: str) -> str:
     """Search the wiki index by keyword. Returns matching entries with their slugs, types, and summaries. Use to find relevant pages before reading them."""
     logger.debug("Searching index for: %s", query)
-    path = Path(wiki_path)
-    results = find_in_index(path, query)
+    results = find_in_index(_WIKI_PATH, query)
     if not results:
         return f"No results found for '{query}'."
 

@@ -3,49 +3,46 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date
-from pathlib import Path
 
 from langchain_core.tools import tool
 
 from agentic_rag.io.markdown_parser import extract_headings, extract_links
 from agentic_rag.io.wiki_io import list_pages, read_page
+from agentic_rag.tools.shared import get_wiki_path
 
 logger = logging.getLogger(__name__)
 
 
 @tool
-def read_all_pages(wiki_path: str) -> str:
-    """Read ALL wiki pages. Returns a dict of slug→content. Use sparingly - this is expensive for large wikis."""
-    logger.debug("Reading all wiki pages from %s", wiki_path)
-    path = Path(wiki_path)
-    pages = list_pages(path)
+def read_all_pages() -> str:
+    """Read ALL wiki pages. Returns slug and content for each. Use sparingly - expensive for large wikis."""
+    logger.debug("Reading all wiki pages from %s", get_wiki_path())
+    pages = list_pages(get_wiki_path())
     if not pages:
         return "No wiki pages found."
 
     lines: list[str] = []
     for page_path in pages:
-        slug = str(page_path.relative_to(path)).removesuffix(".md")
+        slug = str(page_path.relative_to(get_wiki_path())).removesuffix(".md")
         content = page_path.read_text(encoding="utf-8")
         lines.append(f"=== {slug} ===\n{content}\n")
     return "\n".join(lines)
 
 
 @tool
-def find_inbound_links(wiki_path: str, slug: str) -> str:
+def find_inbound_links(slug: str) -> str:
     """Find all pages that link to a given slug via [[slug]] or [[slug|alias]] syntax. Use to detect orphan pages."""
-    import re
-
     logger.debug("Finding inbound links to: %s", slug)
-    path = Path(wiki_path)
     pattern = re.compile(r"\[\[" + re.escape(slug) + r"(?:\|[^\]]+)?\]\]")
-    pages = list_pages(path)
+    pages = list_pages(get_wiki_path())
     linking_pages: list[str] = []
 
     for page_path in pages:
         content = page_path.read_text(encoding="utf-8")
         if pattern.search(content):
-            page_slug = str(page_path.relative_to(path)).removesuffix(".md")
+            page_slug = str(page_path.relative_to(get_wiki_path())).removesuffix(".md")
             linking_pages.append(page_slug)
 
     logger.debug("Found pages linking to '%s': %s", slug, linking_pages)
@@ -79,11 +76,10 @@ def extract_concepts(content: str) -> str:
 
 
 @tool
-def write_lint_report(wiki_path: str, report: str) -> str:
+def write_lint_report(report: str) -> str:
     """Write a lint report to wiki/lint-report-YYYY-MM-DD.md with today's date."""
-    path = Path(wiki_path)
     today = date.today().isoformat()
-    report_path = path / f"lint-report-{today}.md"
+    report_path = get_wiki_path() / f"lint-report-{today}.md"
     logger.debug("Writing lint report to %s", report_path)
     report_path.write_text(report, encoding="utf-8")
     return f"Lint report written to: lint-report-{today}.md"
