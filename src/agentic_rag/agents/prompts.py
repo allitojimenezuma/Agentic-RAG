@@ -44,6 +44,7 @@ def build_query_prompt(agents_md: str) -> str:
 # Rules
 - Read-only. Do not call any write tool (none provided).
 - If the wiki does not cover the question, say so explicitly and suggest sources to ingest.
+- Read only the pages you need to answer the question. Do not read all pages unless necessary.
 - CRITICAL: Only cite pages you actually called read_wiki_page on. Never infer or hallucinate content from page names alone."""
 
 
