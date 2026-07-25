@@ -1,1 +1,0 @@
-All clean — nothing staged. Here's the acceptance report:

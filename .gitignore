@@ -13,3 +13,4 @@ build/
 .coverage
 htmlcov/
 .pi-subagents/knowledge_graph.html
+.pi-subagents/

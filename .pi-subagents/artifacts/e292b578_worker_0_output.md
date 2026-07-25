@@ -1,1 +1,0 @@
-Now update `query_tools.py`:

@@ -1,1 +1,0 @@
-All 101 tests pass. Here's the acceptance report:
