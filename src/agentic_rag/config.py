@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     recursion_limit: int = 12
     hitl_enabled: bool = True
 
+    # Logging
+    log_level: str = "INFO"
+    log_dir: Path | None = None  # None = console only
+
     # Retrieval (MVP: index-only)
     retrieval_mode: str = "index"
     vector_db_path: Path | None = None

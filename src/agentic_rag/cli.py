@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+import traceback
 from uuid import uuid4
 
 import typer
 from langgraph.types import Command
 
 app = typer.Typer(help="Agentic RAG — LLM Wiki CLI")
+logger = logging.getLogger("agentic_rag.cli")
 
 
 @app.command()
@@ -16,15 +19,22 @@ def ingest(path: str = typer.Argument(..., help="Path to the source file to inge
     from pathlib import Path
 
     from agentic_rag.config import Settings
+    from agentic_rag.logging_config import setup_logging
 
-    # Validate source file exists
+    settings = Settings()
+    setup_logging(log_dir=settings.log_dir, level=settings.log_level)
+
+    logger.info(f"INGEST command invoked: path={path}")
+
     if not Path(path).is_file():
+        logger.error(f"Source file not found: {path}")
         typer.echo(f"Error: Source file not found: {path}", err=True)
         raise typer.Exit(1)
 
     try:
         settings = Settings()
     except Exception as e:
+        logger.error(f"Failed to load settings: {e}")
         typer.echo(f"Error loading settings: {e}", err=True)
         raise typer.Exit(1)
 
@@ -37,18 +47,23 @@ def ingest(path: str = typer.Argument(..., help="Path to the source file to inge
     }
 
     try:
+        logger.info("Invoking ingest agent")
         result = agent.invoke(
             {"messages": [{"role": "user", "content": f"Ingest {path}"}]}, config=config
         )
+        logger.info("Ingest agent completed")
     except Exception as e:
+        logger.error(f"Ingest agent failed: {e}\n{traceback.format_exc()}")
         typer.echo(f"Error during ingestion: {e}", err=True)
         raise typer.Exit(1)
 
     while "__interrupt__" in result:
         interrupt = result["__interrupt__"]
+        logger.info(f"HITL interrupt: {interrupt}")
         typer.echo(f"\n⏸ Interrupt: {interrupt}")
         decision = typer.prompt("Decision (approve/reject/edit)")
 
+        logger.info(f"HITL decision: {decision}")
         if decision == "approve":
             result = agent.invoke(
                 Command(resume={"decisions": [{"type": "approve"}]}), config=config
@@ -69,19 +84,20 @@ def ingest(path: str = typer.Argument(..., help="Path to the source file to inge
         else:
             typer.echo("Invalid decision. Please enter approve, reject, or edit.")
 
+    logger.info("INGEST command finished")
     typer.echo(result["messages"][-1].content)
 
 
 @app.command()
 def query(question: str = typer.Argument(..., help="Question to ask the wiki")):
     """Query the wiki (read-only)."""
-    try:
-        from agentic_rag.config import Settings
+    from agentic_rag.config import Settings
+    from agentic_rag.logging_config import setup_logging
 
-        settings = Settings()
-    except Exception as e:
-        typer.echo(f"Error loading settings: {e}", err=True)
-        raise typer.Exit(1)
+    settings = Settings()
+    setup_logging(log_dir=settings.log_dir, level=settings.log_level)
+
+    logger.info(f"QUERY command invoked: question={question}")
 
     from agentic_rag.agents.query import build_query_agent
 
@@ -92,26 +108,30 @@ def query(question: str = typer.Argument(..., help="Question to ask the wiki")):
     }
 
     try:
+        logger.info("Invoking query agent")
         result = agent.invoke(
             {"messages": [{"role": "user", "content": question}]}, config=config
         )
+        logger.info("Query agent completed")
     except Exception as e:
+        logger.error(f"Query agent failed: {e}\n{traceback.format_exc()}")
         typer.echo(f"Error during query: {e}", err=True)
         raise typer.Exit(1)
 
+    logger.info("QUERY command finished")
     typer.echo(result["messages"][-1].content)
 
 
 @app.command()
 def lint():
     """Run wiki health check. Writes report to wiki/lint-report-YYYY-MM-DD.md."""
-    try:
-        from agentic_rag.config import Settings
+    from agentic_rag.config import Settings
+    from agentic_rag.logging_config import setup_logging
 
-        settings = Settings()
-    except Exception as e:
-        typer.echo(f"Error loading settings: {e}", err=True)
-        raise typer.Exit(1)
+    settings = Settings()
+    setup_logging(log_dir=settings.log_dir, level=settings.log_level)
+
+    logger.info("LINT command invoked")
 
     from agentic_rag.agents.lint import build_lint_agent
 
@@ -122,6 +142,7 @@ def lint():
     }
 
     try:
+        logger.info("Invoking lint agent")
         result = agent.invoke(
             {
                 "messages": [
@@ -133,15 +154,19 @@ def lint():
             },
             config=config,
         )
+        logger.info("Lint agent completed")
     except Exception as e:
+        logger.error(f"Lint agent failed: {e}\n{traceback.format_exc()}")
         typer.echo(f"Error during lint: {e}", err=True)
         raise typer.Exit(1)
 
     while "__interrupt__" in result:
         interrupt = result["__interrupt__"]
+        logger.info(f"HITL interrupt: {interrupt}")
         typer.echo(f"\n⏸ Interrupt: {interrupt}")
         decision = typer.prompt("Decision (approve/reject)")
 
+        logger.info(f"HITL decision: {decision}")
         if decision == "approve":
             result = agent.invoke(
                 Command(resume={"decisions": [{"type": "approve"}]}), config=config
@@ -151,19 +176,20 @@ def lint():
                 Command(resume={"decisions": [{"type": "reject"}]}), config=config
             )
 
+    logger.info("LINT command finished")
     typer.echo(result["messages"][-1].content)
 
 
 @app.command()
 def status():
     """Show wiki status: page counts, last log entry, quick orphan scan."""
-    try:
-        from agentic_rag.config import Settings
+    from agentic_rag.config import Settings
+    from agentic_rag.logging_config import setup_logging
 
-        settings = Settings()
-    except Exception as e:
-        typer.echo(f"Error loading settings: {e}", err=True)
-        raise typer.Exit(1)
+    settings = Settings()
+    setup_logging(log_dir=settings.log_dir, level=settings.log_level)
+
+    logger.info("STATUS command invoked")
 
     from agentic_rag.io.index_manager import read_index
     from agentic_rag.io.log_manager import tail_log
@@ -180,19 +206,21 @@ def status():
         entry = last_log[0]
         typer.echo(f"Last log: [{entry.timestamp}] {entry.op} | {entry.title}")
 
+    logger.info("STATUS command finished")
+
 
 @app.command(name="log")
 def log_cmd(
     tail: int = typer.Option(10, help="Number of log entries to show"),
 ):
     """Tail the wiki log."""
-    try:
-        from agentic_rag.config import Settings
+    from agentic_rag.config import Settings
+    from agentic_rag.logging_config import setup_logging
 
-        settings = Settings()
-    except Exception as e:
-        typer.echo(f"Error loading settings: {e}", err=True)
-        raise typer.Exit(1)
+    settings = Settings()
+    setup_logging(log_dir=settings.log_dir, level=settings.log_level)
+
+    logger.info(f"LOG command invoked: tail={tail}")
 
     from agentic_rag.io.log_manager import tail_log
 
@@ -201,6 +229,8 @@ def log_cmd(
         typer.echo(f"[{entry.timestamp}] {entry.op} | {entry.title}")
         if entry.details:
             typer.echo(f"  {entry.details}")
+
+    logger.info("LOG command finished")
 
 
 if __name__ == "__main__":

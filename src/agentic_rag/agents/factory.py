@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
+
+logger = logging.getLogger("agentic_rag.agents")
 
 
 def build_agent(
@@ -27,6 +30,10 @@ def build_agent(
     Returns:
         A compiled agent runnable.
     """
+    logger.info(f"Building agent with {len(tools)} tools")
+    logger.debug(f"Tools: {[t.name for t in tools]}")
+    logger.debug(f"Middleware: {[m.__class__.__name__ for m in (middleware or [])]}")
+
     return create_agent(
         model=model,
         tools=tools,

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 
 from agentic_rag.agents.factory import build_agent
+from agentic_rag.agents.model import get_model
 from agentic_rag.agents.prompts import build_ingest_prompt
 from agentic_rag.schemas.agents_md import load_agents_md
 from agentic_rag.tools.ingest_tools import (
@@ -17,7 +20,8 @@ from agentic_rag.tools.ingest_tools import (
     update_page,
 )
 from agentic_rag.tools.shared import read_index, read_wiki_page, search_index
-from agentic_rag.agents.model import get_model
+
+logger = logging.getLogger("agentic_rag.agents.ingest")
 
 
 def build_ingest_agent(settings) -> object:
@@ -26,6 +30,7 @@ def build_ingest_agent(settings) -> object:
     Args:
         settings: Settings instance with openai_model, agents_md_path, wiki_path.
     """
+    logger.info("Building ingest agent")
     agents_md = load_agents_md(settings.agents_md_path)
     tools = [
         read_source,
@@ -49,6 +54,7 @@ def build_ingest_agent(settings) -> object:
             }
         )
     ]
+    logger.info("Ingest agent built with HITL on delete_wiki_page, flag_contradiction")
     return build_agent(
         model=get_model(settings),
         tools=tools,

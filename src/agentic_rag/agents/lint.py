@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 
 from agentic_rag.agents.factory import build_agent
+from agentic_rag.agents.model import get_model
 from agentic_rag.agents.prompts import build_lint_prompt
 from agentic_rag.schemas.agents_md import load_agents_md
 from agentic_rag.tools.lint_tools import (
@@ -14,7 +17,8 @@ from agentic_rag.tools.lint_tools import (
     write_lint_report,
 )
 from agentic_rag.tools.shared import read_index
-from agentic_rag.agents.model import get_model
+
+logger = logging.getLogger("agentic_rag.agents.lint")
 
 
 def build_lint_agent(settings) -> object:
@@ -23,6 +27,7 @@ def build_lint_agent(settings) -> object:
     Args:
         settings: Settings instance with openai_model, agents_md_path.
     """
+    logger.info("Building lint agent")
     agents_md = load_agents_md(settings.agents_md_path)
     tools = [
         read_all_pages,
@@ -40,6 +45,7 @@ def build_lint_agent(settings) -> object:
             }
         )
     ]
+    logger.info("Lint agent built with HITL on delete_wiki_page")
     return build_agent(
         model=get_model(settings),
         tools=tools,
