@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from agentic_rag.schemas.wiki import LogEntry
 
@@ -17,6 +20,7 @@ _LOG_PREFIX_RE = re.compile(
 
 def append_log(wiki_path: Path, entry: LogEntry) -> None:
     """Append a log entry to wiki/log.md with the standard prefix format."""
+    logger.info("Appending to log: %s | %s", entry.op, entry.title)
     log_path = wiki_path / "log.md"
     timestamp_str = entry.timestamp.strftime("%Y-%m-%d %H:%M")
     header = f"## [{timestamp_str}] {entry.op} | {entry.title}\n"
@@ -33,6 +37,7 @@ def append_log(wiki_path: Path, entry: LogEntry) -> None:
 
 def tail_log(wiki_path: Path, n: int = 10) -> list[LogEntry]:
     """Parse and return the last N log entries from wiki/log.md."""
+    logger.debug("Reading last %d log entries", n)
     log_path = wiki_path / "log.md"
     if not log_path.is_file():
         return []

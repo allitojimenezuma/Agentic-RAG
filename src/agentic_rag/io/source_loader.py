@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class SourceLoader:
@@ -34,6 +37,7 @@ class SourceLoader:
 
         Returns markdown with a leading "# Source: <filename>" heading.
         """
+        logger.info("Loading source with MarkItDown: %s", source)
         source_path = Path(source)
         if source_path.exists():
             if not source_path.is_file():
@@ -43,4 +47,6 @@ class SourceLoader:
 
         result = self._md.convert(str(source))
         filename = source_path.name
-        return f"# Source: {filename}\n\n{result.text_content}"
+        content = f"# Source: {filename}\n\n{result.text_content}"
+        logger.debug("Source converted, first 200 chars: %s", content[:200])
+        return content

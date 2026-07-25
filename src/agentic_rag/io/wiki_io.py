@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from agentic_rag.io.markdown_parser import parse_frontmatter, serialize_frontmatter
 from agentic_rag.schemas.wiki import Frontmatter
@@ -35,6 +38,7 @@ def list_pages(wiki_path: Path) -> list[Path]:
     for md_file in sorted(wiki_path.rglob("*.md")):
         if md_file.name not in _EXCLUDED_FILES:
             pages.append(md_file)
+    logger.debug("Listed %d pages in %s", len(pages), wiki_path)
     return pages
 
 
@@ -47,10 +51,12 @@ def _resolve_page_path(wiki_path: Path, slug: str) -> Path:
     # Direct path (slug already has directory)
     direct = wiki_path / f"{slug}.md"
     if direct.is_file():
+        logger.debug("Resolved slug '%s' -> %s (direct)", slug, direct)
         return direct
     # Recursive search for simple slugs like 'mlx'
     for md_file in wiki_path.rglob(f"{slug}.md"):
         if md_file.is_file():
+            logger.debug("Resolved slug '%s' -> %s (recursive)", slug, md_file)
             return md_file
     raise FileNotFoundError(f"Wiki page not found: {slug}")
 
@@ -63,6 +69,7 @@ def read_page(wiki_path: Path, slug: str) -> str:
     """
     _validate_slug(slug)
     page_path = _resolve_page_path(wiki_path, slug)
+    logger.debug("Reading page file: %s", page_path)
     return page_path.read_text(encoding="utf-8")
 
 
@@ -95,6 +102,7 @@ def write_page(
     """
     _validate_slug(slug)
     page_path = wiki_path / f"{slug}.md"
+    logger.info("Writing page file: %s", page_path)
     page_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Build full content with optional frontmatter
@@ -121,6 +129,7 @@ def delete_page(wiki_path: Path, slug: str) -> None:
     _validate_slug(slug)
     try:
         page_path = _resolve_page_path(wiki_path, slug)
+        logger.info("Deleting page file: %s", page_path)
         page_path.unlink()
     except FileNotFoundError:
         pass

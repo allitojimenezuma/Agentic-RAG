@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from pathlib import Path
 
@@ -18,13 +19,17 @@ from agentic_rag.io.wiki_io import (
 )
 from agentic_rag.schemas.wiki import Frontmatter, IndexEntry, LogEntry
 
+logger = logging.getLogger(__name__)
+
 
 @tool
 def read_source(source_path: str) -> str:
     """Read and convert a source file to markdown using MarkItDown. Supports pdf, docx, pptx, xlsx, html, csv, json, xml, ipynb, images, epub, and more."""
-    # Minimal settings for the loader (no LLM image describe)
+    logger.info("Reading source file: %s", source_path)
     loader = SourceLoader(settings=type("S", (), {"markitdown_llm_describe_images": False})())
-    return loader.load(source_path)
+    result = loader.load(source_path)
+    logger.debug("Source converted, first 200 chars: %s", result[:200])
+    return result
 
 
 @tool
@@ -38,8 +43,10 @@ def create_page(
     tags: list[str] | None = None,
 ) -> str:
     """Create a new wiki page. Fails if the page already exists. Use update_page for existing pages."""
+    logger.info("Creating page: %s (type=%s)", slug, page_type)
     path = Path(wiki_path)
     if page_exists(path, slug):
+        logger.warning("Page already exists: %s", slug)
         return f"Error: Page '{slug}' already exists. Use update_page to modify it."
 
     fm = Frontmatter(
@@ -51,6 +58,7 @@ def create_page(
         tags=tags or [],
     )
     _write_page(path, slug, content, frontmatter=fm)
+    logger.debug("Page written: %s -> %s", slug, path / f"{slug}.md")
     return f"Created page: {slug} (type={page_type}, title={title})"
 
 
@@ -63,8 +71,10 @@ def update_page(
     tags: list[str] | None = None,
 ) -> str:
     """Update an existing wiki page. Preserves frontmatter fields unless explicitly changed. Fails if the page does not exist."""
+    logger.info("Updating page: %s", slug)
     path = Path(wiki_path)
     if not page_exists(path, slug):
+        logger.warning("Page does not exist: %s", slug)
         return f"Error: Page '{slug}' does not exist. Use create_page first."
 
     fm, _body = _read_page_with_frontmatter(path, slug)
@@ -80,6 +90,7 @@ def update_page(
 @tool
 def delete_wiki_page(wiki_path: str, slug: str) -> str:
     """Delete a wiki page. This action requires human approval (HITL). Will be paused for confirmation."""
+    logger.info("Deleting page: %s", slug)
     path = Path(wiki_path)
     _delete_page(path, slug)
     return f"Deleted page: {slug}"
@@ -94,6 +105,7 @@ def update_index(
     sources: list[str] | None = None,
 ) -> str:
     """Update the wiki index with a new or modified entry. Call this after creating or updating a page."""
+    logger.info("Updating index entry: %s", slug)
     path = Path(wiki_path)
     entry = IndexEntry(
         slug=slug,
@@ -109,6 +121,7 @@ def update_index(
 @tool
 def append_log(wiki_path: str, op: str, title: str, details: str = "") -> str:
     """Append an entry to the wiki log.md. Use op='ingest' for source ingestion, 'query' for queries, 'lint' for health checks."""
+    logger.info("Appending log entry: %s | %s", op, title)
     path = Path(wiki_path)
     entry = LogEntry(
         timestamp=datetime.now(),
@@ -129,6 +142,12 @@ def flag_contradiction(
     proposed_resolution: str,
 ) -> str:
     """Flag a contradiction between existing wiki content and new source material. This action requires human approval (HITL). Will be paused for decision."""
+    logger.warning(
+        "Flagging contradiction on page: %s — existing: %s, new: %s",
+        page_slug,
+        existing_claim[:100],
+        new_claim[:100],
+    )
     return (
         f"CONTRADICTION FLAGGED (requires HITL):\n"
         f"  Page: {page_slug}\n"
