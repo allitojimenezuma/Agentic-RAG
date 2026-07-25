@@ -46,7 +46,12 @@ def extract_headings(content: str) -> list[Heading]:
 
 
 def parse_frontmatter(content: str) -> Frontmatter:
-    """Parse YAML frontmatter between --- delimiters at the start of content."""
+    """Parse YAML frontmatter between --- delimiters at the start of content.
+
+    Missing optional fields (updated, tags, sources) get sensible defaults.
+    """
+    from datetime import date
+
     if not content.startswith("---"):
         raise ValueError("Content does not start with YAML frontmatter delimiter '---'")
 
@@ -59,6 +64,11 @@ def parse_frontmatter(content: str) -> Frontmatter:
     data = yaml.safe_load(yaml_str)
     if not isinstance(data, dict):
         raise ValueError("Frontmatter is not a YAML mapping")
+
+    # Fill defaults for missing fields
+    data.setdefault("updated", date.today())
+    data.setdefault("sources", [])
+    data.setdefault("tags", [])
 
     return Frontmatter(**data)
 

@@ -56,15 +56,16 @@ def build_lint_prompt(agents_md: str) -> str:
 {agents_md}
 
 # Workflow
-1. read_all_pages + read_index.
-2. For each page: find_inbound_links to detect orphans.
-3. For each [[X]] link with no target file: missing page.
-4. Compare overlapping claims across pages: contradictions / stale claims.
-5. Suggest missing cross-references and data gaps (new questions/sources to investigate).
-6. write_lint_report(report) to wiki/lint-report-YYYY-MM-DD.md.
-7. If a page is clearly empty/duplicate and must be removed, call delete_wiki_page (HITL).
+1. Call wiki_link_summary() FIRST — this gives ALL pages with inbound/outbound links in one call. Use it to detect orphans and missing pages.
+2. Call read_all_pages(full=False) to get page metadata (type, title, updated) WITHOUT full content — saves tokens.
+3. Compare page metadata → detect stale claims (old updated dates), contradictions across pages.
+4. Suggest missing cross-references and data gaps (new questions/sources to investigate).
+5. write_lint_report(report) to wiki/lint-report-YYYY-MM-DD.md.
+6. If a page is clearly empty/duplicate and must be removed, call delete_wiki_page (HITL).
 
 # Rules
 - Prefer reporting over mutation.
 - Never modify content pages directly.
-- Cite page slugs + line references in findings."""
+- Cite page slugs + line references in findings.
+- Do NOT call find_inbound_links per page — wiki_link_summary() already gives all inbound links.
+- Do NOT call read_all_pages(full=True) unless you need full content for contradiction checks."""

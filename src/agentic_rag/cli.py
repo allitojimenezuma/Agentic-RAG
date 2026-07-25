@@ -143,8 +143,7 @@ def lint():
 
     agent = build_lint_agent(settings)
     config = {
-        "configurable": {"thread_id": str(uuid4())},
-        "recursion_limit": settings.recursion_limit,
+        "configurable": {"thread_id": str(uuid4())}
     }
 
     try:

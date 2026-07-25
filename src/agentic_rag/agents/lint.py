@@ -14,6 +14,7 @@ from agentic_rag.tools.lint_tools import (
     extract_concepts,
     find_inbound_links,
     read_all_pages,
+    wiki_link_summary,
     write_lint_report,
 )
 from agentic_rag.tools.shared import init_shared_tools, read_index
@@ -31,6 +32,7 @@ def build_lint_agent(settings) -> object:
     init_shared_tools(settings.wiki_path)
     agents_md = load_agents_md(settings.agents_md_path)
     tools = [
+        wiki_link_summary,
         read_all_pages,
         read_index,
         find_inbound_links,
