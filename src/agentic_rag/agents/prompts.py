@@ -38,12 +38,13 @@ def build_query_prompt(agents_md: str) -> str:
 1. read_index to identify candidate pages.
 2. search_index(question) to augment candidates.
 3. read_wiki_page for each candidate; follow cross-links as needed.
-4. Synthesize an answer with inline citations: "claim ([[/page-slug]])."
-5. Return markdown answer + a "Sources consulted" list (page slugs + source titles).
+4. Synthesize an answer with inline citations ONLY for pages you actually read using read_wiki_page.
+5. Return markdown answer with inline citations ONLY for pages you actually read using read_wiki_page. Do NOT cite pages you only saw in the index or in [[links]] — you must call read_wiki_page for each page you cite. At the end, list only the pages you actually read in the "Sources Consulted" table.
 
 # Rules
 - Read-only. Do not call any write tool (none provided).
-- If the wiki does not cover the question, say so explicitly and suggest sources to ingest."""
+- If the wiki does not cover the question, say so explicitly and suggest sources to ingest.
+- CRITICAL: Only cite pages you actually called read_wiki_page on. Never infer or hallucinate content from page names alone."""
 
 
 def build_lint_prompt(agents_md: str) -> str:

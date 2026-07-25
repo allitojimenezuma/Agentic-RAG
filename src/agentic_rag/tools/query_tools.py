@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 @tool
 def find_relevant_pages(wiki_path: str, query: str) -> str:
     """Find wiki pages relevant to a query. Combines index search with link traversal. Returns a list of slugs to read."""
-    logger.info("Finding relevant pages for: %s", query)
+    logger.debug("Finding relevant pages for: %s", query)
     path = Path(wiki_path)
     # Step 1: search the index for matching entries
     index_results = find_in_index(path, query)
     slugs: list[str] = [e.slug for e in index_results]
-    logger.debug("Index matched %d slugs: %s", len(slugs), slugs)
+    logger.debug("Index matched slugs: %s", slugs)
 
     # Step 2: for each matched page, follow [[links]] to related pages
     visited: set[str] = set(slugs)
@@ -46,7 +46,7 @@ def find_relevant_pages(wiki_path: str, query: str) -> str:
         return f"No pages found for query '{query}'."
 
     result_slugs = sorted(visited)
-    logger.debug("Found %d relevant pages: %s", len(result_slugs), result_slugs)
+    logger.debug("Found relevant pages: %s", result_slugs)
     lines = [f"Found {len(result_slugs)} relevant page(s) for '{query}':"]
     for s in result_slugs:
         marker = " (direct match)" if s in slugs else " (via links)"

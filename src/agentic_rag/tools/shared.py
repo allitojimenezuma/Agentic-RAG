@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 @tool
 def read_index(wiki_path: str) -> str:
     """Read the wiki index.md and return its full content. Shows all entities, concepts, sources, and comparisons with summaries."""
-    logger.info("Reading wiki index from %s", wiki_path)
+    logger.debug("Reading wiki index from %s", wiki_path)
     path = Path(wiki_path)
     idx = _read_index(path)
     if not idx.categories:
@@ -42,7 +42,7 @@ def read_index(wiki_path: str) -> str:
 @tool
 def read_wiki_page(wiki_path: str, slug: str) -> str:
     """Read a wiki page by slug. Returns the full markdown content including frontmatter. Use this to get detailed information about any entity, concept, or source."""
-    logger.info("Reading wiki page: %s", slug)
+    logger.debug("Reading wiki page: %s", slug)
     path = Path(wiki_path)
     return _read_page(path, slug)
 
@@ -50,10 +50,9 @@ def read_wiki_page(wiki_path: str, slug: str) -> str:
 @tool
 def search_index(wiki_path: str, query: str) -> str:
     """Search the wiki index by keyword. Returns matching entries with their slugs, types, and summaries. Use to find relevant pages before reading them."""
-    logger.info("Searching index for: %s", query)
+    logger.debug("Searching index for: %s", query)
     path = Path(wiki_path)
     results = find_in_index(path, query)
-    logger.debug("Found %d results for '%s'", len(results), query)
     if not results:
         return f"No results found for '{query}'."
 

@@ -17,10 +17,9 @@ logger = logging.getLogger(__name__)
 @tool
 def read_all_pages(wiki_path: str) -> str:
     """Read ALL wiki pages. Returns a dict of slug→content. Use sparingly - this is expensive for large wikis."""
-    logger.info("Reading all wiki pages from %s", wiki_path)
+    logger.debug("Reading all wiki pages from %s", wiki_path)
     path = Path(wiki_path)
     pages = list_pages(path)
-    logger.debug("Found %d pages to read", len(pages))
     if not pages:
         return "No wiki pages found."
 
@@ -37,7 +36,7 @@ def find_inbound_links(wiki_path: str, slug: str) -> str:
     """Find all pages that link to a given slug via [[slug]] or [[slug|alias]] syntax. Use to detect orphan pages."""
     import re
 
-    logger.info("Finding inbound links to: %s", slug)
+    logger.debug("Finding inbound links to: %s", slug)
     path = Path(wiki_path)
     pattern = re.compile(r"\[\[" + re.escape(slug) + r"(?:\|[^\]]+)?\]\]")
     pages = list_pages(path)
@@ -49,7 +48,7 @@ def find_inbound_links(wiki_path: str, slug: str) -> str:
             page_slug = str(page_path.relative_to(path)).removesuffix(".md")
             linking_pages.append(page_slug)
 
-    logger.debug("Found %d pages linking to '%s': %s", len(linking_pages), slug, linking_pages)
+    logger.debug("Found pages linking to '%s': %s", slug, linking_pages)
     if not linking_pages:
         return f"No pages link to '{slug}'. This page may be an orphan."
     return f"Found {len(linking_pages)} page(s) linking to '{slug}':\n" + "\n".join(
@@ -60,7 +59,7 @@ def find_inbound_links(wiki_path: str, slug: str) -> str:
 @tool
 def extract_concepts(content: str) -> str:
     """Extract concept names from page content. Returns headings and [[link]] targets found in the content."""
-    logger.info("Extracting concepts from content (%d chars)", len(content))
+    logger.debug("Extracting concepts from content (%d chars)", len(content))
     headings = extract_headings(content)
     links = extract_links(content)
     logger.debug("Found %d headings, %d links", len(headings), len(links))
@@ -85,6 +84,6 @@ def write_lint_report(wiki_path: str, report: str) -> str:
     path = Path(wiki_path)
     today = date.today().isoformat()
     report_path = path / f"lint-report-{today}.md"
-    logger.info("Writing lint report to %s", report_path)
+    logger.debug("Writing lint report to %s", report_path)
     report_path.write_text(report, encoding="utf-8")
     return f"Lint report written to: lint-report-{today}.md"
