@@ -8,7 +8,7 @@ from datetime import date
 
 from langchain_core.tools import tool
 
-from agentic_rag.io.markdown_parser import extract_headings, extract_links, parse_frontmatter
+from agentic_rag.io.markdown_parser import extract_headings, extract_links, parse_frontmatter, slugify
 from agentic_rag.io.wiki_io import list_pages, read_page
 from agentic_rag.tools.shared import get_wiki_path
 
@@ -21,9 +21,12 @@ def wiki_link_summary() -> str:
     Returns each page's slug, type, outbound links (what it links to), and inbound links (what links to it).
     Use this instead of calling find_inbound_links per page — much more efficient."""
     wiki_path = get_wiki_path()
+    logger.info("Building link summary for %s", wiki_path)
     pages = list_pages(wiki_path)
     if not pages:
+        logger.debug("No pages found in %s", wiki_path)
         return "No wiki pages found."
+    logger.debug("Found %d pages to analyze", len(pages))
 
     # Build slug set for link resolution
     page_slugs = set()
@@ -34,8 +37,8 @@ def wiki_link_summary() -> str:
         # Exact match
         if target in page_slugs:
             return target
-        # Slugified match: "3D Gaussian Splatting" -> "3d-gaussian-splatting"
-        s = target.lower().replace(" ", "-")
+        # Slugified match: "Álvaro Jiménez" -> "alvaro-jimenez"
+        s = slugify(target)
         for ps in page_slugs:
             short = ps.rsplit("/", 1)[-1] if "/" in ps else ps
             if short == s or ps.endswith("/" + s):
@@ -45,22 +48,43 @@ def wiki_link_summary() -> str:
     for page_path in pages:
         slug = str(page_path.relative_to(wiki_path)).removesuffix(".md")
         page_slugs.add(slug)
-        try:
-            content = page_path.read_text(encoding="utf-8")
-            fm = parse_frontmatter(content)
-            links = extract_links(content)
-            outbound = set()
-            for link in links:
-                resolved = _resolve_link(link.target)
-                if resolved and resolved != slug:
-                    outbound.add(resolved)
-            page_data[slug] = {
-                "outbound": outbound,
-                "type": fm.type or "unknown",
-                "title": fm.title or slug,
-            }
-        except Exception:
-            page_data[slug] = {"outbound": set(), "type": "unknown", "title": slug}
+        content = page_path.read_text(encoding="utf-8")
+
+        # Extract links (works with or without frontmatter)
+        links = extract_links(content)
+        outbound = set()
+        for link in links:
+            resolved = _resolve_link(link.target)
+            if resolved and resolved != slug:
+                outbound.add(resolved)
+
+        # Try to parse frontmatter for type/title; fallback to directory + first heading
+        page_type = "unknown"
+        title = slug.rsplit("/", 1)[-1] if "/" in slug else slug
+        if content.startswith("---"):
+            try:
+                fm = parse_frontmatter(content)
+                page_type = fm.type or page_type
+                title = fm.title or title
+            except Exception:
+                pass
+        else:
+            # Infer type from directory: entities/foo -> entity, concepts/foo -> concept
+            if "/" in slug:
+                dir_name = slug.split("/")[0]
+                _DIR_TO_TYPE = {"entities": "entity", "concepts": "concept", "sources": "source", "comparisons": "comparison"}
+                page_type = _DIR_TO_TYPE.get(dir_name, dir_name.rstrip("s"))
+            # Infer title from first heading
+            for line in content.split("\n"):
+                if line.startswith("# "):
+                    title = line[2:].strip()
+                    break
+
+        page_data[slug] = {
+            "outbound": outbound,
+            "type": page_type,
+            "title": title,
+        }
 
     # Compute inbound links
     inbound = {slug: set() for slug in page_slugs}
@@ -84,10 +108,17 @@ def wiki_link_summary() -> str:
     orphans = [s for s in page_slugs if not inbound.get(s)]
     lines.append(f"--- SUMMARY ---")
     lines.append(f"Total pages: {len(page_slugs)}")
+    lines.append(f"Total links: {sum(len(d['outbound']) for d in page_data.values())}")
     lines.append(f"Orphans (no inbound links): {len(orphans)}")
     if orphans:
         lines.append(f"  {', '.join(sorted(orphans))}")
 
+    logger.info(
+        "Link summary: %d pages, %d links, %d orphans",
+        len(page_slugs),
+        sum(len(d['outbound']) for d in page_data.values()),
+        len(orphans),
+    )
     return "\n".join(lines)
 
 
@@ -114,17 +145,32 @@ def read_all_pages(full: bool = False) -> str:
         if full:
             lines.append(f"=== {slug} ===\n{content}\n")
         else:
-            # Lightweight: frontmatter + outbound links only
-            try:
-                fm = parse_frontmatter(content)
-                links = extract_links(content)
-                outbound = [l.target for l in links]
-                lines.append(
-                    f"=== {slug} === type={fm.type} title={fm.title} updated={fm.updated}"
-                    + (f" links={outbound}" if outbound else " links=[]")
-                )
-            except Exception:
-                lines.append(f"=== {slug} === (parse error)")
+            # Lightweight: metadata + outbound links only
+            page_type = "unknown"
+            title = slug.rsplit("/", 1)[-1] if "/" in slug else slug
+            updated = "unknown"
+            if content.startswith("---"):
+                try:
+                    fm = parse_frontmatter(content)
+                    page_type = fm.type or page_type
+                    title = fm.title or title
+                    updated = str(fm.updated)
+                except Exception:
+                    pass
+            else:
+                if "/" in slug:
+                    _DIR_TO_TYPE = {"entities": "entity", "concepts": "concept", "sources": "source", "comparisons": "comparison"}
+                    page_type = _DIR_TO_TYPE.get(slug.split("/")[0], "unknown")
+                for line in content.split("\n"):
+                    if line.startswith("# "):
+                        title = line[2:].strip()
+                        break
+            links = extract_links(content)
+            outbound = [l.target for l in links]
+            lines.append(
+                f"=== {slug} === type={page_type} title={title} updated={updated}"
+                + (f" links={outbound}" if outbound else " links=[]")
+            )
 
     return "\n".join(lines)
 

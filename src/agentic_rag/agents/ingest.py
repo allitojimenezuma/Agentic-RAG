@@ -30,7 +30,6 @@ def build_ingest_agent(settings) -> object:
     Args:
         settings: Settings instance with openai_model, agents_md_path, wiki_path.
     """
-    logger.info("Building ingest agent")
     init_shared_tools(settings.wiki_path)
     agents_md = load_agents_md(settings.agents_md_path)
     tools = [
@@ -55,7 +54,6 @@ def build_ingest_agent(settings) -> object:
             }
         )
     ]
-    logger.info("Ingest agent built with HITL on delete_wiki_page, flag_contradiction")
     return build_agent(
         model=get_model(settings),
         tools=tools,

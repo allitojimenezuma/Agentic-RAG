@@ -20,11 +20,9 @@ def build_query_agent(settings) -> object:
     Args:
         settings: Settings instance with openai_model, agents_md_path.
     """
-    logger.info("Building query agent (read-only)")
     init_shared_tools(settings.wiki_path)
     agents_md = load_agents_md(settings.agents_md_path)
     tools = [read_index, search_index, read_wiki_page, find_relevant_pages]
-    logger.info("Query agent built with read-only tools")
     return build_agent(
         model=get_model(settings),
         tools=tools,

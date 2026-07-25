@@ -110,7 +110,6 @@ def read_index(wiki_path: Path) -> Index:
 
         categories[section_name] = entries
 
-    logger.debug("Read index: %d categories, %d entries", len(categories), sum(len(e) for e in categories.values()))
     return Index(categories=categories)
 
 
@@ -134,7 +133,6 @@ def _format_entry(entry: IndexEntry) -> str:
 def write_index(wiki_path: Path, index: Index) -> None:
     """Write the Index model to wiki/index.md atomically."""
     total = sum(len(e) for e in index.categories.values())
-    logger.info("Writing index with %d entries to %s", total, wiki_path / "index.md")
     lines = ["# Wiki Index", ""]
 
     for category_name, entries in index.categories.items():
@@ -174,7 +172,6 @@ def _category_for_type(page_type: str) -> str:
 
 def upsert_entry(wiki_path: Path, entry: IndexEntry) -> None:
     """Add or update an entry in the correct category of the index."""
-    logger.info("Upserting index entry: %s (type=%s)", entry.slug, entry.type)
     index = read_index(wiki_path)
     category = _category_for_type(entry.type)
     if category not in index.categories:
@@ -195,7 +192,6 @@ def upsert_entry(wiki_path: Path, entry: IndexEntry) -> None:
 
 def remove_entry(wiki_path: Path, slug: str) -> None:
     """Remove an entry by slug from all categories in the index."""
-    logger.info("Removing index entry: %s", slug)
     index = read_index(wiki_path)
     for category_name, entries in index.categories.items():
         index.categories[category_name] = [e for e in entries if e.slug != slug]
@@ -211,5 +207,4 @@ def find_in_index(wiki_path: Path, query: str) -> list[IndexEntry]:
         for entry in entries:
             if query_lower in entry.summary.lower() or query_lower in entry.slug.lower():
                 results.append(entry)
-    logger.debug("Index search '%s': %d matches", query, len(results))
     return results

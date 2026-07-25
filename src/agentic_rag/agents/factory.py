@@ -11,7 +11,6 @@ from langgraph.checkpoint.memory import MemorySaver
 from agentic_rag.token_tracker import TokenTracker
 from agentic_rag.middleware.logging import set_tracker
 
-logger = logging.getLogger("agentic_rag.agents")
 
 
 def build_agent(
@@ -35,9 +34,6 @@ def build_agent(
     Returns:
         A compiled agent runnable with _token_tracker attribute.
     """
-    logger.info(f"Building agent with {len(tools)} tools")
-    logger.debug(f"Tools: {[t.name for t in tools]}")
-    logger.debug(f"Middleware: {[m.__class__.__name__ for m in (middleware or [])]}")
 
     # Create and attach token tracker
     tracker = TokenTracker(model_name)
