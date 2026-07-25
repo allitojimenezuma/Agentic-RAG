@@ -9,7 +9,7 @@ from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 from agentic_rag.token_tracker import TokenTracker
-from agentic_rag.middleware.logging import set_tracker
+from agentic_rag.middleware.logging import set_tracker, audit_logging_middleware, token_capture_middleware
 
 
 
@@ -39,11 +39,14 @@ def build_agent(
     tracker = TokenTracker(model_name)
     set_tracker(tracker)
 
+    # Always include logging and token capture middleware
+    all_middleware = [audit_logging_middleware, token_capture_middleware] + (middleware or [])
+
     agent = create_agent(
         model=model,
         tools=tools,
         system_prompt=system_prompt,
-        middleware=middleware or [],
+        middleware=all_middleware,
         checkpointer=MemorySaver(),
     )
     agent._token_tracker = tracker
