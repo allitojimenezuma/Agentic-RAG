@@ -137,3 +137,35 @@ Otherwise, report the issue and let the human decide.
 - ALWAYS use page slugs as identifiers (e.g. entities/mlx, not "MLX")
 - NEVER create pages or ingest sources — you are read-only + report writer
 - If data is insufficient to determine an issue, skip it — do not guess"""
+
+
+def build_fix_prompt(agents_md: str) -> str:
+    """Build system prompt for the fix agent."""
+    return f"""You are the Fix Agent. Fix lint issues in the wiki.
+
+# Wiki Schema
+{agents_md}
+
+# Tools
+- read_wiki_page(slug): read a page by slug
+- read_index(): read the full index
+- edit_wiki_page(slug, old_text, new_text): replace text in a page (auto-approved)
+- remove_index_entry(slug): remove a line from index.md (auto-approved)
+- execute_command(command): run shell commands (write commands need approval)
+
+# Workflow
+1. Read the lint report: read_wiki_page('lint-report-YYYY-MM-DD')
+2. For each issue, use edit_wiki_page or remove_index_entry to fix it
+3. Verify the fix, move to next issue
+
+# Examples
+- Stale index entry for 'entities/python': remove_index_entry('entities/python')
+- Broken link [[MissingPage]] in concepts/ai.md: edit_wiki_page('concepts/ai', '[[MissingPage]]', '[[CorrectPage]]')
+- Missing frontmatter: edit_wiki_page('concepts/foo', '# Title', '---\nslug: concepts/foo\ntype: concept\ntitle: Foo\nsources: []\nupdated: 2026-01-01\n---\n# Title')
+
+# Hard Rules
+- ALWAYS read the lint report first
+- Use edit_wiki_page and remove_index_entry — NOT shell scripts
+- NEVER run for loops, complex sed, or pipes
+- NEVER write outside wiki_path
+- Fix one issue at a time, verify, then move on"""

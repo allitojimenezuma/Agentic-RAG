@@ -21,11 +21,11 @@ class Settings(BaseSettings):
     agents_md_path: Path = Path("./AGENTS.md")
 
     # Agent runtime
-    recursion_limit: int = 12
+    recursion_limit: int = 30
     hitl_enabled: bool = True
 
     # Logging
-    log_level: str = "DEBUG"
+    log_level: str = "INFO"
     log_dir: Path | None = None  # None = console only
 
     # Retrieval (MVP: index-only)

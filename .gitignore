@@ -1,5 +1,6 @@
 .agents/
 wiki/
+wiki copy */
 raw/
 .venv
 .env

@@ -39,7 +39,6 @@ def audit_logging_middleware(request, handler):
     try:
         result = handler(request)
         duration = time.time() - start_time
-        logger.info(f"TOOL RESULT: {tool_name} completed in {duration:.3f}s")
         logger.debug(f"TOOL OUTPUT: {tool_name} -> {str(result)[:500]}")
         return result
     except Exception as e:

@@ -189,6 +189,112 @@ def lint():
 
 
 @app.command()
+def fix(
+    issue: str = typer.Argument(
+        ..., help="Description of the lint issue to fix or 'latest' to read the latest report"
+    )
+):
+    """Fix wiki lint issues by executing commands in the wiki directory."""
+    from agentic_rag.config import Settings
+    from agentic_rag.logging_config import setup_logging
+
+    settings = Settings()
+    setup_logging(log_dir=settings.log_dir, level=settings.log_level)
+
+    logger.info(f"FIX command invoked: issue={issue}")
+
+    from agentic_rag.agents.fix import build_fix_agent
+
+    agent = build_fix_agent(settings)
+    config = {
+        "configurable": {"thread_id": str(uuid4())}
+    }
+
+    try:
+        logger.info("Invoking fix agent")
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": f"Fix this lint issue: {issue}"}]},
+            config=config,
+        )
+        logger.info("Fix agent completed")
+        if hasattr(agent, "_token_tracker"):
+            agent._token_tracker.log_summary()
+    except Exception as e:
+        logger.error(f"Fix agent failed: {e}\n{traceback.format_exc()}")
+        typer.echo(f"Error during fix: {e}", err=True)
+        raise typer.Exit(1)
+
+    while "__interrupt__" in result:
+        interrupts = result["__interrupt__"]
+        # result["__interrupt__"] is a list/tuple of Interrupt objects
+        if isinstance(interrupts, (list, tuple)):
+            interrupt = interrupts[0]
+        else:
+            interrupt = interrupts
+
+        # Interrupt.value is a dict with action_requests
+        raw = getattr(interrupt, "value", interrupt)
+        try:
+            actions = raw.get("action_requests", []) if hasattr(raw, "get") else []
+        except Exception:
+            actions = []
+        if not actions:
+            actions = [{"name": "unknown", "args": {"command": "unknown"}}]
+
+        # Display commands
+        typer.echo(f"\n{'='*60}")
+        typer.echo(f"  {len(actions)} pending command{'s' if len(actions) > 1 else ''}")
+        typer.echo(f"{'='*60}")
+        for i, action in enumerate(actions, 1):
+            args = action.get("args", {}) if isinstance(action, dict) else {}
+            cmd = args.get("command", "unknown") if isinstance(args, dict) else "unknown"
+            typer.echo(f"  [{i}] {cmd}")
+        typer.echo(f"{'='*60}")
+        typer.echo("  [a]pprove all  [r]eject all  [e]dit single command")
+
+        decision = typer.prompt("Decision")
+        logger.info(f"HITL decision: {decision}")
+
+        if decision in ("a", "approve"):
+            result = agent.invoke(
+                Command(resume={"decisions": [{"type": "approve"}] * len(actions)}),
+                config=config,
+            )
+        elif decision in ("r", "reject"):
+            feedback = typer.prompt("Feedback (optional)", default="")
+            result = agent.invoke(
+                Command(
+                    resume={"decisions": [{"type": "reject", "feedback": feedback}] * len(actions)}
+                ),
+                config=config,
+            )
+        elif decision in ("e", "edit"):
+            if len(actions) == 1:
+                idx = 0
+            else:
+                idx = int(typer.prompt(f"Which command to edit [1-{len(actions)}]")) - 1
+            old_cmd = actions[idx].get("args", {}).get("command", "")
+            typer.echo(f"Current: {old_cmd}")
+            new_cmd = typer.prompt("New command")
+            decisions = [{"type": "approve"}] * len(actions)
+            decisions[idx] = {
+                "type": "edit",
+                "edited_action": {
+                    "name": "execute_command",
+                    "args": {"command": new_cmd},
+                },
+            }
+            result = agent.invoke(
+                Command(resume={"decisions": decisions}), config=config
+            )
+        else:
+            typer.echo("Invalid. Use a/r/e.")
+
+    logger.info("FIX command finished")
+    typer.echo(result["messages"][-1].content)
+
+
+@app.command()
 def status():
     """Show wiki status: page counts, last log entry, quick orphan scan."""
     from agentic_rag.config import Settings

@@ -57,7 +57,10 @@ def read_index() -> str:
 def read_wiki_page(slug: str) -> str:
     """Read a wiki page by slug. Returns the full markdown content including frontmatter. Use this to get detailed information about any entity, concept, or source."""
     logger.debug("Reading wiki page: %s", slug)
-    return _read_page(_WIKI_PATH, slug)
+    try:
+        return _read_page(_WIKI_PATH, slug)
+    except FileNotFoundError:
+        return f"Page not found: {slug}"
 
 
 @tool
