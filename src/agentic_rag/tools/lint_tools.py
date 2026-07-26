@@ -28,26 +28,41 @@ def wiki_link_summary() -> str:
         return "No wiki pages found."
     logger.debug("Found %d pages to analyze", len(pages))
 
-    # Build slug set for link resolution
+    # Build slug set for link resolution (must be complete BEFORE resolving links)
     page_slugs = set()
+    for p in pages:
+        page_slugs.add(str(p.relative_to(wiki_path)).removesuffix(".md"))
     page_data = {}  # slug -> {outbound: set, type: str, title: str}
 
     def _resolve_link(target: str) -> str | None:
-        """Resolve a link target (display name) to an actual page slug."""
+        """Resolve a link target (display name) to an actual page slug.
+
+        Handles both ASCII slugs (slugify output) and Unicode filenames
+        (e.g. málaga.md) by trying both normalized forms.
+        """
         # Exact match
         if target in page_slugs:
             return target
-        # Slugified match: "Álvaro Jiménez" -> "alvaro-jimenez"
+
+        # Try slugified match (ASCII normalized)
         s = slugify(target)
         for ps in page_slugs:
             short = ps.rsplit("/", 1)[-1] if "/" in ps else ps
             if short == s or ps.endswith("/" + s):
                 return ps
+
+        # Try Unicode-preserving match: lowercase + replace spaces with hyphens
+        # but keep unicode chars (e.g. "Málaga" -> "málaga")
+        t = target.lower().replace(" ", "-")
+        for ps in page_slugs:
+            short = ps.rsplit("/", 1)[-1] if "/" in ps else ps
+            if short == t or ps.endswith("/" + t):
+                return ps
+
         return None
 
     for page_path in pages:
         slug = str(page_path.relative_to(wiki_path)).removesuffix(".md")
-        page_slugs.add(slug)
         content = page_path.read_text(encoding="utf-8")
 
         # Extract links (works with or without frontmatter)
