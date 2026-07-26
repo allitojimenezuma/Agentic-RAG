@@ -11,13 +11,11 @@ from agentic_rag.agents.model import get_model
 from agentic_rag.agents.prompts import build_lint_prompt
 from agentic_rag.schemas.agents_md import load_agents_md
 from agentic_rag.tools.lint_tools import (
-    extract_concepts,
-    find_inbound_links,
     read_all_pages,
     wiki_link_summary,
     write_lint_report,
 )
-from agentic_rag.tools.shared import init_shared_tools, read_index
+from agentic_rag.tools.shared import init_shared_tools, read_index, read_wiki_page
 
 
 
@@ -33,8 +31,7 @@ def build_lint_agent(settings) -> object:
         wiki_link_summary,
         read_all_pages,
         read_index,
-        find_inbound_links,
-        extract_concepts,
+        read_wiki_page,
         write_lint_report,
     ]
     middleware = [

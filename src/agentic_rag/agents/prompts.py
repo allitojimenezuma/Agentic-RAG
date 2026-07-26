@@ -61,9 +61,9 @@ def build_lint_prompt(agents_md: str) -> str:
 
 # Step 1: Gather data (2 tool calls max)
 1. Call wiki_link_summary() — returns ALL pages with inbound/outbound links. Use this to detect orphans, missing pages, and link health.
-2. Call read_all_pages(full=False) — returns metadata (slug, type, title, updated, outbound links) WITHOUT full page content. Cheap on tokens.
+2. Call read_all_pages() — returns metadata (slug, type, title, updated, outbound links) for every page.
 
-STOP. Do NOT call any more data-gathering tools. Analyze what you have.
+STOP. Do NOT call any more data-gathering tools unless Step 3 requires it.
 
 # Step 2: Analyze and classify issues
 For each issue found, classify severity:
@@ -131,9 +131,8 @@ Only call delete_wiki_page if ALL of these are true:
 Otherwise, report the issue and let the human decide.
 
 # Hard Rules
-- NEVER call read_all_pages(full=True) — it wastes tokens
-- NEVER call find_inbound_links per page — wiki_link_summary() already gives all inbound links
 - NEVER modify content pages — only delete via HITL or write the lint report
+- read_wiki_page: ONLY call when (a) the user explicitly asks for page content, or (b) you CANNOT determine an issue severity without full content (e.g. EMPTY PAGE check needs word count). Never call it for orphan/link/structural checks — metadata is sufficient.
 - ALWAYS write the report before ending — even if no issues found
 - ALWAYS use page slugs as identifiers (e.g. entities/mlx, not "MLX")
 - NEVER create pages or ingest sources — you are read-only + report writer

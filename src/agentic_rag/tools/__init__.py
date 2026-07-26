@@ -13,8 +13,6 @@ from agentic_rag.tools.ingest_tools import (
 from agentic_rag.tools.query_tools import find_relevant_pages
 from agentic_rag.tools.lint_tools import (
     read_all_pages,
-    find_inbound_links,
-    extract_concepts,
     write_lint_report,
 )
 
@@ -35,7 +33,5 @@ __all__ = [
     "find_relevant_pages",
     # Lint
     "read_all_pages",
-    "find_inbound_links",
-    "extract_concepts",
     "write_lint_report",
 ]
