@@ -11,6 +11,7 @@ from agentic_rag.io.index_manager import upsert_entry as _upsert_entry
 from agentic_rag.io.log_manager import append_log as _append_log
 from agentic_rag.io.source_loader import SourceLoader
 from agentic_rag.io.wiki_io import (
+    _resolve_page_path,
     delete_page as _delete_page,
     page_exists,
     read_page_with_frontmatter as _read_page_with_frontmatter,
@@ -47,6 +48,10 @@ def create_page(
         logger.debug("Page already exists: %s", slug)
         return f"Error: Page '{slug}' already exists. Use update_page to modify it."
 
+    # Ensure parent directory exists (e.g. entities/ for slug 'entities/foo')
+    target = get_wiki_path() / f"{slug}.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+
     fm = Frontmatter(
         slug=slug,
         type=page_type,
@@ -69,18 +74,32 @@ def update_page(
 ) -> str:
     """Update an existing wiki page. Preserves frontmatter fields unless explicitly changed. Fails if the page does not exist."""
     logger.debug("Updating page: %s", slug)
-    if not page_exists(get_wiki_path(), slug):
-        logger.debug("Page does not exist: %s", slug)
+    # Resolve slug to actual path (handles 'mlx' → 'entities/mlx')
+    try:
+        resolved = _resolve_page_path(get_wiki_path(), slug)
+    except FileNotFoundError:
         return f"Error: Page '{slug}' does not exist. Use create_page first."
+    # Use resolved slug for write
+    resolved_slug = str(resolved.relative_to(get_wiki_path())).removesuffix(".md")
 
-    fm, _body = _read_page_with_frontmatter(get_wiki_path(), slug)
+    try:
+        fm, _body = _read_page_with_frontmatter(get_wiki_path(), slug)
+    except (ValueError, KeyError):
+        fm = Frontmatter(
+            slug=resolved_slug,
+            type="concept",
+            title=resolved_slug.rsplit("/", 1)[-1],
+            sources=[],
+            updated=date.today(),
+            tags=[],
+        )
     fm.updated = date.today()
     if sources is not None:
         fm.sources = sources
     if tags is not None:
         fm.tags = tags
-    _write_page(get_wiki_path(), slug, content, frontmatter=fm)
-    return f"Updated page: {slug}"
+    _write_page(get_wiki_path(), resolved_slug, content, frontmatter=fm)
+    return f"Updated page: {resolved_slug}"
 
 
 @tool

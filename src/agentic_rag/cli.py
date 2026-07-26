@@ -14,8 +14,8 @@ logger = logging.getLogger("agentic_rag.cli")
 
 
 @app.command()
-def ingest(path: str = typer.Argument(..., help="Path to the source file to ingest")):
-    """Ingest a source file into the wiki. HITL prompts inline."""
+def ingest(input_text: str = typer.Argument(..., help="File path to ingest OR natural language to update/create")):
+    """Ingest a source file or update/create pages from natural language."""
     from pathlib import Path
 
     from agentic_rag.config import Settings
@@ -24,12 +24,16 @@ def ingest(path: str = typer.Argument(..., help="Path to the source file to inge
     settings = Settings()
     setup_logging(log_dir=settings.log_dir, level=settings.log_level)
 
-    logger.info(f"INGEST command invoked: path={path}")
+    logger.info(f"INGEST command invoked: input={input_text}")
 
-    if not Path(path).is_file():
-        logger.error(f"Source file not found: {path}")
-        typer.echo(f"Error: Source file not found: {path}", err=True)
-        raise typer.Exit(1)
+    # Auto-detect mode: file path vs natural language
+    input_path = Path(input_text)
+    if input_path.is_file():
+        user_message = f"Ingest {input_text}"
+        logger.info("Mode: file ingest")
+    else:
+        user_message = input_text
+        logger.info("Mode: update/create from text")
 
     try:
         settings = Settings()
@@ -49,10 +53,9 @@ def ingest(path: str = typer.Argument(..., help="Path to the source file to inge
     try:
         logger.info("Invoking ingest agent")
         result = agent.invoke(
-            {"messages": [{"role": "user", "content": f"Ingest {path}"}]}, config=config
+            {"messages": [{"role": "user", "content": user_message}]}, config=config
         )
         logger.info("Ingest agent completed")
-        # Log token usage summary
         if hasattr(agent, "_token_tracker"):
             agent._token_tracker.log_summary()
     except Exception as e:
@@ -61,31 +64,49 @@ def ingest(path: str = typer.Argument(..., help="Path to the source file to inge
         raise typer.Exit(1)
 
     while "__interrupt__" in result:
-        interrupt = result["__interrupt__"]
+        interrupts = result["__interrupt__"]
+        if isinstance(interrupts, (list, tuple)):
+            interrupt = interrupts[0]
+        else:
+            interrupt = interrupts
         logger.info(f"HITL interrupt: {interrupt}")
-        typer.echo(f"\n⏸ Interrupt: {interrupt}")
-        decision = typer.prompt("Decision (approve/reject/edit)")
 
+        raw = getattr(interrupt, "value", interrupt)
+        try:
+            actions = raw.get("action_requests", []) if hasattr(raw, "get") else []
+        except Exception:
+            actions = []
+
+        # Display pending actions
+        typer.echo(f"\n{'='*60}")
+        typer.echo(f"  {len(actions)} pending action{'s' if len(actions) > 1 else ''}")
+        typer.echo(f"{'='*60}")
+        for i, action in enumerate(actions, 1):
+            name = action.get("name", "unknown") if isinstance(action, dict) else "unknown"
+            args = action.get("args", {}) if isinstance(action, dict) else {}
+            desc = args.get("page_slug", args.get("slug", "")) if isinstance(args, dict) else ""
+            typer.echo(f"  [{i}] {name}({desc})")
+        typer.echo(f"{'='*60}")
+        typer.echo("  [a]pprove all  [r]eject all")
+
+        decision = typer.prompt("Decision")
         logger.info(f"HITL decision: {decision}")
-        if decision == "approve":
+
+        if decision in ("a", "approve"):
             result = agent.invoke(
-                Command(resume={"decisions": [{"type": "approve"}]}), config=config
+                Command(resume={"decisions": [{"type": "approve"}] * len(actions) if actions else [{"type": "approve"}]}),
+                config=config,
             )
-        elif decision == "reject":
+        elif decision in ("r", "reject"):
             feedback = typer.prompt("Feedback (optional)", default="")
             result = agent.invoke(
                 Command(
-                    resume={"decisions": [{"type": "reject", "feedback": feedback}]}
+                    resume={"decisions": [{"type": "reject", "feedback": feedback}] * len(actions) if actions else [{"type": "reject", "feedback": feedback}]}
                 ),
                 config=config,
             )
-        elif decision == "edit":
-            typer.echo("Edit not yet supported in CLI. Approving instead.")
-            result = agent.invoke(
-                Command(resume={"decisions": [{"type": "approve"}]}), config=config
-            )
         else:
-            typer.echo("Invalid decision. Please enter approve, reject, or edit.")
+            typer.echo("Invalid. Use a/r.")
 
     logger.info("INGEST command finished")
     typer.echo(result["messages"][-1].content)

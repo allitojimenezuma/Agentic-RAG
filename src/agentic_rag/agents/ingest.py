@@ -19,13 +19,14 @@ from agentic_rag.tools.ingest_tools import (
     update_index,
     update_page,
 )
+from agentic_rag.tools.query_tools import find_relevant_pages
 from agentic_rag.tools.shared import init_shared_tools, read_index, read_wiki_page, search_index
 
 logger = logging.getLogger("agentic_rag.agents.ingest")
 
 
 def build_ingest_agent(settings) -> object:
-    """Build the ingest agent with HITL on delete_wiki_page and flag_contradiction.
+    """Build the ingest agent with HITL on delete and contradictions.
 
     Args:
         settings: Settings instance with openai_model, agents_md_path, wiki_path.
@@ -36,6 +37,7 @@ def build_ingest_agent(settings) -> object:
         read_source,
         read_index,
         search_index,
+        find_relevant_pages,
         read_wiki_page,
         create_page,
         update_page,

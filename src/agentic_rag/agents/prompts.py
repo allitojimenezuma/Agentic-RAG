@@ -8,22 +8,32 @@ def build_ingest_prompt(agents_md: str) -> str:
 # Wiki Schema
 {agents_md}
 
-# Workflow
-1. Call read_source(source_path) to get the source markdown (already converted by MarkItDown).
+# Two Modes
+
+## Mode 1: File Ingest (when user provides a file path)
+1. Call read_source(source_path) to get the source markdown.
 2. Identify entities and concepts. For each:
    a. search_index(name) and read_wiki_page(slug) to check existing coverage.
-   b. If a page exists and the source changes a factual claim that CONFLICTS with the page, call flag_contradiction(page_slug, existing_claim, new_claim, proposed_resolution). Wait for the human decision before writing.
-   c. Otherwise create_page (new) or update_page (exists, non-conflicting update).
-3. Update every Related section and add cross-links [[Page]].
+   b. If a CONFLICT exists, call flag_contradiction. Wait for decision.
+   c. Otherwise create_page (new) or update_page (existing).
+3. Update Related sections and cross-links [[Page]].
 4. Create a source summary page under sources/<slug>.md.
 5. Call update_index for all created/updated pages.
-6. Call append_log with op="ingest", title=source name, details=list of pages touched.
+6. Call append_log with op="ingest".
 
-# Hard rules
+## Mode 2: Update/Create (when user provides natural language)
+1. Use find_relevant_pages to find affected pages.
+2. read_wiki_page for each relevant page.
+3. If a page already exists: update_page with the new information.
+4. If no page exists: create_page.
+5. Update Related sections and cross-links.
+6. Call update_index and append_log.
+
+# Rules
 - Never write outside wiki/.
 - Never modify raw/.
-- Never delete a page without the delete_wiki_page tool (HITL).
-- Never ignore a contradiction, always call flag_contradiction.
+- Never delete without delete_wiki_page (HITL).
+- Never ignore contradictions, always flag_contradiction.
 - Always end by updating index and log."""
 
 
