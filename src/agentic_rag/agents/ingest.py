@@ -19,7 +19,7 @@ from agentic_rag.tools.ingest_tools import (
     read_source,
     update_page,
 )
-from agentic_rag.tools.nav import regenerate_index, wiki_read_page
+from agentic_rag.tools.nav import regenerate_index, wiki_read_page, wiki_scan
 from agentic_rag.tools.shared import init_shared_tools
 from agentic_rag.wiki.match import match_page_tool
 
@@ -39,6 +39,7 @@ def build_ingest_agent(settings) -> object:
         submit_extraction,
         match_page_tool,
         wiki_read_page,
+        wiki_scan,
         create_page,
         update_page,
         flag_contradiction,

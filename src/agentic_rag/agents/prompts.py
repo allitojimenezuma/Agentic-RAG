@@ -22,7 +22,8 @@ def build_ingest_prompt(agents_md: str) -> str:
 6. End by calling regenerate_index, then append_log with op="ingest".
 
 ## Mode 2: Natural Language Update/Create (when user provides text, not a file)
-1. Use match_page_tool(name, type) to locate each affected page (exact/similar → exists; none → create new; conflict → flag_contradiction).
+1. Call `wiki_scan()` ONCE for a full overview of existing pages (slug, type, summary, links) — then `match_page_tool(name, type)` for the specific pages you touch and `wiki_read_page` ONLY for slugs you will actually update.
+2. Use match_page_tool(name, type) to locate each affected page (exact/similar → exists; none → create new; conflict → flag_contradiction).
 2. Call wiki_read_page(slug) for each existing page to get its current content.
 3. Update existing pages with update_page, or create new ones with create_page.
 4. Update `## Related` sections and cross-links.
@@ -73,20 +74,27 @@ def build_lint_prompt(agents_md: str) -> str:
    orphan, missing-index, broken-link, missing-frontmatter, missing-related, empty, stale.
    This is your ground truth for all structural findings — do NOT re-derive them manually.
 
-## Step 2: Gather link context (only when needed)
-2. Call `wiki_link_graph()` for the full inbound/outbound link context.
-3. Call `wiki_read_page(slug, section)` ONLY when you need content for semantic judgment —
-   never for structural checks already covered by Step 1.
+## Step 2: Get the full wiki picture in two calls (REPLACES page-by-page reading)
+2. Call `wiki_link_graph()` for the full inbound/outbound link context AND `wiki_scan()` for a
+   one-call per-page preview (slug, type, summary, link counts, date). Together these two calls
+   give you the full wiki picture — they REPLACE reading pages for overview purposes.
 
 ## Step 3: Semantic judgment (the one thing the deterministic check cannot do)
-4. Identify DUPLICATE COVERAGE — two pages covering substantially the same topic.
-   Use `wiki_link_graph()` plus targeted `wiki_read_page(slug, section)` reads to confirm.
+3. Identify DUPLICATE COVERAGE and cross-page consistency issues using the `wiki_scan()`
+   previews and `wiki_link_graph()` link context.
+   HARD BUDGET: Call `wiki_read_page(slug, section)` AT MOST 3 TIMES per run, and ONLY for
+   slugs you already flagged from `wiki_scan()`/`wiki_link_graph()` — never to survey the wiki.
+   If `run_health_check` reported 0 structural issues, do NOT re-audit or re-read the wiki: the
+   structural state is already fully known; limit yourself to a small number of high-confidence
+   semantic findings and write the report.
 
 ## Step 4: Write the report (ALWAYS)
-5. Call `write_lint_report(...)` with the FULL markdown report:
+4. Call `write_lint_report(...)` with the FULL markdown report:
    - the deterministic structural issues from Step 1 (with severity classes below), AND
    - any semantic findings (duplicate coverage) you identified.
    ALWAYS write the report before ending — even if no issues found.
+   Keep the report CONCISE: one compact block per finding; do NOT narrate exhaustive
+   cross-page consistency checks or repeat every fact you verified in prose.
 
 # Severity classification
 - CRITICAL: Broken schema compliance, data loss risk, invisible pages (e.g. missing frontmatter)
@@ -140,6 +148,7 @@ Write the markdown report in this format:
 - ALWAYS write the report before ending — even if no issues found
 - ALWAYS use page slugs as identifiers (e.g. entities/mlx, not \"MLX\")
 - NEVER create pages or ingest sources — you are read-only + report writer
+- NEVER call `wiki_read_page` more than 3 times per run
 - If data is insufficient to determine an issue, skip it — do not guess"""
 
 

@@ -109,6 +109,52 @@ def wiki_summary() -> str:
 
 
 @tool
+def wiki_scan(max_chars: int = 200) -> str:
+    """Get a one-call overview of ALL content pages: slug, type, title, a preview of each page's first section, inbound/outbound link counts, and last update date. Use this INSTEAD of reading every page to survey the wiki — it replaces per-page reads for overview purposes. Deterministic and free (0 LLM calls)."""
+    logger.debug("Scanning wiki (max_chars=%d)", max_chars)
+    wiki = load_wiki(get_wiki_path())
+    content_pages = [
+        p for p in wiki.pages if not p.rel_path.name.startswith("lint-report-")
+    ]
+    if not content_pages:
+        return "No wiki pages found."
+
+    # Inbound: from content pages' RESOLVED outbound links only (mirrors lint/health.py).
+    content_slugs = {p.slug for p in content_pages}
+    inbound: dict[str, set[str]] = {}
+    for page in content_pages:
+        for target in page.outbound_links:
+            if target in content_slugs:
+                inbound.setdefault(target, set()).add(page.slug)
+
+    lines: list[str] = []
+    for page in sorted(content_pages, key=lambda p: p.slug):
+        preview = _preview_text(page, max_chars)
+        updated = page.fm.updated.isoformat() if page.fm.updated else "-"
+        out_n = len(page.outbound_links)
+        in_n = len(inbound.get(page.slug, ()))
+        lines.append(
+            f'- {page.slug} ({page.fm.type}) - {page.fm.title} — "{preview}" — '
+            f"out: {out_n} | in: {in_n} | updated: {updated}"
+        )
+    logger.debug("Scanned %d content pages", len(content_pages))
+    return "\n".join(lines)
+
+
+def _preview_text(page: Page, max_chars: int) -> str:
+    """First-section preview: whitespace collapsed to single spaces, truncated to
+    ``max_chars`` with a ``…`` suffix when cut; ``(no content)`` if no section text."""
+    if not page.sections or not page.sections[0].text:
+        return "(no content)"
+    text = " ".join(page.sections[0].text.split())
+    if not text:
+        return "(no content)"
+    if len(text) > max_chars:
+        return text[:max_chars] + "…"
+    return text
+
+
+@tool
 def wiki_link_graph() -> str:
     """Get a summary of ALL pages with their inbound and outbound links in one call.
     Returns each page's slug, type, outbound links (what it links to), and inbound links (what links to it)."""
