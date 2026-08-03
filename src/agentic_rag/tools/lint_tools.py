@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import logging
-import re
 from datetime import date
 
 from langchain_core.tools import tool
 
-from agentic_rag.io.markdown_parser import extract_headings, extract_links, parse_frontmatter, slugify
+from agentic_rag.io.markdown_parser import extract_headings, extract_links, parse_frontmatter
 from agentic_rag.io.wiki_io import list_pages
+from agentic_rag.lint.health import _render_report_markdown, health_check
+from agentic_rag.schemas.lint import LintReport
+from agentic_rag.tools.nav import wiki_link_graph
 from agentic_rag.tools.shared import get_wiki_path
+from agentic_rag.wiki.model import load_wiki
 
 logger = logging.getLogger(__name__)
 
@@ -19,121 +22,8 @@ logger = logging.getLogger(__name__)
 def wiki_link_summary() -> str:
     """Get a summary of ALL pages with their inbound and outbound links in one call.
     Returns each page's slug, type, outbound links (what it links to), and inbound links (what links to it)."""
-    wiki_path = get_wiki_path()
-    logger.info("Building link summary for %s", wiki_path)
-    pages = list_pages(wiki_path)
-    if not pages:
-        logger.debug("No pages found in %s", wiki_path)
-        return "No wiki pages found."
-    logger.debug("Found %d pages to analyze", len(pages))
-
-    # Build slug set for link resolution (must be complete BEFORE resolving links)
-    page_slugs = set()
-    for p in pages:
-        page_slugs.add(str(p.relative_to(wiki_path)).removesuffix(".md"))
-    page_data = {}  # slug -> {outbound: set, type: str, title: str}
-
-    def _resolve_link(target: str) -> str | None:
-        """Resolve a link target (display name) to an actual page slug.
-
-        Handles both ASCII slugs (slugify output) and Unicode filenames
-        (e.g. málaga.md) by trying both normalized forms.
-        """
-        # Exact match
-        if target in page_slugs:
-            return target
-
-        # Try slugified match (ASCII normalized)
-        s = slugify(target)
-        for ps in page_slugs:
-            short = ps.rsplit("/", 1)[-1] if "/" in ps else ps
-            if short == s or ps.endswith("/" + s):
-                return ps
-
-        # Try Unicode-preserving match: lowercase + replace spaces with hyphens
-        # but keep unicode chars (e.g. "Málaga" -> "málaga")
-        t = target.lower().replace(" ", "-")
-        for ps in page_slugs:
-            short = ps.rsplit("/", 1)[-1] if "/" in ps else ps
-            if short == t or ps.endswith("/" + t):
-                return ps
-
-        return None
-
-    for page_path in pages:
-        slug = str(page_path.relative_to(wiki_path)).removesuffix(".md")
-        content = page_path.read_text(encoding="utf-8")
-
-        # Extract links (works with or without frontmatter)
-        links = extract_links(content)
-        outbound = set()
-        for link in links:
-            resolved = _resolve_link(link.target)
-            if resolved and resolved != slug:
-                outbound.add(resolved)
-
-        # Try to parse frontmatter for type/title; fallback to directory + first heading
-        page_type = "unknown"
-        title = slug.rsplit("/", 1)[-1] if "/" in slug else slug
-        if content.startswith("---"):
-            try:
-                fm = parse_frontmatter(content)
-                page_type = fm.type or page_type
-                title = fm.title or title
-            except Exception:
-                pass
-        else:
-            # Infer type from directory: entities/foo -> entity, concepts/foo -> concept
-            if "/" in slug:
-                dir_name = slug.split("/")[0]
-                _DIR_TO_TYPE = {"entities": "entity", "concepts": "concept", "sources": "source", "comparisons": "comparison"}
-                page_type = _DIR_TO_TYPE.get(dir_name, dir_name.rstrip("s"))
-            # Infer title from first heading
-            for line in content.split("\n"):
-                if line.startswith("# "):
-                    title = line[2:].strip()
-                    break
-
-        page_data[slug] = {
-            "outbound": outbound,
-            "type": page_type,
-            "title": title,
-        }
-
-    # Compute inbound links
-    inbound = {slug: set() for slug in page_slugs}
-    for slug, data in page_data.items():
-        for target in data["outbound"]:
-            if target in inbound:
-                inbound[target].add(slug)
-
-    # Format output
-    lines: list[str] = []
-    for slug in sorted(page_slugs):
-        data = page_data[slug]
-        in_links = sorted(inbound.get(slug, set()))
-        out_links = sorted(data["outbound"])
-        lines.append(f"### {slug} ({data['type']})")
-        lines.append(f"  Outbound ({len(out_links)}): {', '.join(out_links) if out_links else 'none'}")
-        lines.append(f"  Inbound  ({len(in_links)}): {', '.join(in_links) if in_links else 'none — ORPHAN?'}")
-        lines.append("")
-
-    # Summary stats
-    orphans = [s for s in page_slugs if not inbound.get(s)]
-    lines.append(f"--- SUMMARY ---")
-    lines.append(f"Total pages: {len(page_slugs)}")
-    lines.append(f"Total links: {sum(len(d['outbound']) for d in page_data.values())}")
-    lines.append(f"Orphans (no inbound links): {len(orphans)}")
-    if orphans:
-        lines.append(f"  {', '.join(sorted(orphans))}")
-
-    logger.info(
-        "Link summary: %d pages, %d links, %d orphans",
-        len(page_slugs),
-        sum(len(d['outbound']) for d in page_data.values()),
-        len(orphans),
-    )
-    return "\n".join(lines)
+    # Delegates to the consolidated nav tool (moved implementation, same output).
+    return wiki_link_graph()
 
 
 @tool
@@ -182,16 +72,25 @@ def read_all_pages() -> str:
 def find_inbound_links(slug: str) -> str:
     """Find all pages that link to a given slug via [[slug]] or [[slug|alias]] syntax. Use to detect orphan pages."""
     logger.debug("Finding inbound links to: %s", slug)
-    pattern = re.compile(r"\[\[" + re.escape(slug) + r"(?:\|[^\]]+)?\]\]")
-    wiki_path = get_wiki_path()
-    pages = list_pages(wiki_path)
-    linking_pages: list[str] = []
+    wiki = load_wiki(get_wiki_path())
 
-    for page_path in pages:
-        content = page_path.read_text(encoding="utf-8")
-        if pattern.search(content):
-            page_slug = str(page_path.relative_to(wiki_path)).removesuffix(".md")
-            linking_pages.append(page_slug)
+    # Resolve the query to candidate page slugs (exact slug or short name).
+    targets = [
+        p.slug for p in wiki.pages
+        if p.slug == slug or p.slug.rsplit("/", 1)[-1] == slug
+    ]
+    if not targets:
+        return f"No pages link to '{slug}'. This page may be an orphan."
+
+    # Inbound computed from content pages' RESOLVED outbound links (model);
+    # lint-report pages are derived artifacts and never count as sources.
+    linking_pages = sorted({
+        page.slug
+        for page in wiki.pages
+        if not page.rel_path.name.startswith("lint-report-")
+        for target in page.outbound_links
+        if target in targets
+    })
 
     logger.debug("Found pages linking to '%s': %s", slug, linking_pages)
     if not linking_pages:
@@ -224,10 +123,27 @@ def extract_concepts(content: str) -> str:
 
 
 @tool
-def write_lint_report(report: str) -> str:
-    """Write a lint report to wiki/lint-report-YYYY-MM-DD.md with today's date."""
+def write_lint_report(report: LintReport | str) -> str:
+    """Write a lint report to wiki/lint-report-YYYY-MM-DD.md with today's date.
+
+    Accepts either a structured ``LintReport`` (rendered deterministically via
+    ``_render_report_markdown``) or a raw markdown string (back-compat for the
+    scripted test harness)."""
     today = date.today().isoformat()
     report_path = get_wiki_path() / f"lint-report-{today}.md"
+    content = report if isinstance(report, str) else _render_report_markdown(report)
     logger.debug("Writing lint report to %s", report_path)
-    report_path.write_text(report, encoding="utf-8")
+    report_path.write_text(content, encoding="utf-8")
     return f"Lint report written to: lint-report-{today}.md"
+
+
+@tool
+def run_health_check() -> str:
+    """Run a deterministic structural health check of the wiki: orphan, missing-index, broken-link, missing-frontmatter, missing-related, empty, and stale pages. Zero LLM calls — instant and free. Call this FIRST in any lint run; it is the ground truth for structural findings."""
+    report = health_check(get_wiki_path())
+    lines = [f"Pages audited: {report.pages_audited} | Issues: {len(report.issues)}"]
+    lines.extend(
+        f"[{issue.severity}] {issue.kind}: {issue.slug} — {issue.detail}"
+        for issue in report.issues
+    )
+    return "\n".join(lines)

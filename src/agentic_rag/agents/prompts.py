@@ -66,31 +66,35 @@ def build_lint_prompt(agents_md: str) -> str:
 # Wiki Schema
 {agents_md}
 
-# Step 1: Gather data (2 tool calls max)
-1. Call wiki_link_summary() — returns ALL pages with inbound/outbound links. Use this to detect orphans, missing pages, and link health.
-2. Call read_all_pages() — returns metadata (slug, type, title, updated, outbound links) for every page.
+# Workflow
+## Step 1: Run the deterministic health check (FIRST, always)
+1. Call `run_health_check()` — returns the deterministic structural issues with zero LLM calls:
+   orphan, missing-index, broken-link, missing-frontmatter, missing-related, empty, stale.
+   This is your ground truth for all structural findings — do NOT re-derive them manually.
 
-STOP. Do NOT call any more data-gathering tools unless Step 3 requires it.
+## Step 2: Gather link context (only when needed)
+2. Call `wiki_link_graph()` for the full inbound/outbound link context.
+3. Call `wiki_read_page(slug, section)` ONLY when you need content for semantic judgment —
+   never for structural checks already covered by Step 1.
 
-# Step 2: Analyze and classify issues
-For each issue found, classify severity:
-- CRITICAL: Broken schema compliance, data loss risk, invisible pages
-- HIGH: Orphan pages, missing index entries, broken links
-- MEDIUM: Stale content, missing cross-references, formatting inconsistencies
+## Step 3: Semantic judgment (the one thing the deterministic check cannot do)
+4. Identify DUPLICATE COVERAGE — two pages covering substantially the same topic.
+   Use `wiki_link_graph()` plus targeted `wiki_read_page(slug, section)` reads to confirm.
+
+## Step 4: Write the report (ALWAYS)
+5. Call `write_lint_report(...)` with the FULL markdown report:
+   - the deterministic structural issues from Step 1 (with severity classes below), AND
+   - any semantic findings (duplicate coverage) you identified.
+   ALWAYS write the report before ending — even if no issues found.
+
+# Severity classification
+- CRITICAL: Broken schema compliance, data loss risk, invisible pages (e.g. missing frontmatter)
+- HIGH: Orphan pages, missing index entries, broken links, empty pages
+- MEDIUM: Stale content, missing cross-references (Related section), formatting inconsistencies
 - LOW: Suggestions for improvement, data gaps, nice-to-haves
 
-Issue detection rules:
-- ORPHAN: Page has 0 inbound links from other content pages (ignore lint reports as sources)
-- MISSING INDEX: Page exists on disk but has no entry in index.md
-- STALE: Page `updated` date is >90 days older than the most recent page
-- BROKEN LINK: Page links to [[X]] but no page with slug matching X exists
-- MISSING FRONTMATTER: Page lacks YAML frontmatter (--- delimiters)
-- MISSING RELATED: Page has no ## Related section
-- EMPTY PAGE: Page has <50 words of content
-- DUPLICATE COVERAGE: Two pages cover substantially the same topic
-
-# Step 3: Write report
-Call write_lint_report(report) with a markdown report in this EXACT format:
+# Report format
+Write the markdown report in this format:
 
 ```
 # Wiki Lint Report — YYYY-MM-DD
@@ -130,18 +134,10 @@ Call write_lint_report(report) with a markdown report in this EXACT format:
 | Stale pages (>90 days) | N |
 ```
 
-# Step 4: Cleanup (optional, only if critical)
-Only call delete_wiki_page if ALL of these are true:
-- Page is genuinely empty (<10 words) OR is an exact duplicate of another page
-- Page has 0 inbound links from content pages
-- Page is not referenced in index.md
-Otherwise, report the issue and let the human decide.
-
 # Hard Rules
-- NEVER modify content pages — only delete via HITL or write the lint report
-- read_wiki_page: ONLY call when (a) the user explicitly asks for page content, or (b) you CANNOT determine an issue severity without full content (e.g. EMPTY PAGE check needs word count). Never call it for orphan/link/structural checks — metadata is sufficient.
+- NEVER modify content pages — you are read-only except for write_lint_report
 - ALWAYS write the report before ending — even if no issues found
-- ALWAYS use page slugs as identifiers (e.g. entities/mlx, not "MLX")
+- ALWAYS use page slugs as identifiers (e.g. entities/mlx, not \"MLX\")
 - NEVER create pages or ingest sources — you are read-only + report writer
 - If data is insufficient to determine an issue, skip it — do not guess"""
 
