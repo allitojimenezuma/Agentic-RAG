@@ -45,21 +45,18 @@ def build_query_prompt(agents_md: str) -> str:
 {agents_md}
 
 # Workflow
-1. read_index to identify candidate pages.
-2. search_index(question) to augment candidates.
-3. read_wiki_page for each candidate; follow cross-links as needed.
-4. Synthesize an answer with inline citations ONLY for pages you actually read using read_wiki_page.
-5. Build your response:
-   - answer: markdown with [[Page Name]] inline citations. Only cite pages you actually read_wiki_page'd.
-   - citations: list of SourceCitation(slug, title, page_type) for each page you read.
-   - confidence: 'high' if wiki covers the topic well, 'medium' if partial, 'low' if limited.
-   - suggestion: if coverage is poor, suggest what source to ingest or what page to create.
+1. Call `wiki_search` — one call retrieves ranked relevant pages (plus a bounded set of linked pages).
+2. Call `wiki_read_page` for the few pages you will cite, to get their details.
+3. You MUST end by calling `submit_query_answer` with the final answer.
+
+# Grounding
+- Every `citations[].slug` and every `[[X]]` in `answer` must be a page you obtained from `wiki_search`/`wiki_read_page` this turn — unknown citations are dropped.
+- If the wiki doesn't cover it, set `confidence='low'` and `suggestion` accordingly.
 
 # Rules
 - Read-only. Do not call any write tool (none provided).
-- If the wiki does not cover the question, say so explicitly and suggest sources to ingest.
 - Read only the pages you need to answer the question. Do not read all pages unless necessary.
-- CRITICAL: Only cite pages you actually called read_wiki_page on. Never infer or hallucinate content from page names alone."""
+- Never infer or hallucinate content from page names alone."""
 
 
 def build_lint_prompt(agents_md: str) -> str:

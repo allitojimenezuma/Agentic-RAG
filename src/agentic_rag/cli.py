@@ -146,7 +146,36 @@ def query(question: str = typer.Argument(..., help="Question to ask the wiki")):
         raise typer.Exit(1)
 
     logger.info("QUERY command finished")
-    typer.echo(result["messages"][-1].content)
+
+    from agentic_rag.schemas.query import QueryAnswer
+    from agentic_rag.tools.grounding import validate_citations
+
+    # Structured render: locate the LAST submit_query_answer ToolMessage
+    # (its .content is the validated QueryAnswer JSON from the cite-or-die tool).
+    nav_capture = getattr(agent, "_nav_capture", None)
+    submit_message = None
+    for msg in reversed(result["messages"]):
+        if getattr(msg, "name", None) == "submit_query_answer":
+            submit_message = msg
+            break
+
+    if submit_message is not None and nav_capture is not None:
+        qa = QueryAnswer.model_validate_json(submit_message.content)
+        # Belt-and-suspenders: re-validate against the turn's navigated set.
+        qa = validate_citations(qa, nav_capture.navigated)
+        out = f"Answer:\n{qa.answer}\n\nConfidence: {qa.confidence}"
+        if qa.citations:
+            out += "\nCitations:"
+            for citation in qa.citations:
+                section = f" (section: {citation.section})" if citation.section else ""
+                out += f"\n- {citation.slug} - {citation.title}{section}"
+        if qa.suggestion:
+            out += f"\nSuggestion: {qa.suggestion}"
+        typer.echo(out)
+    else:
+        # Compat fallback: fake/plain agents (no submit tool call, no
+        # _nav_capture) render the raw final message.
+        typer.echo(result["messages"][-1].content)
 
 
 @app.command()
