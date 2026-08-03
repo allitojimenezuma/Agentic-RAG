@@ -13,7 +13,7 @@
 
 <!-- Pass B — Ingest compilation + fix-agent refactor + eval harness (spec: Pass B section) -->
 
-- [ ] [PENDING] T9: `submit_extraction` finalization tool (pure, mirrors `submit_query_answer`) reused `ExtractionResult`/`Entity`/`Concept`/`Contradiction` + `chunk_by_heading` source chunker `src/agentic_rag/tools/ingest_grounding.py` `src/agentic_rag/io/chunker.py`
+- [x] [COMPLETED] T9: `submit_extraction` finalization tool (pure, mirrors `submit_query_answer`) reused `ExtractionResult`/`Entity`/`Concept`/`Contradiction` + `chunk_by_heading` source chunker `src/agentic_rag/tools/ingest_grounding.py` `src/agentic_rag/io/chunker.py`
 - [ ] [PENDING] T10: Deterministic `match_page(wiki, name, page_type)` (exact slug → BM25 similar → none → conflict) + `@tool match_page` `src/agentic_rag/wiki/match.py`
 - [ ] [PENDING] T11: Migrate ingest agent off `update_index`/`read_index`/`search_index`/`find_relevant_pages`; onto `submit_extraction`/`match_page`/`wiki_read_page`/`regenerate_index`; rewrite `build_ingest_prompt` `src/agentic_rag/agents/ingest.py` `src/agentic_rag/agents/prompts.py`
 - [ ] [PENDING] T12: Fix tools: add `add_frontmatter`/`fix_link`/`append_related_section`/`regenerate_index` tool in nav; remove `execute_command`/`remove_index_entry`; add new tools to guardrail write-tools set `src/agentic_rag/tools/fix_tools.py` `src/agentic_rag/tools/nav.py` `src/agentic_rag/middleware/guardrails.py`
@@ -57,5 +57,6 @@
 - T2 infra: `.gitignore` line 2 changed `wiki/` → `/wiki/` (root-anchored) — the old unanchored pattern was swallowing `src/agentic_rag/wiki/`; data dir still ignored.
 
 ## Pass B Interface handoffs
-<!-- Populated by the orchestrator from each task's handoff contract block. Do not pre-fill beyond the stub. -->
+- T9 exports: `@tool submit_extraction(entities: list[Entity], concepts: list[Concept], contradictions: list[Contradiction]) -> str` in `src/agentic_rag/tools/ingest_grounding.py` — builds `ExtractionResult`, returns `model_dump_json()`; PURE (no I/O, no NavCapture, never raises); reuses `schemas/extraction.py` UNCHANGED (via `agentic_rag.schemas.extraction`).
+- T9 exports: `chunk_by_heading(markdown: str, max_chars: int = 4000) -> list[str]` in `src/agentic_rag/io/chunker.py` — splits on `^#{2,} ` headings (level-2+), prepends most-recent `^#{1,2} ` breadcrumb, never splits past max_chars, empty/whitespace → `[]`, 0 LLM. (Note: breadcrumb may repeat the chunk's own `## ` heading — matches pinned "most recent heading preceding" rule.)
 - (none yet)
