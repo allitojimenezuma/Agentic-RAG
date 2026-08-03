@@ -53,6 +53,22 @@ class TestPathGuardMiddleware:
         assert result == "handled"
         assert len(calls) == 1
 
+    def test_read_source_allows_raw_paths(self):
+        """read_source (ingest's primary READ tool) must accept raw/ and absolute paths."""
+        for p in ("raw/cv.pdf", "./raw/cv.pdf", "/Users/x/Proyectos/LangChain-RAG/raw/cv.pdf"):
+            calls: list = []
+
+            def handler(request):
+                calls.append(request)
+                return "handled"
+
+            request = SimpleNamespace(
+                tool_call={"name": "read_source", "args": {"source_path": p}}
+            )
+            result = path_guard_middleware.wrap_tool_call(request, handler)
+            assert result == "handled", f"read_source({p!r}) was blocked: {result}"
+            assert len(calls) == 1
+
     def test_registered_in_build_agent(self, monkeypatch):
         """The middleware is wired into build_agent's middleware chain."""
         captured: dict = {}

@@ -24,8 +24,11 @@ def path_guard_middleware(request, handler):
             if "raw/" in val or val.startswith("/") or ".." in val:
                 return f"ERROR: Path '{val}' is outside allowed wiki directory"
 
-    # Block any tool that receives a raw/ source_path
-    if "source_path" in args:
+    # Block write-like tools that receive a raw/ source_path. Note: this must
+    # NOT apply to read_source (a read tool whose source_path legitimately
+    # points into raw/) — write tools are already fully covered by the
+    # write_tools check above.
+    if "source_path" in args and tool_name in write_tools:
         val = str(args["source_path"])
         if "raw/" in val and not val.startswith("./raw"):
             return f"ERROR: Cannot write to raw/ directory: {val}"
