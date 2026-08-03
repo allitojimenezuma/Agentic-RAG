@@ -3,7 +3,7 @@
 <!-- One line per task. Status markers: PENDING | RUNNING | COMPLETED | BLOCKED -->
 
 - [x] [COMPLETED] T1: Unblock tests: restore `find_inbound_links`+`extract_concepts` in `tools/lint_tools.py` as self-contained implementations; sync `recursion_limit` to 30 everywhere; register `path_guard_middleware` in `agents/factory.py` `tools/lint_tools.py` `config.py` `agents/factory.py`
-- [ ] [PENDING] T2: Build source-of-truth `Wiki` model (`load_wiki`, `Page`, `Section`) from `list_pages`+frontmatter+headings/links `src/agentic_rag/wiki/model.py`
+- [x] [COMPLETED] T2: Build source-of-truth `Wiki` model (`load_wiki`, `Page`, `Section`) from `list_pages`+frontmatter+headings/links `src/agentic_rag/wiki/model.py`
 - [ ] [PENDING] T3: BM25 `wiki.search` over curated page fields + bounded depth-1 link expansion; add `rank_bm25` dep `src/agentic_rag/wiki/search.py` `pyproject.toml`
 - [ ] [PENDING] T4: `regenerate_index` from `Wiki` (no raw-H1 summaries); regenerate live `wiki/index.md` `src/agentic_rag/wiki/dedupe_index.py`
 - [ ] [PENDING] T5: Nav tools `wiki_search`/`wiki_read_page`/`wiki_summary`/`wiki_link_graph` over the model+search `src/agentic_rag/tools/nav.py`
@@ -18,3 +18,10 @@
 - T1 exports: `path_guard_middleware` now registered in `agents/factory.py::build_agent` (middleware order: audit_logging, path_guard, token_capture). Blocks write-tools with `raw/`, absolute, or `..` paths. T5/T6 nav-tool args (`slug`, `_source_path`) pass as reads; do not add nav tools to `write_tools`.
 - T1 note: `tools/shared.py::read_wiki_page` propagates `FileNotFoundError` (try/except removed — pre-existing regression fix, approved by orchestrator). Tests assert propagation.
 - T1 note: `recursion_limit` was already 30 in `config.py` (single runtime source via `settings.recursion_limit`) — no change needed.
+- T2 exports: `load_wiki(wiki_path: Path) -> Wiki` in `src/agentic_rag/wiki/model.py` — source-of-truth model; 22 pages on live wiki (21 content + lint-report; index/log excluded by list_pages).
+- T2 exports: `Page(slug:str, rel_path:Path, fm:Frontmatter, sections:list[Section], outbound_links:list[str], word_count:int)`, `Section(heading:str, level:int, text:str)`, `Wiki(pages:list[Page], by_slug:dict[str,Page])` in same module.
+- T2 note: `outbound_links` are RESOLVED slugs (3-step resolver: exact → slugify short-name → unicode-preserving short-name; drops unresolved + self-links). `[[Málaga]]`→`entities/málaga`, `[[MLX]]`→`entities/mlx`.
+- T2 note: 18/22 live pages have NO frontmatter — synthesized fm: type from dir, title from first H1, updated=mtime date, sources/tags=[]. load_wiki never raises on frontmatter-less/malformed pages.
+- T2 note: sections include H1 + all headings; preamble text prepended to first section (or synthetic `heading=""` section). Frontmatter excluded from sections/links/word_count. Empty wiki dir → `Wiki([], {})`.
+- T2 note: model INCLUDES `lint-report-*.md` as an unknown-type page — T8 health_check must skip lint-report pages for content stats; T4 regenerate_index excludes them.
+- T2 infra: `.gitignore` line 2 changed `wiki/` → `/wiki/` (root-anchored) — the old unanchored pattern was swallowing `src/agentic_rag/wiki/`; data dir still ignored.
