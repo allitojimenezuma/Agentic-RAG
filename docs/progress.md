@@ -2,7 +2,7 @@
 
 <!-- One line per task. Status markers: PENDING | RUNNING | COMPLETED | BLOCKED -->
 
-- [ ] [PENDING] T1: Unblock tests: restore `find_inbound_links`+`extract_concepts` in `tools/lint_tools.py` as self-contained implementations; sync `recursion_limit` to 30 everywhere; register `path_guard_middleware` in `agents/factory.py` `tools/lint_tools.py` `config.py` `agents/factory.py`
+- [x] [COMPLETED] T1: Unblock tests: restore `find_inbound_links`+`extract_concepts` in `tools/lint_tools.py` as self-contained implementations; sync `recursion_limit` to 30 everywhere; register `path_guard_middleware` in `agents/factory.py` `tools/lint_tools.py` `config.py` `agents/factory.py`
 - [ ] [PENDING] T2: Build source-of-truth `Wiki` model (`load_wiki`, `Page`, `Section`) from `list_pages`+frontmatter+headings/links `src/agentic_rag/wiki/model.py`
 - [ ] [PENDING] T3: BM25 `wiki.search` over curated page fields + bounded depth-1 link expansion; add `rank_bm25` dep `src/agentic_rag/wiki/search.py` `pyproject.toml`
 - [ ] [PENDING] T4: `regenerate_index` from `Wiki` (no raw-H1 summaries); regenerate live `wiki/index.md` `src/agentic_rag/wiki/dedupe_index.py`
@@ -13,4 +13,8 @@
 
 ## Interface handoffs
 <!-- Populated by the orchestrator from each task's handoff contract block. Do not pre-fill beyond the stub. -->
-- (none yet)
+- T1 exports: `find_inbound_links(slug: str) -> str` in `src/agentic_rag/tools/lint_tools.py` — restored alias; self-contained via `list_pages()` + `[[link]]` regex; returns "Found N page(s)" / "...orphan". Used by T8 (keep as alias).
+- T1 exports: `extract_concepts(content: str) -> str` in `src/agentic_rag/tools/lint_tools.py` — restored alias; delegates to `extract_headings`/`extract_links`; lists headings + `[[target]]` links. Used by T8 (keep as alias).
+- T1 exports: `path_guard_middleware` now registered in `agents/factory.py::build_agent` (middleware order: audit_logging, path_guard, token_capture). Blocks write-tools with `raw/`, absolute, or `..` paths. T5/T6 nav-tool args (`slug`, `_source_path`) pass as reads; do not add nav tools to `write_tools`.
+- T1 note: `tools/shared.py::read_wiki_page` propagates `FileNotFoundError` (try/except removed — pre-existing regression fix, approved by orchestrator). Tests assert propagation.
+- T1 note: `recursion_limit` was already 30 in `config.py` (single runtime source via `settings.recursion_limit`) — no change needed.
