@@ -204,3 +204,230 @@ High-level ordering (atomic tasks live in `docs/progress.md`):
 
 ## Open questions
 - None blocking. Vector/hybrid-embeddings graduation is *intentionally out of scope* and gated on a measured threshold (≥300 pages or a recall regression): not an open question, a deferred decision. Pass B (ingest compilation + fix-agent refactor) is a separate spec — not an open question here.
+
+---
+
+# Pass B — Ingest compilation + fix-agent refactor + eval harness
+
+Pass A shipped the navigation/grounding/lint foundation and exported reusable interfaces
+(Pass A handoffs in `docs/progress.md` are the contract Pass B builds on). Pass B finishes
+the job so the two remaining agents do not undermine that foundation:
+
+1. **Ingest** still mutates the derived `index.md` via `update_index` (re-corrupting what T4
+   regenerates) and navigates with the 3 old weak tools (`read_index`/`search_index`/
+   `find_relevant_pages`) — the exact slug-hallucination that produced ~9/20 polluted
+   summaries. Pass B migrates ingest to `wiki_search`/`wiki_read_page` + the `Wiki` model,
+   drops `update_index` (index regenerated at end), wires the already-defined-but-unused
+   `ExtractionResult` schema via a `submit_extraction` tool (mirroring Pass A's
+   `submit_query_answer`), and adds a **deterministic `match_page` matcher** (replaces the
+   LLM round-trips guessing slugs with one Python call over `wiki.by_slug` + `search`).
+2. **Fix** still shells out via `execute_command` (footgun + its own prompt says "NEVER run
+   for loops/sed/pipes") and parses `lint-report-<date>.md` markdown to find issues.
+   Pass B removes the shell tool, adds purpose-built safe page-edit tools, and makes `fix`
+   consume the structured `LintReport` from Pass A's `health_check` directly.
+3. A tiny **eval harness** (recall@k on `wiki.search` + a hallucination gate on
+   `validate_citations`) protects the Pass A investment and gives the gate-reviewer a
+   deterministic regression signal.
+
+## Pass B Scope
+
+### In scope (Pass B)
+- `tools/ingest_grounding.py` (NEW): `submit_extraction` finalization tool (pure, mirrors
+  `submit_query_answer`) that validates an `ExtractionResult` and returns its JSON. Reuses
+  the existing `schemas/extraction.py` models (`Entity`/`Concept`/`Contradiction`/
+  `ExtractionResult`) UNCHANGED — they are already defined and exported.
+- `wiki/match.py` (NEW): pure `match_page` decision function + `@tool match_page(name, page_type)`.
+- `regenerate_index` `@tool` (shared by ingest + fix; location pinned below).
+- `io/chunker.py` (NEW): pure `chunk_by_heading(markdown, max_chars=4000) -> list[str]`.
+- `agents/ingest.py` + `agents/prompts.py::build_ingest_prompt`: tool list rewrite + prompt rewrite.
+- `tools/fix_tools.py` (CHANGED): remove `execute_command` + `remove_index_entry`; add
+  `add_frontmatter` / `fix_link` / `append_related_section`.
+- `agents/fix.py` + `agents/prompts.py::build_fix_prompt` + `cli.py::fix`: consume structured
+  `LintReport`; drop shell HITL; auto-approve safe tools.
+- `tests/eval/` (NEW): recall@k + hallucination-gate tests (no LLM).
+
+### Out of scope (Pass B)
+- Changes to `schemas/extraction.py` field shapes (reuse as-is).
+- `create_page` / `update_page` / `delete_wiki_page` / `flag_contradiction` / `append_log`
+  tool signatures (unchanged — ingest keeps using them).
+- HITL policy for `delete_wiki_page` + `flag_contradiction` (unchanged).
+- Vector/embeddings graduation (still gated per Pass A).
+- Web URL ingestion, image handling, Marp/canvas, MCP server, durable checkpointer.
+
+## Pass B Conventions (additions)
+- Finalization-as-`@tool` pattern is the project standard (established by Pass A's
+  `submit_query_answer`); `submit_extraction` follows it exactly so it is testable with
+  `tests/fixtures/fake_llm.py::ScriptedChatModel`.
+- Deterministic helpers (`match_page`, `chunk_by_heading`, `regenerate_index`, the fix tools)
+  do 0 LLM calls; only extraction + the per-page write decisions use the model.
+- New `@tool`s reuse `get_wiki_path()` from `tools/shared.py` (no new path global).
+- `regenerate_index` `@tool` lives in **`tools/nav.py`** (already imports `load_wiki`;
+  keeps all index/navigation tools in one module); `ingest` and `fix` both import it.
+
+## Pass B Interfaces
+
+**`src/agentic_rag/tools/ingest_grounding.py`** (NEW) — mirrors `tools/grounding.py`.
+```python
+@tool
+def submit_extraction(entities: list[Entity], concepts: list[Concept],
+                       contradictions: list[Contradiction]) -> str:
+    ...    # returns ExtractionResult.model_dump_json(); PURE (no writes, no side effects)
+```
+- MUST be called by the ingest agent BEFORE any `create_page`/`update_page` (prompt enforces).
+- No `NavCapture`-style store needed: extraction has no citation-binding; the tool exists
+  purely to force a structured, testable extraction boundary.
+- Returns the validated `ExtractionResult` JSON so the CLI/tests can inspect it from the
+  `ToolMessage` (same reconstruction pattern Pass A's query CLI uses).
+
+**`src/agentic_rag/wiki/match.py`** (NEW) — deterministic create/update/conflict matcher.
+```python
+def match_page(wiki: Wiki, name: str, page_type: str) -> MatchResult   # pure
+@tool
+def match_page_tool(name: str, page_type: str) -> str                 # thin @tool wrapper
+```
+- `MatchResult(decision: Literal["exact","similar","none","conflict"], slugs: list[str], detail: str)`.
+- **Decision rule (PINNED — reuses Pass A `search` + `matched_via`, no score thresholds):**
+  1. `candidate = slugify(name)`; if `candidate` (or its short form `candidate.rsplit('/',1)[-1]`)
+     is a key in `wiki.by_slug` → `("exact", [resolved_slug], "exact slug match")`
+  2. else `hits = search(wiki, name, k=5, types=[page_type])`; direct = `[h for h in hits if h.matched_via != "expand-link"]`:
+     - `len(direct) == 1` → `("similar", [direct[0].slug], "BM25 match — update existing")`
+     - `len(direct) >= 2` → `("conflict", [direct[0].slug, direct[1].slug], "multiple candidates — flag contradiction")`
+     - `len(direct) == 0` → `("none", [], "no existing page — create new")`
+  3. When `page_type` produces no `by_slug` directory (e.g. `"source"`), still run step 2
+     without `types` filter (fall back to untyped search).
+- Tool return string: `"<decision>: <slugs joined ', '> — <detail>"`.
+- This replaces the old `search_index(name)` + `read_wiki_page(slug)` round-trip guessing.
+
+**`src/agentic_rag/tools/nav.py`** (CHANGED — add one tool):
+```python
+@tool def regenerate_index() -> str    # calls wiki.dedupe_index.regenerate_index(get_wiki_path()); returns "Index regenerated."
+```
+- Replaces ingest's `update_index` calls and fix's `remove_index_entry`. The index is a
+  derived view (Pass A T4); regenerating after writes keeps it in sync.
+
+**`src/agentic_rag/io/chunker.py`** (NEW) — pure source-section chunker.
+```python
+def chunk_by_heading(markdown: str, max_chars: int = 4000) -> list[str]
+```
+- Splits on `^## ` headings (level-2 and deeper); a chunk exceeding `max_chars` is not
+  split further (headings are the unit). Prepends the most recent `# `/`## ` breadcrumb
+  to each chunk. Empty input → `[]`. No LLM. Used by the ingest prompt to extract
+  per-section on large sources (the agent calls `read_source` once, then the prompt tells
+  it to extract per chunk; chunker is importable for tests, not necessarily a tool).
+
+**`src/agentic_rag/agents/ingest.py`** (CHANGED) — tool list rewrite:
+- NEW tools = `[read_source, submit_extraction, match_page_tool, wiki_read_page,
+  create_page, update_page, flag_contradiction, regenerate_index, append_log,
+  delete_wiki_page]`.
+- **DROPPED from the list** (keep importable for tests/back-compat): `read_index`,
+  `search_index`, `find_relevant_pages`, the old `read_wiki_page` (shared), `update_index`.
+- HITL middleware UNCHANGED (`delete_wiki_page` + `flag_contradiction`).
+
+**`src/agentic_rag/agents/prompts.py::build_ingest_prompt`** (CHANGED) — rewrite:
+- Mode 1 (file): `read_source` → `submit_extraction` (one structured pass over the source,
+  chunk via `chunk_by_heading` mentally if large) → for each `Entity`/`Concept`: call
+  `match_page(name, type)` once → branch on decision: `exact`/`similar` → `update_page`;
+  `none` → `create_page`; `conflict` → `flag_contradiction` (HITL). Update `## Related`
+  cross-links. Create a `sources/<slug>.md` summary page. End with `regenerate_index` +
+  `append_log(op="ingest")`.
+- Mode 2 (natural language): `wiki_search` to find affected pages → `wiki_read_page` →
+  update/create → `regenerate_index` + `append_log`.
+- Rules: never write outside `wiki/`; never modify `raw/`; never delete without HITL;
+  never ignore a contradiction; **never call `update_index`** (index is regenerated); 
+  always end with `regenerate_index` + `append_log`.
+
+**`src/agentic_rag/tools/fix_tools.py`** (CHANGED):
+```python
+@tool def add_frontmatter(slug: str, title: str, page_type: str) -> str
+@tool def fix_link(slug: str, old_target: str, new_target: str) -> str
+@tool def append_related_section(slug: str, links: list[str]) -> str
+```
+- REMOVED: `execute_command` (and `run_command` helper) and `remove_index_entry`.
+- `add_frontmatter`: reads page via `wiki_io.read_page`; builds `Frontmatter(slug, type=page_type,
+  title=title, sources=[], updated=date.today(), tags=[])`; writes `serialize_frontmatter(fm)+body`
+  via `wiki_io.write_page`. Error if page already has frontmatter (starts with `---`).
+- `fix_link`: text-replace `[[old_target]]`→`[[new_target]]` AND `[[old_target|X]]`→`[[new_target|X]]`
+  (single occurrence each, via `edit_wiki_page` logic or direct); returns count replaced.
+- `append_related_section`: if page has no `## Related` section, appends `\n## Related\n\n` +
+  `- [[link]]` per link; if present, appends the new links to it. Error string if page missing.
+- KEEP `edit_wiki_page` (general text fix) for fixes not covered by the specific tools.
+
+**`src/agentic_rag/agents/fix.py`** (CHANGED):
+- tools = `[wiki_read_page, edit_wiki_page, add_frontmatter, fix_link,
+  append_related_section, regenerate_index, delete_wiki_page]`.
+- HITL ONLY on `delete_wiki_page` (drop the `execute_command` interrupt config + the
+  `_needs_approval`/`_READ_ONLY_PREFIXES` machinery — no shell tool remains).
+- Auto-approve all the new safe write tools (they never escape `wiki_path`).
+
+**`src/agentic_rag/agents/prompts.py::build_fix_prompt`** (CHANGED) — rewrite:
+- The agent receives the structured issues as context (CLI passes them, below), NOT by
+  reading `lint-report-YYYY-MM-DD.md`.
+- Issue-kind → tool map (PINNED): `missing-frontmatter`→`add_frontmatter`;
+  `broken-link`→`fix_link`; `missing-related`→`append_related_section`;
+  `missing-index`→`regenerate_index`; `orphan`/`empty`/`stale`→report only (need human
+  judgment or content; use `edit_wiki_page` only if an obvious fix exists).
+- Fix one issue per tool call, verify by `wiki_read_page`, move on.
+
+**`src/agentic_rag/cli.py::fix`** (CHANGED):
+- Run `health_check(settings.wiki_path)` → `LintReport`; serialize `report.issues` to a
+  compact one-line-per-issue context string and pass it as the user message to the agent
+  (e.g. `"Fix these lint issues:\n- [missing-frontmatter] entities/mlx: ...\n- ..."`).
+- Keep the `--issue` arg as an optional filter: if provided, filter `report.issues` to
+  those whose `kind`/`slug` matches before sending. Keep accepting `"latest"` as a no-op
+  alias for back-compat (it now means "run health_check").
+- Compat: if `health_check` raises (empty wiki), fall back to the old behavior of echoing
+  "No issues" (do not crash).
+
+## Pass B Existing interfaces touched (back-compat constraints)
+- `schemas/extraction.py` — UNCHANGED (reused as-is; already exported from `schemas/__init__.py`).
+- `tools/ingest_tools.py` `create_page`/`update_page`/`delete_wiki_page`/`flag_contradiction`/
+  `append_log`/`read_source` — UNCHANGED signature/behavior. `update_index` stays importable;
+  just no longer listed in the ingest agent's tools.
+- `tools/query_tools.py::find_relevant_pages` — kept importable; dropped from ingest tools.
+- `tools/shared.py` `read_index`/`search_index`/`read_wiki_page` — kept importable (unit tests).
+- `wiki/search.py::search`, `wiki/model.py::load_wiki`, `wiki/dedupe_index.regenerate_index`,
+  `schemas/lint.py`, `lint/health.py::health_check` — consumed UNCHANGED.
+- `agents/factory.py::build_agent` + `path_guard_middleware` — UNCHANGED; the new fix tools
+  are write-tools the guardrail must NOT block (their `slug` args are within-wiki reads/writes;
+  the guardrail's existing write-tools set needs `add_frontmatter`/`fix_link`/
+  `append_related_section` added — PIN: add them to the guardrail's write-tools set so a
+  `raw/`/absolute/`..` slug is rejected, but in-wiki slugs pass).
+
+## Pass B Tasks summary
+9. `tools/ingest_grounding.py` `submit_extraction` + `io/chunker.py` chunker (ingest prep).
+10. `wiki/match.py` deterministic `match_page` + `@tool match_page`.
+11. Ingest agent migration (drop `update_index`+old retrieval; `wiki_search`/`submit_extraction`/
+    `match_page`/`regenerate_index`; rewrite `build_ingest_prompt`).
+12. Fix tools refactor (`add_frontmatter`/`fix_link`/`append_related_section`; remove
+    `execute_command`/`remove_index_entry`; guardrail set update).
+13. Fix agent + CLI consume structured `LintReport` (rewrite `build_fix_prompt` + `cli.fix`).
+14. Eval harness (`tests/eval/` recall@k + hallucination gate).
+
+## Pass B Acceptance
+- `uv run pytest` exits 0 including the new `tests/eval/` suite (no LLM required for eval).
+- Ingest agent's tool list NO LONGER contains `update_index`, `read_index`, `search_index`, or
+  `find_relevant_pages`; it DOES contain `submit_extraction`, `match_page`, `regenerate_index`.
+- A scripted ingest integration test (fake `ScriptedChatModel`) calls `submit_extraction` then
+  `match_page` then `create_page`/`update_page` then `regenerate_index` then `append_log`; NO
+  `update_index` call occurs; `index.md` is regenerated (one `regenerate_index` call).
+- `match_page(wiki, "MLX", "entity")` on the live wiki returns `"exact: entities/mlx ..."`;
+  `match_page(wiki, "Nonexistent Thing", "entity")` returns `"none ..."`; a query matching ≥2
+  pages returns `"conflict: ..."`.
+- Fix agent's tool list NO LONGER contains `execute_command`; it DOES contain `add_frontmatter`,
+  `fix_link`, `append_related_section`, `regenerate_index`.
+- `agentic-rag fix missing-frontmatter` (or `fix latest`) runs `health_check`, passes structured
+  issues to the fix agent, and the agent's first action is driven by the issue kinds (no
+  `read_wiki_page('lint-report-...')` markdown-parse call).
+- A `missing-frontmatter` issue on a fixture page is fixed by `add_frontmatter` (page gains valid
+  frontmatter, re-`load_wiki` parses it). A `broken-link` issue is fixed by `fix_link`.
+- Eval: `tests/eval/test_search_recall.py` asserts recall@8 ≥ 0.8 on the curated ~15-query set
+  against the live `wiki/`; `tests/eval/test_grounding_gate.py` asserts a fabricated citation is
+  dropped by `validate_citations`.
+- The guardrail blocks an `add_frontmatter`/`fix_link`/`append_related_section` call with a
+  `raw/` or absolute slug (unit test); in-wiki slugs pass.
+
+## Pass B Open questions
+- None blocking. "Should `fix` auto-run deterministic-safe fixes (missing-frontmatter,
+  broken-link, missing-related, regenerate_index) without an LLM at all?" is a later UX decision —
+  Pass B keeps the fix agent in the loop (agentic judgment on orphan/empty/stale), so all kinds
+  still route through the agent. Automating the purely-deterministic kinds is a deferred tweak.

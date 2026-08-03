@@ -11,6 +11,15 @@
 - [x] [COMPLETED] T7: Rebuild query agent on nav tools + `submit_query_answer`; update `build_query_prompt`; render `QueryAnswer` in `query` CLI with back-compat fallback `src/agentic_rag/agents/query.py` `src/agentic_rag/agents/prompts.py` `src/agentic_rag/cli.py`
 - [x] [COMPLETED] T8: Deterministic `health_check`+`LintReport`+`schemas/lint.py`; restructure lint agent (`run_health_check` tool, `write_lint_report` accepts model|str); lint aliases delegate to model `src/agentic_rag/lint/health.py` `src/agentic_rag/schemas/lint.py` `src/agentic_rag/agents/lint.py` `src/agentic_rag/tools/lint_tools.py` `src/agentic_rag/agents/prompts.py`
 
+<!-- Pass B — Ingest compilation + fix-agent refactor + eval harness (spec: Pass B section) -->
+
+- [ ] [PENDING] T9: `submit_extraction` finalization tool (pure, mirrors `submit_query_answer`) reused `ExtractionResult`/`Entity`/`Concept`/`Contradiction` + `chunk_by_heading` source chunker `src/agentic_rag/tools/ingest_grounding.py` `src/agentic_rag/io/chunker.py`
+- [ ] [PENDING] T10: Deterministic `match_page(wiki, name, page_type)` (exact slug → BM25 similar → none → conflict) + `@tool match_page` `src/agentic_rag/wiki/match.py`
+- [ ] [PENDING] T11: Migrate ingest agent off `update_index`/`read_index`/`search_index`/`find_relevant_pages`; onto `submit_extraction`/`match_page`/`wiki_read_page`/`regenerate_index`; rewrite `build_ingest_prompt` `src/agentic_rag/agents/ingest.py` `src/agentic_rag/agents/prompts.py`
+- [ ] [PENDING] T12: Fix tools: add `add_frontmatter`/`fix_link`/`append_related_section`/`regenerate_index` tool in nav; remove `execute_command`/`remove_index_entry`; add new tools to guardrail write-tools set `src/agentic_rag/tools/fix_tools.py` `src/agentic_rag/tools/nav.py` `src/agentic_rag/middleware/guardrails.py`
+- [ ] [PENDING] T13: Fix agent + CLI consume structured `LintReport` from `health_check`; rewrite `build_fix_prompt` (kind→tool map); CLI `fix` runs health_check, passes issues, drops shell HITL `src/agentic_rag/agents/fix.py` `src/agentic_rag/agents/prompts.py` `src/agentic_rag/cli.py`
+- [ ] [PENDING] T14: Eval harness — recall@k on `wiki.search` (curated ~15 live-wiki queries, no LLM) + hallucination gate on `validate_citations` (fabricated citation dropped) `tests/eval/test_search_recall.py` `tests/eval/test_grounding_gate.py`
+
 - T3 exports: `search(wiki: Wiki, query: str, *, k=8, types=None, tags=None, expand_links=True, depth=1) -> list[SearchHit]` in `src/agentic_rag/wiki/search.py`; `SearchHit(slug, score, sections, matched_via)` (pydantic).
 - T3 note: BM25 doc = title + tags + headings + section texts (intro text = inferred summary); tokenization NFKD→ASCII→lower→split non-alphanumeric; `types`/`tags` filter candidates BEFORE BM25; direct hits skip zero-token-overlap pages; expansion = min(2,k) per source page, total cap k, EXPAND_SCORE=0.1 fixed, `matched_via='expand-link'`; empty inputs → [].
 - T3 note: dep added as `rank-bm25>=0.0.5` (uv-normalized name) in pyproject.toml + uv.lock (installed 0.2.2).
@@ -46,3 +55,7 @@
 - T2 note: sections include H1 + all headings; preamble text prepended to first section (or synthetic `heading=""` section). Frontmatter excluded from sections/links/word_count. Empty wiki dir → `Wiki([], {})`.
 - T2 note: model INCLUDES `lint-report-*.md` as an unknown-type page — T8 health_check must skip lint-report pages for content stats; T4 regenerate_index excludes them.
 - T2 infra: `.gitignore` line 2 changed `wiki/` → `/wiki/` (root-anchored) — the old unanchored pattern was swallowing `src/agentic_rag/wiki/`; data dir still ignored.
+
+## Pass B Interface handoffs
+<!-- Populated by the orchestrator from each task's handoff contract block. Do not pre-fill beyond the stub. -->
+- (none yet)
