@@ -241,10 +241,10 @@ def lint():
 @app.command()
 def fix(
     issue: str = typer.Argument(
-        ..., help="Description of the lint issue to fix or 'latest' to read the latest report"
+        ..., help="Optional filter (issue kind or page slug) or 'latest' to run health_check"
     )
 ):
-    """Fix wiki lint issues by executing commands in the wiki directory."""
+    """Fix wiki lint issues found by the deterministic health check."""
     from agentic_rag.config import Settings
     from agentic_rag.logging_config import setup_logging
 
@@ -254,6 +254,28 @@ def fix(
     logger.info(f"FIX command invoked: issue={issue}")
 
     from agentic_rag.agents.fix import build_fix_agent
+    from agentic_rag.lint.health import health_check
+
+    # Run the deterministic health check -> structured LintReport.
+    try:
+        report = health_check(settings.wiki_path)
+        issues = report.issues
+        if issue and issue != "latest":
+            needle = issue.lower()
+            issues = [
+                i for i in issues
+                if needle in i.kind.lower() or needle in i.slug.lower()
+            ]
+        if issues:
+            lines = ["Fix these lint issues:"]
+            for i in issues:
+                lines.append(f"- [{i.kind}] {i.slug}: {i.detail}")
+            user_message = "\n".join(lines)
+        else:
+            user_message = "No issues"
+    except Exception as e:
+        logger.warning(f"Health check failed, falling back to 'No issues': {e}")
+        user_message = "No issues"
 
     agent = build_fix_agent(settings)
     config = {
@@ -263,7 +285,7 @@ def fix(
     try:
         logger.info("Invoking fix agent")
         result = agent.invoke(
-            {"messages": [{"role": "user", "content": f"Fix this lint issue: {issue}"}]},
+            {"messages": [{"role": "user", "content": user_message}]},
             config=config,
         )
         logger.info("Fix agent completed")
@@ -288,57 +310,37 @@ def fix(
             actions = raw.get("action_requests", []) if hasattr(raw, "get") else []
         except Exception:
             actions = []
-        if not actions:
-            actions = [{"name": "unknown", "args": {"command": "unknown"}}]
 
-        # Display commands
+        # Display pending actions (approve/reject only — no edit-command path)
         typer.echo(f"\n{'='*60}")
-        typer.echo(f"  {len(actions)} pending command{'s' if len(actions) > 1 else ''}")
+        typer.echo(f"  {len(actions)} pending action{'s' if len(actions) > 1 else ''}")
         typer.echo(f"{'='*60}")
         for i, action in enumerate(actions, 1):
+            name = action.get("name", "unknown") if isinstance(action, dict) else "unknown"
             args = action.get("args", {}) if isinstance(action, dict) else {}
-            cmd = args.get("command", "unknown") if isinstance(args, dict) else "unknown"
-            typer.echo(f"  [{i}] {cmd}")
+            desc = args.get("slug", args.get("page_slug", "")) if isinstance(args, dict) else ""
+            typer.echo(f"  [{i}] {name}({desc})")
         typer.echo(f"{'='*60}")
-        typer.echo("  [a]pprove all  [r]eject all  [e]dit single command")
+        typer.echo("  [a]pprove all  [r]eject all")
 
         decision = typer.prompt("Decision")
         logger.info(f"HITL decision: {decision}")
 
         if decision in ("a", "approve"):
             result = agent.invoke(
-                Command(resume={"decisions": [{"type": "approve"}] * len(actions)}),
+                Command(resume={"decisions": [{"type": "approve"}] * len(actions) if actions else [{"type": "approve"}]}),
                 config=config,
             )
         elif decision in ("r", "reject"):
             feedback = typer.prompt("Feedback (optional)", default="")
             result = agent.invoke(
                 Command(
-                    resume={"decisions": [{"type": "reject", "feedback": feedback}] * len(actions)}
+                    resume={"decisions": [{"type": "reject", "feedback": feedback}] * len(actions) if actions else [{"type": "reject", "feedback": feedback}]}
                 ),
                 config=config,
             )
-        elif decision in ("e", "edit"):
-            if len(actions) == 1:
-                idx = 0
-            else:
-                idx = int(typer.prompt(f"Which command to edit [1-{len(actions)}]")) - 1
-            old_cmd = actions[idx].get("args", {}).get("command", "")
-            typer.echo(f"Current: {old_cmd}")
-            new_cmd = typer.prompt("New command")
-            decisions = [{"type": "approve"}] * len(actions)
-            decisions[idx] = {
-                "type": "edit",
-                "edited_action": {
-                    "name": "execute_command",
-                    "args": {"command": new_cmd},
-                },
-            }
-            result = agent.invoke(
-                Command(resume={"decisions": decisions}), config=config
-            )
         else:
-            typer.echo("Invalid. Use a/r/e.")
+            typer.echo("Invalid. Use a/r.")
 
     logger.info("FIX command finished")
     typer.echo(result["messages"][-1].content)
