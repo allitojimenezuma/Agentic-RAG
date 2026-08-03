@@ -69,6 +69,39 @@ class TestPathGuardMiddleware:
             assert result == "handled", f"read_source({p!r}) was blocked: {result}"
             assert len(calls) == 1
 
+    def test_blocks_new_fix_write_tools_with_bad_slug(self):
+        """The new fix write-tools reject raw/, absolute, and '..' slugs."""
+        for tool_name in ("add_frontmatter", "fix_link", "append_related_section"):
+            for arg in ("raw/foo", "/etc/passwd", "entities/../secret"):
+                calls: list = []
+
+                def handler(request):
+                    calls.append(request)
+                    return "handled"
+
+                request = SimpleNamespace(
+                    tool_call={"name": tool_name, "args": {"slug": arg}}
+                )
+                result = path_guard_middleware.wrap_tool_call(request, handler)
+                assert "ERROR" in result, f"{tool_name}({arg!r}) was not blocked: {result}"
+                assert calls == [], f"handler called for blocked {tool_name}({arg!r})"
+
+    def test_allows_new_fix_write_tools_with_in_wiki_slug(self):
+        """In-wiki slugs pass the guardrail for the new fix write-tools."""
+        for tool_name in ("add_frontmatter", "fix_link", "append_related_section"):
+            calls: list = []
+
+            def handler(request):
+                calls.append(request)
+                return "handled"
+
+            request = SimpleNamespace(
+                tool_call={"name": tool_name, "args": {"slug": "entities/python"}}
+            )
+            result = path_guard_middleware.wrap_tool_call(request, handler)
+            assert result == "handled", f"{tool_name} was blocked: {result}"
+            assert len(calls) == 1
+
     def test_registered_in_build_agent(self, monkeypatch):
         """The middleware is wired into build_agent's middleware chain."""
         captured: dict = {}

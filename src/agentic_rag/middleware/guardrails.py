@@ -17,6 +17,9 @@ def path_guard_middleware(request, handler):
         "update_page",
         "delete_wiki_page",
         "write_lint_report",
+        "add_frontmatter",
+        "fix_link",
+        "append_related_section",
     }
     if tool_name in write_tools:
         for key in ("slug", "path", "file_path", "source_path"):

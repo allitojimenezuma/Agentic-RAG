@@ -1,70 +1,126 @@
-"""Tools for the fix agent: file editing and restricted command execution."""
+"""Tools for the fix agent: safe in-wiki page edits (no shell access)."""
 
 from __future__ import annotations
 
 import logging
-import shlex
-import subprocess
-from pathlib import Path
+from datetime import date
 
 from langchain_core.tools import tool
 
+from agentic_rag.io.wiki_io import read_page, write_page
+from agentic_rag.schemas.wiki import Frontmatter
 from agentic_rag.tools.shared import get_wiki_path
 
 logger = logging.getLogger(__name__)
 
 
-def _validate_command_within_wiki(command: str) -> str | None:
-    """Validate that a command operates only within wiki_path."""
-    wiki_path = get_wiki_path().resolve()
+@tool
+def add_frontmatter(slug: str, title: str, page_type: str) -> str:
+    """Add YAML frontmatter to a wiki page that currently lacks it.
 
-    blocked_patterns = [
-        "cd /", "cd ~", "cd ..",
-        "rm -rf /", "rm -rf ~",
-        "sudo", "chmod", "chown",
-        "mv /", "cp /",
-    ]
-    cmd_lower = command.lower().strip()
-    for pattern in blocked_patterns:
-        if cmd_lower.startswith(pattern) or f" {pattern}" in cmd_lower:
-            return f"Blocked: command '{pattern}' not allowed"
-
-    if cmd_lower.startswith("cd "):
-        try:
-            parts = shlex.split(command)
-            target = Path(parts[1]).resolve()
-            if not str(target).startswith(str(wiki_path)):
-                return f"Blocked: cd to '{target}' is outside wiki_path"
-        except Exception:
-            pass
-
-    return None
-
-
-def run_command(command: str) -> str:
-    """Execute a shell command within wiki_path."""
-    wiki_path = get_wiki_path().resolve()
-    error = _validate_command_within_wiki(command)
-    if error:
-        logger.warning("Command blocked: %s", error)
-        return error
-
-    logger.debug("Executing in %s: %s", wiki_path, command)
+    Args:
+        slug: Page slug (e.g., 'entities/python', 'concepts/ai')
+        title: Human-readable display title
+        page_type: Page type (entity, concept, source, comparison, overview)
+    """
+    wiki_path = get_wiki_path()
     try:
-        result = subprocess.run(
-            command, shell=True, cwd=str(wiki_path),
-            capture_output=True, text=True, timeout=30,
-        )
-        output = result.stdout
-        if result.stderr:
-            output += f"\n[stderr] {result.stderr}"
-        if result.returncode != 0:
-            output += f"\n[exit code] {result.returncode}"
-        return output or "(no output)"
-    except subprocess.TimeoutExpired:
-        return "Error: command timed out after 30 seconds"
-    except Exception as e:
-        return f"Error executing command: {e}"
+        body = read_page(wiki_path, slug)
+    except FileNotFoundError:
+        return f"Page not found: {slug}"
+
+    if body.startswith("---"):
+        return f"Error: {slug} already has frontmatter"
+
+    fm = Frontmatter(
+        slug=slug,
+        type=page_type,
+        title=title,
+        sources=[],
+        updated=date.today(),
+        tags=[],
+    )
+    write_page(wiki_path, slug, body, frontmatter=fm)
+    logger.info("Added frontmatter to %s (type=%s)", slug, page_type)
+    return f"Added frontmatter to {slug}."
+
+
+@tool
+def fix_link(slug: str, old_target: str, new_target: str) -> str:
+    """Fix broken wiki links by replacing a link target.
+
+    Replaces one occurrence of each form: [[old_target]] -> [[new_target]] and
+    [[old_target|alias]] -> [[new_target|alias]]. Returns the number of links
+    replaced (0, 1, or 2).
+
+    Args:
+        slug: Page slug containing the broken links
+        old_target: Current link target to replace
+        new_target: Replacement link target
+    """
+    wiki_path = get_wiki_path()
+    try:
+        content = read_page(wiki_path, slug)
+    except FileNotFoundError:
+        return f"Page not found: {slug}"
+
+    count = 0
+    plain_old = f"[[{old_target}]]"
+    if plain_old in content:
+        content = content.replace(plain_old, f"[[{new_target}]]", 1)
+        count += 1
+
+    alias_prefix = f"[[{old_target}|"
+    idx = content.find(alias_prefix)
+    if idx != -1:
+        end = content.find("]]", idx)
+        if end != -1:
+            alias = content[idx + len(alias_prefix):end]
+            content = content[:idx] + f"[[{new_target}|{alias}]]" + content[end + 2:]
+            count += 1
+
+    if count == 0:
+        return f"No links to '{old_target}' found in {slug}"
+
+    write_page(wiki_path, slug, content)
+    logger.info("Fixed %d link(s) in %s: %s -> %s", count, slug, old_target, new_target)
+    return f"Replaced {count} link(s) in {slug}."
+
+
+@tool
+def append_related_section(slug: str, links: list[str]) -> str:
+    """Add a '## Related' section with cross-links, or append new links to an existing one.
+
+    Args:
+        slug: Page slug to update
+        links: Page slugs (or display names) to add as - [[link]] entries
+    """
+    wiki_path = get_wiki_path()
+    try:
+        content = read_page(wiki_path, slug)
+    except FileNotFoundError:
+        return f"Page not found: {slug}"
+
+    bullet_lines = [f"- [[{link}]]" for link in links]
+    lines = content.split("\n")
+    rel_idx = next(
+        (i for i, line in enumerate(lines) if line.strip() == "## Related"), None
+    )
+    if rel_idx is None:
+        lines.append("## Related")
+        lines.append("")
+        lines.extend(bullet_lines)
+    else:
+        end = len(lines)
+        for i in range(rel_idx + 1, len(lines)):
+            if lines[i].startswith("## "):
+                end = i
+                break
+        lines[end:end] = bullet_lines
+
+    write_page(wiki_path, slug, "\n".join(lines))
+    logger.info("Appended %d related link(s) to %s", len(links), slug)
+    return f"Appended {len(links)} related link(s) to {slug}."
 
 
 @tool
@@ -90,43 +146,3 @@ def edit_wiki_page(slug: str, old_text: str, new_text: str) -> str:
     page_path.write_text(new_content, encoding="utf-8")
     logger.info("Edited %s: replaced 1 occurrence of %r", slug, old_text)
     return f"Replaced 1 occurrence in {slug}.md ({count} remaining)"
-
-
-@tool
-def remove_index_entry(slug: str) -> str:
-    """Remove a stale entry from wiki/index.md by slug.
-
-    Args:
-        slug: Page slug to remove (e.g., 'entities/python')
-    """
-    wiki_path = get_wiki_path()
-    index_path = wiki_path / "index.md"
-    if not index_path.exists():
-        return "Index not found"
-
-    content = index_path.read_text(encoding="utf-8")
-    lines = content.split("\n")
-    new_lines = []
-    removed = False
-    for line in lines:
-        if slug in line and line.strip().startswith("- "):
-            removed = True
-            continue
-        new_lines.append(line)
-
-    if not removed:
-        return f"No index entry found for {slug}"
-
-    index_path.write_text("\n".join(new_lines), encoding="utf-8")
-    logger.info("Removed index entry for %s", slug)
-    return f"Removed {slug} from index.md"
-
-
-@tool
-def execute_command(command: str) -> str:
-    """Execute a shell command within the wiki directory.
-
-    Args:
-        command: Shell command to execute (e.g., 'ls entities/')
-    """
-    return run_command(command)
