@@ -11,6 +11,7 @@ Consolidates navigation into four deterministic, token-efficient tools:
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from langchain_core.tools import tool
 
@@ -43,6 +44,10 @@ def wiki_search(
     if not hits:
         return f"No relevant pages found for '{query}'."
 
+    from agentic_rag.tools.grounding import record_navigated
+
+    record_navigated(h.slug for h in hits)
+
     direct = [h for h in hits if h.matched_via != "expand-link"]
     linked = [h for h in hits if h.matched_via == "expand-link"]
     lines: list[str] = []
@@ -59,13 +64,18 @@ def wiki_search(
 def wiki_read_page(slug: str, section: str | None = None) -> str:
     """Read a wiki page by slug. Without a section, returns the full raw markdown including frontmatter. With a section name, returns only that section's text (heading line excluded). Use this to get detailed information about any entity, concept, or source."""
     logger.debug("Reading wiki page: %s (section=%s)", slug, section)
+    from agentic_rag.tools.grounding import record_navigated
+
     if section is None:
-        return _read_page(get_wiki_path(), slug)
+        content = _read_page(get_wiki_path(), slug)
+        record_navigated([_resolved_slug(get_wiki_path(), slug)])
+        return content
 
     wiki = load_wiki(get_wiki_path())
     page = _find_page(wiki, slug)
     if page is None:
         raise FileNotFoundError(f"Wiki page not found: {slug}")
+    record_navigated([page.slug])
     target = section.lower()
     for s in page.sections:
         if s.heading.lower() == target:
@@ -215,6 +225,16 @@ def _split_csv(value: str | None) -> list[str] | None:
         return None
     parts = [item.strip() for item in value.split(",") if item.strip()]
     return parts or None
+
+
+def _resolved_slug(wiki_path: Path, slug: str) -> str:
+    """Resolve a slug to its canonical page slug (mirror of wiki_io._resolve_page_path)."""
+    if (wiki_path / f"{slug}.md").is_file():
+        return slug
+    for md_file in wiki_path.rglob(f"{slug}.md"):
+        if md_file.is_file():
+            return str(md_file.relative_to(wiki_path)).removesuffix(".md")
+    return slug  # unreachable: read_page already raised if the page is missing
 
 
 def _find_page(wiki: Wiki, slug: str) -> Page | None:

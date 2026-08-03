@@ -6,6 +6,7 @@ from agentic_rag.schemas.extraction import (
     Entity,
     ExtractionResult,
 )
+from agentic_rag.schemas.query import QueryAnswer, SourceCitation
 from agentic_rag.schemas.wiki import (
     Frontmatter,
     Heading,
@@ -26,4 +27,6 @@ __all__ = [
     "IndexEntry",
     "Link",
     "LogEntry",
+    "QueryAnswer",
+    "SourceCitation",
 ]
