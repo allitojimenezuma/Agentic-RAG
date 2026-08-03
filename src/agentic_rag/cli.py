@@ -260,14 +260,32 @@ def fix(
     try:
         report = health_check(settings.wiki_path)
         issues = report.issues
+        filter_mismatch = False
         if issue and issue != "latest":
             needle = issue.lower()
             issues = [
                 i for i in issues
                 if needle in i.kind.lower() or needle in i.slug.lower()
             ]
+            if not issues and report.issues:
+                # A filter that matches nothing is NOT a clean bill of health:
+                # the user asked to fix and real issues exist. Warn, then fall
+                # back to fixing all of them instead of sending "No issues".
+                filter_mismatch = True
+                issues = report.issues
+                warning = (
+                    f"Warning: no issues matched '{issue}'; "
+                    f"fixing all {len(issues)} issues."
+                )
+                typer.echo(warning)
+                logger.warning(warning)
         if issues:
             lines = ["Fix these lint issues:"]
+            if filter_mismatch:
+                lines.insert(
+                    0,
+                    f"No issues matched filter '{issue}' — fixing all {len(issues)} issues.",
+                )
             for i in issues:
                 lines.append(f"- [{i.kind}] {i.slug}: {i.detail}")
             user_message = "\n".join(lines)

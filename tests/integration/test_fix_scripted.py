@@ -354,3 +354,49 @@ class TestFixCliCommand:
         assert result.exit_code == 0
         assert "Nothing to do." in result.output
         assert captured["user"] == "No issues"
+
+    def test_fix_unmatched_filter_falls_back_to_all_issues(self, tmp_path, fixable_wiki):
+        """A filter matching nothing falls back to all issues (never 'No issues')."""
+        (tmp_path / "AGENTS.md").write_text("# Wiki Schema\n")
+        captured: dict = {}
+        with (
+            patch.dict("os.environ", self._env(tmp_path, fixable_wiki), clear=False),
+            patch(
+                "agentic_rag.agents.fix.build_fix_agent",
+                self._capture_fake_build(captured),
+            ),
+        ):
+            result = runner.invoke(
+                app, ["fix", "fix everything inside the lint report"]
+            )
+
+        assert result.exit_code == 0
+        assert "Fixed all issues." in result.output
+        # Warning echoed to the user
+        assert "Warning: no issues matched" in result.output
+        # Agent received all issues, not a bare "No issues"
+        assert "No issues matched filter" in captured["user"]
+        assert "Fix these lint issues:" in captured["user"]
+        assert "[missing-frontmatter] entities/mlx" in captured["user"]
+        assert captured["user"] != "No issues"
+
+    def test_fix_no_issues_still_says_no_issues(self, tmp_path):
+        """A clean wiki still sends 'No issues' (guard against regressions)."""
+        wiki = tmp_path / "wiki"
+        (wiki / "entities").mkdir(parents=True)
+        (wiki / "index.md").write_text("# Wiki Index\n")
+        (wiki / "log.md").write_text("# Wiki Log\n")
+        (tmp_path / "AGENTS.md").write_text("# Wiki Schema\n")
+        captured: dict = {}
+        with (
+            patch.dict("os.environ", self._env(tmp_path, wiki), clear=False),
+            patch(
+                "agentic_rag.agents.fix.build_fix_agent",
+                self._capture_fake_build(captured, final="Nothing to do."),
+            ),
+        ):
+            result = runner.invoke(app, ["fix", "latest"])
+
+        assert result.exit_code == 0
+        assert "Nothing to do." in result.output
+        assert captured["user"] == "No issues"
