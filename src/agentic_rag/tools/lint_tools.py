@@ -23,7 +23,7 @@ def wiki_link_summary() -> str:
     """Get a summary of ALL pages with their inbound and outbound links in one call.
     Returns each page's slug, type, outbound links (what it links to), and inbound links (what links to it)."""
     # Delegates to the consolidated nav tool (moved implementation, same output).
-    return wiki_link_graph()
+    return wiki_link_graph.invoke({})
 
 
 @tool

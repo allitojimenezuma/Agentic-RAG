@@ -30,6 +30,7 @@ from agentic_rag.tools.lint_tools import (
     find_inbound_links,
     extract_concepts,
     write_lint_report,
+    wiki_link_summary,
 )
 
 
@@ -310,6 +311,30 @@ class TestFindInboundLinks:
         result = find_inbound_links.invoke({"slug": "entities/python"})
         assert "No pages link" in result
         assert "orphan" in result
+
+
+class TestWikiLinkSummary:
+    def test_delegates_to_nav_wiki_link_graph(self, wiki_path: Path) -> None:
+        """Back-compat alias must match nav.wiki_link_graph exactly (regression:
+        it used to call the StructuredTool object directly and raise TypeError)."""
+        init_shared_tools(wiki_path)
+        _create_test_page(
+            wiki_path, "entities/python",
+            "# Python\n\nSee [[concepts/ml]].",
+        )
+        _create_test_page(wiki_path, "concepts/ml", "# ML\n\nMachine learning.")
+
+        from agentic_rag.tools.nav import wiki_link_graph as nav_graph
+
+        result = wiki_link_summary.invoke({})
+        assert result == nav_graph.invoke({})
+        assert "entities/python" in result
+        assert "ORPHAN" in result  # concepts/ml has no inbound links
+
+    def test_empty_wiki(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
+        result = wiki_link_summary.invoke({})
+        assert "No wiki pages" in result
 
 
 class TestExtractConcepts:
