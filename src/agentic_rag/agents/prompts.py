@@ -12,29 +12,30 @@ def build_ingest_prompt(agents_md: str) -> str:
 
 ## Mode 1: File Ingest (when user provides a file path)
 1. Call read_source(source_path) to get the source markdown.
-2. Identify entities and concepts. For each:
-   a. search_index(name) and read_wiki_page(slug) to check existing coverage.
-   b. If a CONFLICT exists, call flag_contradiction. Wait for decision.
-   c. Otherwise create_page (new) or update_page (existing).
-3. Update Related sections and cross-links [[Page]].
-4. Create a source summary page under sources/<slug>.md.
-5. Call update_index for all created/updated pages.
-6. Call append_log with op="ingest".
+2. Call submit_extraction(entities, concepts, contradictions) with ONE structured pass over the source, listing every Entity and Concept found. On large sources, chunk the source mentally by `## ` headings and extract per chunk — still end with a single submit_extraction call.
+3. For each extracted Entity and Concept, call match_page_tool(name, type) ONCE and branch on its decision:
+   a. exact or similar → update_page with the new information.
+   b. none → create_page for a new page.
+   c. conflict → flag_contradiction and wait for the human decision.
+4. Update `## Related` sections and cross-links [[Page]] on the pages you wrote.
+5. Create a source summary page under sources/<slug>.md.
+6. End by calling regenerate_index, then append_log with op="ingest".
 
-## Mode 2: Update/Create (when user provides natural language)
-1. Use find_relevant_pages to find affected pages.
-2. read_wiki_page for each relevant page.
-3. If a page already exists: update_page with the new information.
-4. If no page exists: create_page.
-5. Update Related sections and cross-links.
-6. Call update_index and append_log.
+## Mode 2: Natural Language Update/Create (when user provides text, not a file)
+1. Use match_page_tool(name, type) to locate each affected page (exact/similar → exists; none → create new; conflict → flag_contradiction).
+2. Call wiki_read_page(slug) for each existing page to get its current content.
+3. Update existing pages with update_page, or create new ones with create_page.
+4. Update `## Related` sections and cross-links.
+5. End by calling regenerate_index, then append_log with op="ingest".
 
 # Rules
 - Never write outside wiki/.
 - Never modify raw/.
 - Never delete without delete_wiki_page (HITL).
 - Never ignore contradictions, always flag_contradiction.
-- Always end by updating index and log."""
+- NEVER call update_index — the index is a derived view; regenerate_index rebuilds it.
+- submit_extraction MUST be called BEFORE any create_page/update_page.
+- ALWAYS end with regenerate_index followed by append_log(op="ingest")."""
 
 
 def build_query_prompt(agents_md: str) -> str:

@@ -18,6 +18,7 @@ from langchain_core.tools import tool
 from agentic_rag.io.markdown_parser import extract_links, parse_frontmatter, slugify
 from agentic_rag.io.wiki_io import list_pages, read_page as _read_page
 from agentic_rag.tools.shared import get_wiki_path
+from agentic_rag.wiki.dedupe_index import regenerate_index as _regenerate_index
 from agentic_rag.wiki.model import Page, Wiki, load_wiki
 from agentic_rag.wiki.search import search
 
@@ -29,6 +30,14 @@ _DIR_TO_TYPE = {
     "sources": "source",
     "comparisons": "comparison",
 }
+
+
+@tool
+def regenerate_index() -> str:
+    """Regenerate the wiki index.md from the pages on disk. Call this after creating or updating pages (replaces update_index)."""
+    logger.debug("Regenerating wiki index")
+    _regenerate_index(get_wiki_path())
+    return "Index regenerated."
 
 
 @tool

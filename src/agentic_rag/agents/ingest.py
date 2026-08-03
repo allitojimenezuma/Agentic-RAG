@@ -10,17 +10,18 @@ from agentic_rag.agents.factory import build_agent
 from agentic_rag.agents.model import get_model
 from agentic_rag.agents.prompts import build_ingest_prompt
 from agentic_rag.schemas.agents_md import load_agents_md
+from agentic_rag.tools.ingest_grounding import submit_extraction
 from agentic_rag.tools.ingest_tools import (
     append_log,
     create_page,
     delete_wiki_page,
     flag_contradiction,
     read_source,
-    update_index,
     update_page,
 )
-from agentic_rag.tools.query_tools import find_relevant_pages
-from agentic_rag.tools.shared import init_shared_tools, read_index, read_wiki_page, search_index
+from agentic_rag.tools.nav import regenerate_index, wiki_read_page
+from agentic_rag.tools.shared import init_shared_tools
+from agentic_rag.wiki.match import match_page_tool
 
 logger = logging.getLogger("agentic_rag.agents.ingest")
 
@@ -35,16 +36,15 @@ def build_ingest_agent(settings) -> object:
     agents_md = load_agents_md(settings.agents_md_path)
     tools = [
         read_source,
-        read_index,
-        search_index,
-        find_relevant_pages,
-        read_wiki_page,
+        submit_extraction,
+        match_page_tool,
+        wiki_read_page,
         create_page,
         update_page,
-        delete_wiki_page,
-        update_index,
-        append_log,
         flag_contradiction,
+        regenerate_index,
+        append_log,
+        delete_wiki_page,
     ]
     middleware = [
         HumanInTheLoopMiddleware(
