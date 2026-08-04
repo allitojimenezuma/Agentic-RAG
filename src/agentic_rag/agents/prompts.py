@@ -18,6 +18,8 @@ def build_ingest_prompt(agents_md: str) -> str:
    b. none → create_page for a new page.
    c. conflict → flag_contradiction and wait for the human decision.
 4. Update `## Related` sections and cross-links [[Page]] on the pages you wrote.
+   Call `wiki_link_graph()` ONCE before this step to see current relations (who links to whom) —
+   use it to add inbound links to new pages and to pick accurate Related links.
 5. Create a source summary page under sources/<slug>.md.
 6. End by calling regenerate_index, then append_log with op="ingest".
 
@@ -26,7 +28,8 @@ def build_ingest_prompt(agents_md: str) -> str:
 2. Use match_page_tool(name, type) to locate each affected page (exact/similar → exists; none → create new; conflict → flag_contradiction).
 2. Call wiki_read_page(slug) for each existing page to get its current content.
 3. Update existing pages with update_page, or create new ones with create_page.
-4. Update `## Related` sections and cross-links.
+4. Update `## Related` sections and cross-links. If you need to know who links to whom
+   (e.g. where to add inbound links for a new page), call `wiki_link_graph()` ONCE.
 5. End by calling regenerate_index, then append_log with op="ingest".
 
 # Rules
