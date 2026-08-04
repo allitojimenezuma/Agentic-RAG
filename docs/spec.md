@@ -72,7 +72,7 @@ performance and behavior are untouched.
   works both under `st.navigation` and standalone `AppTest.from_file`.)
 - Style: `from __future__ import annotations`; PEP 8; module-level `logging.getLogger(__name__)`;
   pydantic `BaseModel` events — match `frontend/chat_driver.py`.
-- Test command (executors and gate run this): `uv sync --extra ui && uv run pytest`. The full
+- Test command (executors and gate run this): `uv sync --all-extras && uv run pytest` (dev extra holds pytest/respx; `--extra ui` alone prunes them from the venv). The full
   existing suite must stay green (currently 261 passed / 2 skipped).
 - Env via `Settings()` exactly as the CLI does. Required: `OPENAI_API_KEY`.
 - Agent builds: reuse `build_query_agent` / `build_ingest_agent` / `build_lint_agent` /
@@ -287,7 +287,7 @@ Pinned UI decisions:
 ## Acceptance
 - `git diff --name-only HEAD` contains **no path under `src/`** — the CLI and agents are
   untouched (hard gate). `pyproject.toml` unchanged.
-- `uv sync --extra ui && uv run pytest` green: all existing tests (261 passed / 2 skipped) plus
+- `uv sync --all-extras && uv run pytest` green: all existing tests (261 passed / 2 skipped) plus
   the new `test_agent_driver.py`, `test_history_store.py`, `test_ui_common.py`, `test_app_smoke.py`.
 - `uv run python -m py_compile` passes for every new/changed file.
 - `uv run streamlit run frontend/app.py --server.headless=true --server.port=8501` launches and
