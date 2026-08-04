@@ -104,6 +104,41 @@ class TestReadWikiPage:
             tool_read_wiki_page.invoke({"slug": "nonexistent"})
 
 
+class TestNavWikiReadPageErrors:
+    """nav.wiki_read_page must RETURN error strings (never raise) so the agent can recover."""
+
+    def test_missing_page_returns_error_not_raise(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
+        from agentic_rag.tools.nav import wiki_read_page as nav_read
+        result = nav_read.invoke({"slug": "nonexistent"})
+        assert "Error: Wiki page not found: nonexistent" in result
+        assert "wiki_scan" in result
+
+    def test_wrong_directory_suggests_correct_slug(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
+        _create_test_page(wiki_path, "entities/spec-driven-subagent-harness")
+        from agentic_rag.tools.nav import wiki_read_page as nav_read
+        result = nav_read.invoke({"slug": "concepts/spec-driven-subagent-harness"})
+        assert "Error: Wiki page not found: concepts/spec-driven-subagent-harness" in result
+        assert "entities/spec-driven-subagent-harness" in result
+
+    def test_section_path_missing_page_returns_error(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
+        from agentic_rag.tools.nav import wiki_read_page as nav_read
+        result = nav_read.invoke({"slug": "nonexistent", "section": "History"})
+        assert result.startswith("Error: Wiki page not found: nonexistent")
+
+    def test_read_source_missing_file_returns_error(self, wiki_path: Path, tmp_path: Path) -> None:
+        init_shared_tools(wiki_path)
+        result = read_source.invoke({"source_path": str(tmp_path / "missing.pdf")})
+        assert result.startswith("Error: could not read source")
+
+    def test_delete_wiki_page_missing_returns_error(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
+        result = delete_wiki_page.invoke({"slug": "nonexistent"})
+        assert result == "Error: Wiki page not found: nonexistent"
+
+
 class TestSearchIndex:
     def test_keyword_match(self, wiki_path: Path) -> None:
         init_shared_tools(wiki_path)

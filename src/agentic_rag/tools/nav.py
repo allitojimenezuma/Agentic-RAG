@@ -75,22 +75,43 @@ def wiki_read_page(slug: str, section: str | None = None) -> str:
     logger.debug("Reading wiki page: %s (section=%s)", slug, section)
     from agentic_rag.tools.grounding import record_navigated
 
-    if section is None:
-        content = _read_page(get_wiki_path(), slug)
-        record_navigated([_resolved_slug(get_wiki_path(), slug)])
-        return content
+    try:
+        if section is None:
+            content = _read_page(get_wiki_path(), slug)
+            record_navigated([_resolved_slug(get_wiki_path(), slug)])
+            return content
 
+        wiki = load_wiki(get_wiki_path())
+        page = _find_page(wiki, slug)
+        if page is None:
+            return _page_not_found_error(slug)
+        record_navigated([page.slug])
+        target = section.lower()
+        for s in page.sections:
+            if s.heading.lower() == target:
+                return s.text
+        headings = "; ".join(s.heading for s in page.sections if s.heading) or "none"
+        return f"Section '{section}' not found on page '{slug}'. Available headings: {headings}"
+    except FileNotFoundError:
+        # Never crash the agent run on a bad slug — return a recoverable error
+        # (with a suggestion when a page with the same basename exists).
+        return _page_not_found_error(slug)
+
+
+def _page_not_found_error(slug: str) -> str:
+    """Helpful not-found message: suggest an existing slug with the same basename."""
     wiki = load_wiki(get_wiki_path())
-    page = _find_page(wiki, slug)
-    if page is None:
-        raise FileNotFoundError(f"Wiki page not found: {slug}")
-    record_navigated([page.slug])
-    target = section.lower()
-    for s in page.sections:
-        if s.heading.lower() == target:
-            return s.text
-    headings = "; ".join(s.heading for s in page.sections if s.heading) or "none"
-    return f"Section '{section}' not found on page '{slug}'. Available headings: {headings}"
+    short = slug.rsplit("/", 1)[-1]
+    matches = sorted(p.slug for p in wiki.pages if p.slug.rsplit("/", 1)[-1] == short)
+    if matches:
+        return (
+            f"Error: Wiki page not found: {slug}. "
+            f"Did you mean: {', '.join(matches)}?"
+        )
+    return (
+        f"Error: Wiki page not found: {slug}. "
+        "Check the slug — use wiki_scan() or wiki_search() to list pages."
+    )
 
 
 @tool

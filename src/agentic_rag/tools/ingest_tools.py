@@ -40,7 +40,11 @@ def read_source(source_path: str) -> str:
     """Read and convert a source file to markdown using MarkItDown. Supports pdf, docx, pptx, xlsx, html, csv, json, xml, ipynb, images, epub, and more."""
     logger.debug("Reading source file: %s", source_path)
     loader = SourceLoader(settings=type("S", (), {"markitdown_llm_describe_images": False})())
-    result = loader.load(source_path)
+    try:
+        result = loader.load(source_path)
+    except (FileNotFoundError, ValueError, OSError) as e:
+        # Never crash the agent run on a bad source path — return a recoverable error.
+        return f"Error: could not read source '{source_path}': {e}"
     logger.debug("Source converted, first 200 chars: %s", result[:200])
     return result
 
@@ -120,6 +124,8 @@ def update_page(
 def delete_wiki_page(slug: str) -> str:
     """Delete a wiki page. This action requires human approval (HITL). Will be paused for confirmation."""
     logger.debug("Deleting page: %s", slug)
+    if not page_exists(get_wiki_path(), slug):
+        return f"Error: Wiki page not found: {slug}"
     _delete_page(get_wiki_path(), slug)
     return f"Deleted page: {slug}"
 
