@@ -290,28 +290,34 @@ def fix(
                 i for i in issues
                 if needle in i.kind.lower() or needle in i.slug.lower()
             ]
-            if not issues and report.issues:
-                # A filter that matches nothing is NOT a clean bill of health and
-                # is usually a natural-language instruction, not a typo'd filter.
-                # Keep the user's words as the instruction and append the
-                # deterministic issues as context the agent may use.
+            if not issues:
+                # The argument is a natural-language instruction (or a typo'd
+                # filter), NOT a clean bill of health. Always keep the user's
+                # words as the instruction; append the deterministic issues as
+                # context when any exist.
                 filter_mismatch = True
                 warning = (
                     f"Warning: no issues matched '{issue}'; "
-                    f"passing your request through with "
-                    f"{len(report.issues)} health-check issues as context."
+                    f"passing your request through to the agent."
                 )
                 typer.echo(warning)
                 logger.warning(warning)
         if filter_mismatch:
-            context = "\n".join(
-                f"- [{i.kind}] {i.slug}: {i.detail}" for i in report.issues
-            )
-            user_message = (
-                f"{issue}\n\n"
-                f"The deterministic health check found {len(report.issues)} issues "
-                f"(for context — address them only if relevant to the request):\n{context}"
-            )
+            if report.issues:
+                context = "\n".join(
+                    f"- [{i.kind}] {i.slug}: {i.detail}" for i in report.issues
+                )
+                user_message = (
+                    f"{issue}\n\n"
+                    f"The deterministic health check found {len(report.issues)} issues "
+                    f"(for context — address them only if relevant to the request):\n{context}"
+                )
+            else:
+                user_message = (
+                    f"{issue}\n\n"
+                    "Note: the deterministic health check found no issues — "
+                    "the wiki is structurally clean."
+                )
         elif issues:
             lines = ["Fix these lint issues:"]
             for i in issues:

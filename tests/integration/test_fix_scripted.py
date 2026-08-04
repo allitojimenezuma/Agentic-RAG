@@ -403,3 +403,31 @@ class TestFixCliCommand:
         assert result.exit_code == 0
         assert "Nothing to do." in result.output
         assert captured["user"] == "No issues"
+
+    def test_fix_natural_language_on_clean_wiki_passes_request(self, tmp_path):
+        """A natural-language request reaches the agent even when the wiki is clean."""
+        wiki = tmp_path / "wiki"
+        (wiki / "entities").mkdir(parents=True)
+        (wiki / "index.md").write_text("# Wiki Index\n")
+        (wiki / "log.md").write_text("# Wiki Log\n")
+        (tmp_path / "AGENTS.md").write_text("# Wiki Schema\n")
+        captured: dict = {}
+        with (
+            patch.dict("os.environ", self._env(tmp_path, wiki), clear=False),
+            patch(
+                "agentic_rag.agents.fix.build_fix_agent",
+                self._capture_fake_build(captured, final="Done."),
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                ["fix", "deepseek flash is cheaper than glm5.2, fix that in glm5.2 page"],
+            )
+
+        assert result.exit_code == 0
+        # The user's actual words are the agent's instruction — never 'No issues'
+        assert captured["user"].startswith(
+            "deepseek flash is cheaper than glm5.2, fix that in glm5.2 page"
+        )
+        assert "no issues" in captured["user"]
+        assert captured["user"] != "No issues"
