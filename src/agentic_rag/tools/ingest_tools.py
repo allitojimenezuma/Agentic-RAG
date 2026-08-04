@@ -178,5 +178,8 @@ def flag_contradiction(
         f"  Existing claim: {existing_claim}\n"
         f"  New claim: {new_claim}\n"
         f"  Proposed resolution: {proposed_resolution}\n"
-        f"Awaiting human decision: approve, edit, or reject."
+        f"The human decision has been captured by the approval flow. Continue the ingestion: "
+        f"approve → proceed with your proposed_resolution; reject → leave the existing page "
+        f"unchanged; edit → apply the edited resolution. Do NOT ask for approval again — "
+        f"finish with regenerate_index + append_log."
     )

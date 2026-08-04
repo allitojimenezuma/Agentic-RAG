@@ -87,7 +87,7 @@ def ingest(input_text: str = typer.Argument(..., help="File path to ingest OR na
             desc = args.get("page_slug", args.get("slug", "")) if isinstance(args, dict) else ""
             typer.echo(f"  [{i}] {name}({desc})")
         typer.echo(f"{'='*60}")
-        typer.echo("  [a]pprove all  [r]eject all")
+        typer.echo("  [a]pprove all  [e]dit one  [r]eject all")
 
         decision = typer.prompt("Decision")
         logger.info(f"HITL decision: {decision}")
@@ -105,8 +105,31 @@ def ingest(input_text: str = typer.Argument(..., help="File path to ingest OR na
                 ),
                 config=config,
             )
+        elif decision in ("e", "edit"):
+            if len(actions) == 1:
+                idx = 0
+            else:
+                idx = int(typer.prompt(f"Which action to edit [1-{len(actions)}]")) - 1
+            target = actions[idx] if isinstance(actions[idx], dict) else {}
+            target_args = target.get("args", {}) if isinstance(target, dict) else {}
+            typer.echo(
+                f"Current proposed_resolution: {target_args.get('proposed_resolution', '')}"
+            )
+            new_resolution = typer.prompt("New resolution")
+            decisions = [{"type": "approve"}] * len(actions)
+            decisions[idx] = {
+                "type": "edit",
+                "edited_action": {
+                    "name": target.get("name", "flag_contradiction") if isinstance(target, dict) else "flag_contradiction",
+                    "args": {**target_args, "proposed_resolution": new_resolution},
+                },
+            }
+            result = agent.invoke(
+                Command(resume={"decisions": decisions}),
+                config=config,
+            )
         else:
-            typer.echo("Invalid. Use a/r.")
+            typer.echo("Invalid. Use a/e/r.")
 
     logger.info("INGEST command finished")
     typer.echo(result["messages"][-1].content)

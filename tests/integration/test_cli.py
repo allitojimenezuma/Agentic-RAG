@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -71,6 +72,52 @@ def _make_fake_agent(responses):
     return fake_build
 
 
+class _InterruptAgent:
+    """Fake agent: first invoke returns a HITL interrupt, resumed invoke a plain result.
+
+    Records every resume Command so tests can assert on the decisions sent.
+    """
+
+    def __init__(self, interrupt_value, resume_result):
+        self._interrupt_value = interrupt_value
+        self._resume_result = resume_result
+        self.resume_commands = []
+        self._calls = 0
+
+    def invoke(self, input, config=None):
+        self._calls += 1
+        if self._calls == 1:
+            return {
+                "__interrupt__": [SimpleNamespace(value=self._interrupt_value)],
+                "messages": [AIMessage(content="Contradiction flagged.")],
+            }
+        self.resume_commands.append(input)
+        return self._resume_result
+
+
+def _make_interrupting_build(interrupt_value, resume_result):
+    """Return (fake_build, agent) — fake_build patches build_ingest_agent."""
+    agent = _InterruptAgent(interrupt_value, resume_result)
+    return lambda settings: agent, agent
+
+
+def _contradiction_action(proposed_resolution="Merge both claims."):
+    return {
+        "name": "flag_contradiction",
+        "args": {
+            "page_slug": "entities/x",
+            "existing_claim": "Python is interpreted",
+            "new_claim": "Python can be compiled",
+            "proposed_resolution": proposed_resolution,
+        },
+    }
+
+
+def _resume_decisions(resume_command):
+    """Extract the decisions dict from a recorded resume Command."""
+    return getattr(resume_command, "resume")["decisions"]
+
+
 class TestStatusCommand:
     """Test the status command."""
 
@@ -136,6 +183,61 @@ class TestIngestCommand:
             result = runner.invoke(app, ["ingest", str(sample)])
 
         assert result.exit_code == 0
+
+    def test_ingest_hitl_resume_approve(self, env_with_api_key, wiki_fixture, tmp_path):
+        """Interrupt -> user approves -> resume sends approve decisions."""
+        sample = tmp_path / "sample.md"
+        sample.write_text("# Sample\n\nSome content.\n")
+
+        interrupt_value = {
+            "action_requests": [_contradiction_action()],
+            "review_configs": [],
+        }
+        fake_build, agent = _make_interrupting_build(
+            interrupt_value, {"messages": [AIMessage(content="Ingestion complete.")]}
+        )
+
+        with patch("agentic_rag.agents.ingest.build_ingest_agent", fake_build):
+            result = runner.invoke(app, ["ingest", str(sample)], input="a\n")
+
+        assert result.exit_code == 0
+        assert "Ingestion complete" in result.output
+        assert len(agent.resume_commands) == 1
+        assert _resume_decisions(agent.resume_commands[0]) == [{"type": "approve"}]
+
+    def test_ingest_hitl_resume_edit(self, env_with_api_key, wiki_fixture, tmp_path):
+        """Interrupt -> user edits a resolution -> resume sends an edit decision."""
+        sample = tmp_path / "sample.md"
+        sample.write_text("# Sample\n\nSome content.\n")
+
+        interrupt_value = {
+            "action_requests": [
+                _contradiction_action(proposed_resolution="Original resolution."),
+                _contradiction_action(proposed_resolution="Second resolution."),
+            ],
+            "review_configs": [],
+        }
+        fake_build, agent = _make_interrupting_build(
+            interrupt_value, {"messages": [AIMessage(content="Ingestion complete.")]}
+        )
+
+        with patch("agentic_rag.agents.ingest.build_ingest_agent", fake_build):
+            result = runner.invoke(
+                app, ["ingest", str(sample)], input="e\n1\nUse the edited resolution text\n"
+            )
+
+        assert result.exit_code == 0
+        assert len(agent.resume_commands) == 1
+        decisions = _resume_decisions(agent.resume_commands[0])
+        assert len(decisions) == 2
+        assert decisions[0]["type"] == "edit"
+        assert decisions[0]["edited_action"]["name"] == "flag_contradiction"
+        assert (
+            decisions[0]["edited_action"]["args"]["proposed_resolution"]
+            == "Use the edited resolution text"
+        )
+        # non-edited actions stay approved
+        assert decisions[1] == {"type": "approve"}
 
 
 class TestQueryCommand:

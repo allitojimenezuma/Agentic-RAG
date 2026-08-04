@@ -16,7 +16,7 @@ def build_ingest_prompt(agents_md: str) -> str:
 3. For each extracted Entity and Concept, call match_page_tool(name, type) ONCE and branch on its decision:
    a. exact or similar → update_page with the new information.
    b. none → create_page for a new page.
-   c. conflict → flag_contradiction and wait for the human decision.
+   c. conflict → call flag_contradiction with the claims and your proposed_resolution. The human decision is captured by the approval flow and is ALREADY known when the tool returns: approve → proceed with your proposed_resolution; reject → leave the existing page unchanged; edit → apply the edited resolution. After flag_contradiction returns, do NOT end your turn asking for approval again — continue the ingestion and finish with regenerate_index + append_log.
 4. Update `## Related` sections and cross-links [[Page]] on the pages you wrote.
    Call `wiki_link_graph()` ONCE before this step to see current relations (who links to whom) —
    use it to add inbound links to new pages and to pick accurate Related links.
@@ -25,7 +25,7 @@ def build_ingest_prompt(agents_md: str) -> str:
 
 ## Mode 2: Natural Language Update/Create (when user provides text, not a file)
 1. Call `wiki_scan()` ONCE for a full overview of existing pages (slug, type, summary, links) — then `match_page_tool(name, type)` for the specific pages you touch and `wiki_read_page` ONLY for slugs you will actually update.
-2. Use match_page_tool(name, type) to locate each affected page (exact/similar → exists; none → create new; conflict → flag_contradiction).
+2. Use match_page_tool(name, type) to locate each affected page (exact/similar → exists; none → create new; conflict → flag_contradiction). On conflict the human decision is captured by the approval flow and already known when the tool returns — do NOT ask for approval again; continue and finish with regenerate_index + append_log.
 2. Call wiki_read_page(slug) for each existing page to get its current content.
 3. Update existing pages with update_page, or create new ones with create_page.
 4. Update `## Related` sections and cross-links. If you need to know who links to whom
