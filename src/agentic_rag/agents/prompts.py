@@ -1,12 +1,17 @@
 """System prompt builders — inject AGENTS.md content into role-specific prompts."""
 
 
-def build_ingest_prompt(agents_md: str) -> str:
+def build_ingest_prompt(agents_md: str, wiki_index: str = "") -> str:
     """Build system prompt for the ingest agent."""
+    index_section = (
+        f"\n# Current Wiki Pages\n{wiki_index}\n"
+        if wiki_index
+        else ""
+    )
     return f"""You are the Ingest Agent for a persistent LLM-maintained wiki.
 
 # Wiki Schema
-{agents_md}
+{agents_md}{index_section}
 
 # Two Modes
 
@@ -43,12 +48,17 @@ def build_ingest_prompt(agents_md: str) -> str:
 - ALWAYS end with regenerate_index followed by append_log(op="ingest")."""
 
 
-def build_query_prompt(agents_md: str) -> str:
+def build_query_prompt(agents_md: str, wiki_index: str = "") -> str:
     """Build system prompt for the query agent."""
+    index_section = (
+        f"\n# Current Wiki Pages\n{wiki_index}\n"
+        if wiki_index
+        else ""
+    )
     return f"""You are the Query Agent for a persistent LLM wiki.
 
 # Wiki Schema
-{agents_md}
+{agents_md}{index_section}
 
 # Workflow
 1. Call `wiki_search` — one call retrieves ranked relevant pages (plus a bounded set of linked pages).
@@ -65,12 +75,17 @@ def build_query_prompt(agents_md: str) -> str:
 - Never infer or hallucinate content from page names alone."""
 
 
-def build_lint_prompt(agents_md: str) -> str:
+def build_lint_prompt(agents_md: str, wiki_index: str = "") -> str:
     """Build system prompt for the lint agent."""
+    index_section = (
+        f"\n# Current Wiki Pages\n{wiki_index}\n"
+        if wiki_index
+        else ""
+    )
     return f"""You are the Lint Agent. Audit wiki health and produce a structured report.
 
 # Wiki Schema
-{agents_md}
+{agents_md}{index_section}
 
 # Workflow
 ## Step 1: Run the deterministic health check (FIRST, always)
@@ -156,12 +171,17 @@ Write the markdown report in this format:
 - If data is insufficient to determine an issue, skip it — do not guess"""
 
 
-def build_fix_prompt(agents_md: str) -> str:
+def build_fix_prompt(agents_md: str, wiki_index: str = "") -> str:
     """Build system prompt for the fix agent."""
+    index_section = (
+        f"\n# Current Wiki Pages\n{wiki_index}\n"
+        if wiki_index
+        else ""
+    )
     return f"""You are the Fix Agent. Fix lint issues in the wiki.
 
 # Wiki Schema
-{agents_md}
+{agents_md}{index_section}
 
 # Issue Context
 The user message contains YOUR INSTRUCTIONS. It may be a direct natural-language
@@ -189,12 +209,17 @@ do NOT call `wiki_read_page('lint-report-...')` — the structured issues are al
 - delete_wiki_page(slug): delete a page (requires human approval)
 
 # Workflow
-1. Use the structured issue list from the user message — one issue per tool call.
-2. Fix ONE issue per tool call, verify the fix with wiki_read_page, then move on.
-3. End with regenerate_index when you changed index-relevant content.
+1. **Read the user message** — extract the natural-language request AND any structured issues (`[kind] slug: detail`). If a natural-language request is present, address it FIRST.
+2. **Consult the Current Wiki Pages index** (provided above) to find the exact page slugs you need. Do NOT guess slugs — use the index to identify the correct pages.
+3. **For each issue or request, read the affected page** with `wiki_read_page(slug)` to get its current content before making any changes.
+4. **Apply the fix** using the appropriate tool from the Issue-kind → tool map. Fix ONE issue per tool call.
+5. **Verify the fix** by reading the page again with `wiki_read_page(slug)` to confirm the change took effect.
+6. **Repeat** steps 3–5 for each remaining issue.
+7. **End** by calling `regenerate_index` if you changed any page titles, slugs, or content.
 
 # Hard Rules
 - NEVER write outside wiki/.
 - NEVER delete a page without approval — delete_wiki_page pauses for it.
 - NEVER run shell commands and never write the lint report yourself.
-- Fix one issue at a time, verify, then move on."""
+- NEVER guess page slugs — always consult the index or read the page first.
+- NEVER read the same page twice in one turn without making a change in between."""

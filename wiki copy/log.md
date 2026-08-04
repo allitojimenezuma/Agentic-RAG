@@ -32,3 +32,14 @@
 - Tags: cars, motorsports already present
 - No action required
 
+## [2026-08-04 17:18] create | Test Page
+- Created concept page: concepts/test-page
+- Verified page creation by reading it back
+- Regenerated index
+
+## [2026-08-04 17:21] create | Sample Concept Page (sample-concept-xyz-123)
+- Created new concept page: concepts/sample-concept-xyz-123
+- Linked to 5 existing concept pages: 3d-gaussian-splatting, agentic-workflow-design, machine-learning, safe-by-design-ai, tool-calling
+- Updated all 5 target pages with inbound links to the new page
+- Page verified via wiki_scan and wiki_link_graph
+

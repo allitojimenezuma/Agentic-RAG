@@ -64,6 +64,17 @@ def create_page(
         logger.debug("Page already exists: %s", slug)
         return f"Error: Page '{slug}' already exists. Use update_page to modify it."
 
+    # Auto-prefix directory from page_type when the slug has no path separator.
+    # Overview pages live at the wiki root; everything else gets a subdirectory.
+    _TYPE_DIR = {
+        "entity": "entities",
+        "concept": "concepts",
+        "source": "sources",
+        "comparison": "comparisons",
+    }
+    if "/" not in slug and page_type in _TYPE_DIR:
+        slug = f"{_TYPE_DIR[page_type]}/{slug}"
+
     # Ensure parent directory exists (e.g. entities/ for slug 'entities/foo')
     target = get_wiki_path() / f"{slug}.md"
     target.parent.mkdir(parents=True, exist_ok=True)

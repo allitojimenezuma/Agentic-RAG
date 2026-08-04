@@ -224,9 +224,9 @@ class TestIngestFlow:
         # Verify final answer
         assert "Ingestion complete" in result["messages"][-1].content
 
-        # Verify pages created on disk (write_page places at root of wiki_path)
-        assert (populated_wiki / "mlx.md").exists()
-        assert (populated_wiki / "tool-calling.md").exists()
+        # Verify pages created on disk (create_page auto-prefixes directory from page_type)
+        assert (populated_wiki / "entities" / "mlx.md").exists()
+        assert (populated_wiki / "concepts" / "tool-calling.md").exists()
 
         # Verify index updated
         index_content = (populated_wiki / "index.md").read_text()

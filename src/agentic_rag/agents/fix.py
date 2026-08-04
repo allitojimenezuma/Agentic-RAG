@@ -18,7 +18,7 @@ from agentic_rag.tools.fix_tools import (
 )
 from agentic_rag.tools.ingest_tools import delete_wiki_page
 from agentic_rag.tools.nav import regenerate_index, wiki_read_page
-from agentic_rag.tools.shared import init_shared_tools
+from agentic_rag.tools.shared import get_index_summary, init_shared_tools
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,15 @@ logger = logging.getLogger(__name__)
 def build_fix_agent(settings) -> object:
     """Build the fix agent with HITL on delete_wiki_page, auto-approve the rest.
 
+    The current wiki index is injected into the system prompt so the model
+    already knows which pages exist without blind guessing.
+
     Args:
         settings: Settings instance with openai_model, agents_md_path, wiki_path.
     """
     init_shared_tools(settings.wiki_path)
     agents_md = load_agents_md(settings.agents_md_path)
+    wiki_index = get_index_summary(settings.wiki_path)
 
     tools = [
         wiki_read_page,
@@ -53,7 +57,7 @@ def build_fix_agent(settings) -> object:
     return build_agent(
         model=get_model(settings),
         tools=tools,
-        system_prompt=build_fix_prompt(agents_md),
+        system_prompt=build_fix_prompt(agents_md, wiki_index=wiki_index),
         middleware=middleware,
         model_name=settings.openai_model,
     )

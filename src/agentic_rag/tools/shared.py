@@ -28,6 +28,25 @@ def get_wiki_path() -> Path:
     return _WIKI_PATH
 
 
+def get_index_summary(wiki_path: Path | None = None) -> str:
+    """Read the raw wiki ``index.md`` for injection into agent system prompts.
+
+    Gives every agent a lightweight overview of all pages (slug, type, title,
+    sources, date) without requiring an extra tool call. Returns ``"Index
+    empty."`` on missing file or parse failure — never raises.
+    """
+    path = wiki_path or _WIKI_PATH
+    index_path = path / "index.md"
+    try:
+        content = index_path.read_text(encoding="utf-8").strip()
+        return content if content else "Index empty."
+    except FileNotFoundError:
+        return "Index not found."
+    except Exception:
+        logger.debug("Failed to read index from %s", index_path, exc_info=True)
+        return "Index unavailable."
+
+
 @tool
 def read_index() -> str:
     """Read the wiki index.md and return its full content. Shows all entities, concepts, sources, and comparisons with summaries."""

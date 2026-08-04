@@ -6,8 +6,6 @@ sources: []
 updated: '2026-08-04'
 tags: []
 ---
-# Tool calling
-
 A capability of large language models (LLMs) to invoke external functions or APIs, allowing the model to fetch real-time data, perform actions, and interact with software systems. In the [[BHS Corrugated Spain]] project, [[Álvaro Jiménez Martínez]] implemented tool calling using [[Azure]]-hosted LLMs to fetch logs from Observium and restart services via Rundeck and Spring Boot Admin APIs. This capability was central to resolving 553 tickets automatically in two months.
 
 ## Related

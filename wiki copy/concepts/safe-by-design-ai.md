@@ -6,8 +6,6 @@ sources: []
 updated: '2026-08-04'
 tags: []
 ---
-# Safe-by-design AI
-
 A design philosophy that integrates safety constraints and guardrails into AI systems from the outset, rather than retrofitting them. [[Álvaro Jiménez Martínez]] applied this principle at [[BHS Corrugated Spain]] by establishing operational guardrails that prevented the AI from closing tickets directly and enforced deterministic restart gates. This ensured that the AI operated within safe bounds, with human oversight for critical actions, while still achieving high automation rates.
 
 ## Principles
@@ -20,6 +18,7 @@ A design philosophy that integrates safety constraints and guardrails into AI sy
 
 - [[AI workflow automation]]
 - [[Tool calling]]
+
 - [[BHS Corrugated Spain]]
 - [[Álvaro Jiménez Martínez]]
 

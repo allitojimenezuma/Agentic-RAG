@@ -3,14 +3,12 @@ slug: machine-learning
 type: concept
 title: Machine Learning
 sources:
-  - manual
-updated: 2026-07-26
+- manual
+updated: '2026-08-04'
 tags:
-  - ai
-  - ml
+- ai
+- ml
 ---
-# Machine Learning
-
 Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed.
 
 ## Key Facts
@@ -25,5 +23,6 @@ Machine learning is a subset of artificial intelligence that enables systems to 
 - [[Python]]
 - [[LLM fine-tuning with QLoRA]]
 - [[Tool calling]]
+
 
 *Source: Manual addition*

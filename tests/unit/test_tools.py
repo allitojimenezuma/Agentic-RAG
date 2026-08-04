@@ -12,7 +12,7 @@ from agentic_rag.io.log_manager import append_log
 from agentic_rag.io.markdown_parser import serialize_frontmatter
 from agentic_rag.io.wiki_io import write_page
 from agentic_rag.schemas.wiki import Frontmatter, IndexEntry, LogEntry
-from agentic_rag.tools.shared import init_shared_tools, read_index as tool_read_index
+from agentic_rag.tools.shared import get_index_summary, init_shared_tools, read_index as tool_read_index
 from agentic_rag.tools.shared import read_wiki_page as tool_read_wiki_page
 from agentic_rag.tools.shared import search_index as tool_search_index
 from agentic_rag.tools.ingest_tools import (
@@ -88,6 +88,24 @@ class TestReadIndex:
         init_shared_tools(wiki_path)
         result = tool_read_index.invoke({})
         assert "Index is empty" in result
+
+
+class TestGetIndexSummary:
+    def test_reads_existing_index(self, wiki_path: Path) -> None:
+        init_shared_tools(wiki_path)
+        _create_test_index(wiki_path)
+        result = get_index_summary(wiki_path)
+        assert "Python" in result
+        assert "High-level programming language" in result
+
+    def test_empty_index(self, wiki_path: Path) -> None:
+        result = get_index_summary(wiki_path)
+        # Empty index has headers but no entries — still valid content.
+        assert "## Entities" in result or "Index empty" in result
+
+    def test_missing_file(self, tmp_path: Path) -> None:
+        result = get_index_summary(tmp_path / "nonexistent")
+        assert "Index not found" in result
 
 
 class TestReadWikiPage:
