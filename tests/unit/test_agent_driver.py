@@ -10,6 +10,7 @@ from values snapshots, and resume semantics are exercised deterministically.
 from __future__ import annotations
 
 from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolCall, ToolMessage
@@ -18,6 +19,7 @@ from langgraph.types import Command
 from frontend.agent_driver import (
     ALLOWED_DECISIONS,
     build_decisions,
+    build_fix_message,
     extract_interrupts,
     FinalMessage,
     InterruptEvent,
@@ -541,3 +543,87 @@ class TestBuildDecisions:
             "delete_wiki_page": ["approve", "reject"],
             "flag_contradiction": ["approve", "edit", "reject"],
         }
+
+
+class TestBuildFixMessage:
+    """build_fix_message mirrors cli.py's fix-command message construction.
+
+    health_check is monkeypatched (the function lazy-imports it) so no real
+    wiki is touched and no LLM is involved.
+    """
+
+    @staticmethod
+    def _patch_report(monkeypatch, issues):
+        import agentic_rag.lint.health as health_mod
+
+        report = SimpleNamespace(issues=issues)
+        monkeypatch.setattr(health_mod, "health_check", lambda _path: report)
+        return report
+
+    @staticmethod
+    def _issue(kind, slug, detail):
+        return SimpleNamespace(kind=kind, slug=slug, detail=detail)
+
+    def test_issue_lines_shape(self, monkeypatch):
+        """Acceptance: "Fix these lint issues:\n- [kind] slug: detail" per issue."""
+        issues = [
+            self._issue("orphan", "entities/a", "No inbound links from other pages"),
+            self._issue(
+                "broken-link", "entities/b", "Unresolved link(s): [[missing]]"
+            ),
+        ]
+        self._patch_report(monkeypatch, issues)
+        assert build_fix_message("latest", Path("/wiki")) == (
+            "Fix these lint issues:\n"
+            "- [orphan] entities/a: No inbound links from other pages\n"
+            "- [broken-link] entities/b: Unresolved link(s): [[missing]]"
+        )
+
+    def test_no_issues(self, monkeypatch):
+        self._patch_report(monkeypatch, [])
+        assert build_fix_message("latest", Path("/wiki")) == "No issues"
+
+    def test_empty_issue_means_no_filter(self, monkeypatch):
+        issues = [self._issue("orphan", "entities/a", "d")]
+        self._patch_report(monkeypatch, issues)
+        assert build_fix_message("", Path("/wiki")) == (
+            "Fix these lint issues:\n- [orphan] entities/a: d"
+        )
+
+    def test_filter_by_kind(self, monkeypatch):
+        issues = [
+            self._issue("orphan", "entities/a", "d1"),
+            self._issue("missing-index", "entities/b", "d2"),
+        ]
+        self._patch_report(monkeypatch, issues)
+        assert build_fix_message("missing-index", Path("/wiki")) == (
+            "Fix these lint issues:\n- [missing-index] entities/b: d2"
+        )
+
+    def test_filter_by_slug(self, monkeypatch):
+        issues = [
+            self._issue("orphan", "entities/mlx", "d1"),
+            self._issue("orphan", "entities/other", "d2"),
+        ]
+        self._patch_report(monkeypatch, issues)
+        assert build_fix_message("entities/mlx", Path("/wiki")) == (
+            "Fix these lint issues:\n- [orphan] entities/mlx: d1"
+        )
+
+    def test_no_match_after_filter_yields_no_issues(self, monkeypatch):
+        issues = [self._issue("orphan", "entities/a", "d")]
+        self._patch_report(monkeypatch, issues)
+        assert build_fix_message("stale", Path("/wiki")) == "No issues"
+
+    def test_health_check_receives_wiki_path(self, monkeypatch):
+        import agentic_rag.lint.health as health_mod
+
+        captured = {}
+
+        def fake_check(path):
+            captured["path"] = path
+            return SimpleNamespace(issues=[])
+
+        monkeypatch.setattr(health_mod, "health_check", fake_check)
+        assert build_fix_message("latest", Path("/tmp/wiki")) == "No issues"
+        assert captured["path"] == Path("/tmp/wiki")

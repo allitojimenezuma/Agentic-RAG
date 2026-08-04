@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import Any, AsyncGenerator, Literal
 
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
@@ -134,6 +135,35 @@ def build_decisions(
         }
         return decisions
     raise ValueError(f"Unknown decision choice: {choice!r} (expected approve/reject/edit)")
+
+
+def build_fix_message(issue: str, wiki_path: Path) -> str:
+    """Build the fix-agent user message exactly like cli.py's ``fix`` command.
+
+    Runs the deterministic ``health_check(wiki_path)``, applies the CLI's
+    ``issue`` filter (needle matched case-folded against ``kind``/``slug``;
+    ``"latest"``/empty means no filter), and returns either
+    ``"Fix these lint issues:\n- [kind] slug: detail"`` — one line per issue,
+    byte-identical to cli.py's ``fix`` construction — or ``"No issues"``
+    when nothing matches. Pure (no Streamlit import); ``health_check``
+    exceptions propagate (the Streamlit shell surfaces them).
+    """
+    from agentic_rag.lint.health import health_check
+
+    report = health_check(wiki_path)
+    issues = report.issues
+    if issue and issue != "latest":
+        needle = issue.lower()
+        issues = [
+            i for i in issues
+            if needle in i.kind.lower() or needle in i.slug.lower()
+        ]
+    if issues:
+        lines = ["Fix these lint issues:"]
+        for i in issues:
+            lines.append(f"- [{i.kind}] {i.slug}: {i.detail}")
+        return "\n".join(lines)
+    return "No issues"
 
 
 def _state_values(state: Any) -> dict:

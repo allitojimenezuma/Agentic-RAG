@@ -9,7 +9,8 @@ T4 ships only ``query.py``; ingest/lint/fix land in T5/T6. app.py builds its
 navigation from the page files that exist, so the entry point renders with
 just query.py and picks up the remaining pages automatically as their files
 land — the T4 smoke test requires only app.py + query.py to render, and never
-asserts on page files it doesn't ship.
+asserts on page files it doesn't ship. T5 adds a dedicated ingest render case
+(chat input + raw picker, render-only).
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from streamlit.testing.v1 import AppTest
 FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
 APP_PY = FRONTEND / "app.py"
 QUERY_PAGE = FRONTEND / "app_pages" / "query.py"
+INGEST_PAGE = FRONTEND / "app_pages" / "ingest.py"
 
 # Every page shipped so far renders standalone (grows as T5/T6 land).
 EXISTING_PAGES = sorted(FRONTEND.glob("app_pages/*.py"))
@@ -62,6 +64,24 @@ class TestQueryPage:
         assert "Streaming chat over the wiki query agent" in [c.value for c in at.caption]
         assert len(at.chat_input) == 1
         assert any("New chat" in b.label for b in at.sidebar.button)
+
+
+class TestIngestPage:
+    def test_ingest_page_renders_standalone(self, fake_api_key):
+        """ingest.py renders standalone — chat input + raw picker, render-only.
+
+        No chat input is driven, so the ingest agent is never built and the LLM
+        is never contacted. The raw-source picker reads ``raw/`` ONLY; when the
+        (gitignored) ``raw/`` dir holds files, the ``Source in raw/`` selectbox
+        must render.
+        """
+        at = _render(INGEST_PAGE)
+        assert [t.value for t in at.title] == ["Ingest"]
+        assert len(at.chat_input) == 1
+        assert any("New chat" in b.label for b in at.sidebar.button)
+        raw_dir = Path.cwd() / "raw"
+        if raw_dir.is_dir() and any(p.is_file() for p in raw_dir.rglob("*")):
+            assert any(s.label == "Source in raw/" for s in at.selectbox)
 
 
 class TestEveryExistingPage:

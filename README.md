@@ -180,9 +180,13 @@ agentic-rag log --tail 5
 
 ## Web UI (Streamlit)
 
-A minimal Streamlit chat frontend for the query agent (real token streaming, live tool-call
-chips, multi-turn memory, structured answer + citations render). It runs the agent in-process
-— no HTTP server.
+A multi-page Streamlit frontend driving all four agents — query, ingest, lint, fix — in-process
+(no HTTP server). Real token streaming with live tool-call chips, multi-turn memory, and
+structured answer + citations render for queries. The ingest/lint/fix pages add full
+human-in-the-loop approval (approve / reject, plus edit-resolution for ingest's contradiction
+requests). Chat transcripts are durable per agent and thread (stored under `frontend/history/`,
+sidebar thread selector + "New chat"). The ingest page also offers a picker of files already
+present under `raw/` — the UI only reads `raw/`; drop source documents there yourself first.
 
 ```bash
 uv sync --extra ui
