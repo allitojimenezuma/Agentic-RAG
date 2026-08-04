@@ -93,14 +93,6 @@ class FinalAnswer(BaseModel):
 
 StreamEvent = ToolStart | ToolEnd | AnswerToken | FinalAnswer
 
-def extract_answer_so_far(accumulated_args_json: str) -> str:
-    """Tolerant extraction of the `answer` field value from a (possibly partial)
-    JSON string matching submit_query_answer's args schema, whose `answer` key is
-    first. Reads from the opening quote after `"answer"` to the next unescaped
-    quote, honouring `\\"` escapes. Returns the decoded substring accumulated so
-    far (may be incomplete if the JSON is mid-stream). Returns "" if the answer
-    field has not started or no opening quote is seen yet. Never raises."""
-
 async def stream_query(
     agent,                      # compiled query agent (CompiledStateGraph) from build_query_agent
     message: str,
@@ -124,40 +116,35 @@ async def stream_query(
     Event rules:
     - AIMessageChunk with tool_call_chunks: for each tool_call_chunk, if its index/name is
       new this turn, emit ToolStart(name, best-effort args). Accumulate the args string per
-      tool-call index. If the tool name is `submit_query_answer`, after updating the
-      accumulated args run `extract_answer_so_far(accumulated)` and emit an AnswerToken with
-      the NEW suffix (delta vs the last emitted answer text for this call). Handle the
-      one-chunk path (full args in a single chunk) and the multi-chunk path (partial
-      fragments) identically — delta = new_text[len(old_text):].
+      tool-call index. Handle the one-chunk path (full args in a single chunk) and the
+      multi-chunk path (partial fragments) identically.
     - ToolMessage chunk (metadata langgraph_node == "tools", or chunk is a ToolMessage):
       emit ToolEnd(name=chunk.name, output=str(chunk.content)[:500]).
-    - AIMessageChunk with plain content (no tool_call_chunks) and not a tool result: ignore
-      (the query agent's final user-facing text is inside submit_query_answer's args, not in
-      free content). Do not emit AnswerToken from free content.
-    - After the stream ends: find the LAST ToolMessage with name == "submit_query_answer" in
-      the agent's accumulated state for the thread
-      (`agent.get_state(config).values.get("messages", [])`), parse its `.content` as
-      `QueryAnswer.model_validate_json(...)`, and emit one FinalAnswer(answer=that). If no
-      such ToolMessage is found, emit FinalAnswer with a QueryAnswer whose answer is the
-      concatenation of all AnswerToken text emitted, citations=[], confidence="low",
-      suggestion="(no structured answer produced)" — never raise.
+    - AIMessageChunk with plain content (no tool_call_chunks) and not a tool result: this IS
+      the model's answer text (there is no finalization tool) — stream it live by emitting
+      AnswerToken(text=content) and accumulate it in `free_text`.
+    - After the stream ends: call `build_final_answer(state_messages, navigated, free_text=...)`
+      from `agentic_rag.tools.grounding` — it synthesizes the QueryAnswer from the last AI
+      message content (falling back to `free_text`), extracting `[[Page]]` links as citations
+      and validating them against the turn's navigated set (cite-or-die). Emit one
+      FinalAnswer(answer=that). Never raises.
 
     Error handling: if `agent.astream` raises, re-raise (the Streamlit shell catches and
     shows it). Do not swallow.
-
-    Pure helper `extract_answer_so_far` is module-level and unit-tested directly.
     """
 ```
 
 Pinned decisions:
-- `extract_answer_so_far` is the ONLY place that parses partial tool-call JSON. It is pure
-  (str -> str), never raises, and is the unit test's primary target.
 - `stream_query` does NOT import streamlit. It only imports from `agentic_rag` and stdlib.
-- The `FinalAnswer.answer` is the **cite-or-die-filtered** QueryAnswer (the tool already
-  filtered citations via `validate_citations`; chat_driver just parses the tool's output JSON).
+- The `FinalAnswer.answer` is the **cite-or-die-filtered** QueryAnswer auto-built by
+  `build_final_answer` — there is no finalization tool, no partial-JSON parsing, and the
+  answer is always synthesized from the model's own output (final AI message / streamed free
+  text) with `[[Page]]` links extracted as citations.
 - `agent._nav_capture = new_nav_capture()` MUST be called at the start of every `stream_query`
   call so citations from turn N do not bleed into turn N+1 (the agent object is built once and
   reused across turns in the Streamlit app).
+- `build_final_answer` is the single shared finalizer used by BOTH `cli.py` and
+  `chat_driver.py`, so CLI and UI render identically.
 
 ### New file `frontend/app.py` (NEW)
 
@@ -211,20 +198,22 @@ uv run streamlit run frontend/app.py
 ## Tasks summary
 High-level ordering only; the atomic breakdown lives in `progress.md`.
 1. Add optional `ui` dep (streamlit) + README run instructions. [trivial]
-2. Build + test `frontend/chat_driver.py` (streaming adapter + `extract_answer_so_far`).
+2. Build + test `frontend/chat_driver.py` (streaming adapter + automatic finalization via
+   `build_final_answer`).
 3. Build `frontend/app.py` Streamlit shell wiring `stream_query` to the chat UI.
 
 ## Acceptance
 - `uv sync --extra ui` installs streamlit; `uv run python -c "import streamlit"` succeeds.
 - `uv run pytest` is green, including the new `tests/unit/test_chat_driver.py`, and no existing
   test is modified or broken.
-- `frontend/chat_driver.py.stream_query` yields the correct event order for a scripted
-  two-tool turn (wiki_search → submit_query_answer): a ToolStart for each tool, a ToolEnd for
-  wiki_search, one or more AnswerToken whose concatenation equals the scripted `answer`, and a
-  FinalAnswer whose `QueryAnswer` parses with non-navigated citations dropped (cite-or-die).
-- `extract_answer_so_far` unit tests pass for: empty string, partial key, open-quote with
-  incomplete text, complete text, text containing escaped quotes (`\"`), and text followed by
-  more fields.
+- `frontend/chat_driver.py.stream_query` yields the correct event order for a scripted turn
+  (wiki_search → free-text final answer): a ToolStart for wiki_search, a ToolEnd for
+  wiki_search, one or more AnswerToken whose concatenation equals the model's final answer
+  text, and a FinalAnswer whose QueryAnswer is auto-built from the model output with
+  non-navigated `[[links]]` dropped (cite-or-die).
+- `build_final_answer` unit tests pass for: last-AI-message synthesis, `[[slug]]` /
+  `[[slug|alias]]` link extraction with cite-or-die filtering, confidence inference
+  (high/medium/low), free-text fallback, and empty input (never raises).
 - `uv run python -m py_compile frontend/app.py` succeeds, and
   `uv run streamlit run frontend/app.py --server.headless=true --server.port=8501` launches
   without an import/compile error (manual smoke; the app need not be driven headlessly).

@@ -170,8 +170,8 @@
     <div class="chips">
       <span class="chip">4 agents · LangChain create_agent</span>
       <span class="chip">3 layers: raw / wiki / schema</span>
-      <span class="chip">21 live pages</span>
-      <span class="chip">209 tests passing</span>
+      <span class="chip">32 live pages</span>
+      <span class="chip">261 tests passing</span>
       <span class="chip">eval recall@8 = 1.00</span>
       <span class="chip">recursion_limit = 30</span>
     </div>
@@ -401,11 +401,13 @@ sequenceDiagram
 
         <h3>5.2 Query Agent — cite or die</h3>
         <p>
-          Read-only. Searches with BM25, navigates pages, and must submit a grounded answer whose
-          citations were all actually visited.
+          Read-only. Searches with BM25 and navigates pages. There is <strong>no finalization
+          tool</strong>: the answer is auto-built from the model's own final message —
+          <code>build_final_answer</code> extracts every inline <code>[[Page]]</code> link as a
+          citation and drops any that were never actually navigated this turn.
         </p>
         <h4>Tools</h4>
-        <p class="tool-list"><code>wiki_search</code> <code>wiki_read_page</code> <code>wiki_summary</code> <code>submit_query_answer</code></p>
+        <p class="tool-list"><code>wiki_search</code> <code>wiki_read_page</code> <code>wiki_summary</code></p>
         <figure>
           <div class="mermaid">
 flowchart LR
@@ -413,14 +415,24 @@ flowchart LR
     S --> R["wiki_read_page on hits"]
     R --> N{"need more context?"}
     N -- yes --> R
-    N -- no --> SUB["submit_query_answer - Answer + Citations + Confidence + Suggestion"]
-    SUB --> V{"validate_citations - NavCapture<br/>was each cited slug navigated?"}
+    N -- no --> A["model writes the final answer with inline wiki links"]
+    A --> E["build_final_answer - auto-synthesizes QueryAnswer<br/>answer + citations extracted from the links"]
+    E --> V{"NavCapture gate - was each cited slug navigated?"}
     V -- "slug never navigated" --> DROP["citation dropped"]
-    V -- "all cited slugs visited" --> OUT["CLI renders Answer / Confidence / Citations / Suggestion"]
+    V -- "all cited slugs visited" --> OUT["CLI / Web UI render Answer + Confidence + Citations"]
           </div>
-          <figcaption>Figure 4 — Query flow with the cite-or-die gate: any citation whose slug was never
-          navigated is dropped before the answer is rendered.</figcaption>
+          <figcaption>Figure 4 — Query flow with cite-or-die: no finalization tool exists — the
+          answer is auto-built from the model output, and any citation whose slug was never
+          navigated is dropped before rendering.</figcaption>
         </figure>
+        <p>
+          Confidence is inferred, not claimed: <span class="badge b-green">high</span> when
+          navigated pages are cited, <span class="badge b-amber">medium</span> when pages were
+          navigated but none are cited, <span class="badge b-red">low</span> when nothing was
+          navigated. A Web UI (<code>frontend/app.py</code>, Streamlit) drives the same agent
+          in-process with token streaming, live tool chips, and the identical render:
+          <code>uv sync --extra ui</code> then <code>uv run streamlit run frontend/app.py</code>.
+        </p>
 
         <h3>5.3 Lint Agent — deterministic audit + semantic judgment</h3>
         <p>
@@ -574,7 +586,8 @@ flowchart TD
             <tr>
               <td><strong>Cite-or-die grounding</strong></td>
               <td><code>tools/grounding.py</code> (NavCapture)</td>
-              <td><code>validate_citations</code> drops any citation whose slug the agent never navigated —
+              <td><code>build_final_answer</code> auto-builds every answer from the model's message and
+                  <code>validate_citations</code> drops any citation whose slug the agent never navigated —
                   fabricated references cannot reach the user.</td>
             </tr>
             <tr>
@@ -603,7 +616,7 @@ flowchart TD
             <tr><td><code>ingest</code></td><td><code>&lt;path-or-text&gt;</code></td>
                 <td>Read source → structured extraction → deterministic match → create/update/flag → rebuild index + log.</td></tr>
             <tr><td><code>query</code></td><td><code>&lt;question&gt;</code></td>
-                <td>BM25 search → navigate pages → submit grounded answer → render Answer/Confidence/Citations/Suggestion.</td></tr>
+                <td>BM25 search → navigate pages → auto-built grounded answer (cite-or-die) → render Answer/Confidence/Citations.</td></tr>
             <tr><td><code>lint</code></td><td>—</td>
                 <td>Deterministic <code>health_check</code> + semantic duplicate-coverage review → write lint report.</td></tr>
             <tr><td><code>fix</code></td><td><code>[kind | slug | "latest"]</code></td>
@@ -646,14 +659,14 @@ flowchart TD
             <tr><td><code>tests/eval</code></td><td>15 curated live-wiki queries — <strong>recall@8 = 1.00</strong>; hallucination gate on <code>validate_citations</code> (no LLM).</td>
                 <td><span class="badge b-green">1.00</span></td></tr>
             <tr><td><code>tests/acceptance</code></td><td>Real-LLM end-to-end runs.</td>
-                <td><span class="badge b-amber">2 skipped</span> (need live LLM at localhost)</td></tr>
+                <td><span class="badge b-amber">2 skipped</span> (need a live API key)</td></tr>
             <tr><td>Deterministic core</td><td><code>health_check</code>, <code>match_page</code>, <code>search</code>, <code>regenerate_index</code> are pure, 0-LLM functions — unit-testable without mocking.</td>
                 <td><span class="badge b-blue">0 LLM</span></td></tr>
           </tbody>
         </table>
         <p class="note">
-          Total: <strong>209 tests passing, 2 skipped</strong>. The skipped acceptance tests are the only
-          ones that require a live model — everything else runs scripted or fully offline.
+          Total: <strong>261 tests passing, 2 skipped</strong>. The skipped acceptance tests are the only
+          ones that require a live API key — everything else runs scripted or fully offline.
         </p>
       </section>
 
@@ -702,7 +715,8 @@ agentic-rag log --tail 5</code></pre>
             <tr><td><strong>HITL</strong></td><td>Human-in-the-loop: a middleware interrupt that pauses the agent until a human approves/rejects/edits
                 (mandatory for page deletion and contradiction flags).</td></tr>
             <tr><td><strong>NavCapture</strong></td><td>The grounding mechanism that records which page slugs the agent actually visited;
-                <code>validate_citations</code> drops any citation not in that set.</td></tr>
+                <code>build_final_answer</code> extracts citations from the model's <code>[[links]]</code> and
+                <code>validate_citations</code> drops any not in that set.</td></tr>
             <tr><td><strong>matched_via</strong></td><td>Search-result metadata distinguishing <code>direct</code> hits from <code>expand-link</code>
                 hits; the matcher only counts direct hits when deciding similar vs conflict.</td></tr>
             <tr><td><strong>Derived index</strong></td><td><code>index.md</code> rebuilt atomically by <code>regenerate_index</code> from the wiki
@@ -711,7 +725,8 @@ agentic-rag log --tail 5</code></pre>
                 <code>comparison</code>, <code>overview</code>) that determines the directory and match behavior.</td></tr>
             <tr><td><strong>Severity</strong></td><td>Per-kind lint weight: <code>missing-frontmatter</code> = critical;
                 orphan/missing-index/broken-link/empty = high; missing-related/stale = medium.</td></tr>
-            <tr><td><strong>Cite-or-die</strong></td><td>The query-agent rule: an answer may only cite pages whose slugs were actually navigated.</td></tr>
+            <tr><td><strong>Cite-or-die</strong></td><td>The query-agent rule: an answer may only cite pages whose slugs were actually
+                navigated — enforced automatically because answers are built from the model output, not a submit tool.</td></tr>
             <tr><td><strong>Recursion limit</strong></td><td>Maximum agent loop turns per invocation (default 30).</td></tr>
           </tbody>
         </table>
@@ -719,7 +734,7 @@ agentic-rag log --tail 5</code></pre>
 
       <footer>
         Agentic RAG · documentation generated from the current codebase ·
-        facts verified against <code>src/agentic_rag</code> — 21 live wiki pages, 209 tests, recall@8 1.00.
+        facts verified against <code>src/agentic_rag</code> — 32 live wiki pages, 261 tests, recall@8 1.00.
       </footer>
     </main>
   </div>

@@ -126,7 +126,7 @@ The agent will:
 
 1. **Search** — `wiki_search` (BM25, k=8, with bounded link expansion).
 2. **Navigate** — `wiki_read_page` on the hits, following `[[cross-references]]` as needed (`wiki_summary` for overviews).
-3. **Submit a grounded answer** — `submit_query_answer` with `QueryAnswer(Answer, Citations, Confidence, Suggestion)`. `validate_citations` (NavCapture) **drops any citation whose slug was never navigated** — cite-or-die.
+3. **Finalize a grounded answer** — finalization is automatic: there is no finalization tool. The model's final message is synthesized into a `QueryAnswer` with `[[Page]]` links extracted as citations, and `validate_citations` (NavCapture) **drops any citation whose slug was never navigated** — cite-or-die.
 4. **Render** — the CLI prints Answer, Confidence, Citations, and Suggestion.
 
 ### Health Check
@@ -210,7 +210,7 @@ uv run pytest tests/acceptance/    # Acceptance tests (real LLM, requires OPENAI
 uv run pytest --cov=agentic_rag --cov-report=html
 ```
 
-Current state: **209 passed / 2 skipped** (the 2 skipped are acceptance tests needing a live LLM at `localhost`).
+Current state: **261 passed / 2 skipped** (the 2 skipped are acceptance tests that need a live `OPENAI_API_KEY`).
 
 ### Test Structure
 
@@ -272,8 +272,8 @@ agentic_rag/
 │   │   └── prompts.py      # System prompt builders
 │   ├── tools/              # LangChain tools
 │   │   ├── shared.py       # Shared init + common tools
-│   │   ├── nav.py          # wiki_search, wiki_read_page, wiki_summary
-│   │   ├── grounding.py    # validate_citations (NavCapture)
+│   │   ├── nav.py          # wiki_search, wiki_read_page, wiki_summary, wiki_scan, wiki_link_graph
+│   │   ├── grounding.py    # build_final_answer + validate_citations (NavCapture, cite-or-die)
 │   │   ├── ingest_grounding.py  # Ingest-side grounding helpers
 │   │   ├── ingest_tools.py # Ingest-specific tools
 │   │   ├── fix_tools.py    # Fix-specific tools
@@ -325,6 +325,10 @@ The `AGENTS.md` file defines conventions injected into agent prompts:
 Certain operations require human approval:
 - **Delete wiki page**: Always pauses; approve to delete, reject to keep (all four agents).
 - **Flag contradiction**: When a new source conflicts with an existing page; approve/edit/reject (ingest agent).
+
+### Cite-or-die Grounding (Query)
+
+The query agent has **no finalization tool**. `build_final_answer` auto-builds the `QueryAnswer` from the model's final message: every inline `[[Page]]` link becomes a citation, validated against the turn's `NavCapture` — a per-invocation set of slugs the agent actually navigated via `wiki_search`/`wiki_read_page`. Citations for pages never visited are dropped (cite-or-die), and confidence is inferred: `high` when navigated pages are cited, `medium` when pages were navigated but none are cited, `low` when nothing was navigated. The same finalizer drives the CLI and the Streamlit UI, so both render identically.
 
 ### Atomic Writes
 

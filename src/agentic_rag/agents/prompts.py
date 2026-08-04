@@ -53,11 +53,11 @@ def build_query_prompt(agents_md: str) -> str:
 # Workflow
 1. Call `wiki_search` — one call retrieves ranked relevant pages (plus a bounded set of linked pages).
 2. Call `wiki_read_page` for the few pages you will cite, to get their details.
-3. You MUST end by calling `submit_query_answer` with the final answer.
+3. Write your final answer as a plain message. Cite sources inline with `[[Page]]` links.
 
 # Grounding
-- Every `citations[].slug` and every `[[X]]` in `answer` must be a page you obtained from `wiki_search`/`wiki_read_page` this turn — unknown citations are dropped.
-- If the wiki doesn't cover it, set `confidence='low'` and `suggestion` accordingly.
+- ALWAYS cite every page you read to answer the question: append `[[slug]]` links to each claim you support with that page. Every `[[X]]` link must be a page you obtained from `wiki_search`/`wiki_read_page` this turn; citations for any other page are dropped automatically.
+- If the wiki doesn't cover the question, say so clearly.
 
 # Rules
 - Read-only. Do not call any write tool (none provided).

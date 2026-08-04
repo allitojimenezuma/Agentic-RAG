@@ -1,8 +1,9 @@
-"""Unit tests for frontend/chat_driver: extract_answer_so_far + stream_query.
+"""Unit tests for frontend/chat_driver: stream_query event translation.
 
-The scripted-turn tests drive a real compiled agent built with the
-non-streaming ``ScriptedChatModel`` harness (full tool-call args in a single
-AIMessage.tool_calls); the multi-chunk test exercises the real incremental
+There is NO finalization tool: the model's free-text message is the answer. The
+scripted-turn tests drive a real compiled agent built with the non-streaming
+``ScriptedChatModel`` harness (full tool-call args in a single
+AIMessage.tool_calls); the multi-chunk tests exercise the real incremental
 ``tool_call_chunks`` path with a duck-typed fake agent. Both paths must behave
 identically (delta AnswerTokens).
 """
@@ -22,12 +23,10 @@ from langgraph.checkpoint.memory import MemorySaver
 
 import agentic_rag.tools.grounding as grounding
 from agentic_rag.schemas.query import QueryAnswer
-from agentic_rag.tools.grounding import submit_query_answer
 from agentic_rag.tools.nav import wiki_read_page, wiki_search
 from agentic_rag.tools.shared import init_shared_tools
 from frontend.chat_driver import (
     AnswerToken,
-    extract_answer_so_far,
     FinalAnswer,
     stream_query,
     ToolEnd,
@@ -36,59 +35,6 @@ from frontend.chat_driver import (
 from tests.fixtures.fake_llm import ScriptedChatModel
 
 MLX_ANSWER = "MLX is Apple's machine learning framework for Apple Silicon."
-
-
-class TestExtractAnswerSoFar:
-    """The pure partial-JSON helper — the primary unit-test target."""
-
-    def test_empty_string_returns_empty(self):
-        assert extract_answer_so_far("") == ""
-
-    def test_partial_key_returns_empty(self):
-        assert extract_answer_so_far('{"answ') == ""
-        assert extract_answer_so_far('{"answer"') == ""
-
-    def test_key_without_value_returns_empty(self):
-        assert extract_answer_so_far('{"answer":') == ""
-        assert extract_answer_so_far('{"answer": ') == ""
-
-    def test_open_quote_with_incomplete_text(self):
-        assert extract_answer_so_far('{"answer": "MLX') == "MLX"
-        assert extract_answer_so_far('{"answer": "MLX is') == "MLX is"
-
-    def test_complete_text(self):
-        raw = json.dumps(
-            {
-                "answer": MLX_ANSWER,
-                "citations": [],
-                "confidence": "high",
-                "suggestion": "",
-            }
-        )
-        assert extract_answer_so_far(raw) == MLX_ANSWER
-
-    def test_escaped_quotes_honoured(self):
-        raw = json.dumps({"answer": 'He said "hi" to me.', "confidence": "low"})
-        assert extract_answer_so_far(raw) == 'He said "hi" to me.'
-
-    def test_text_followed_by_more_fields(self):
-        assert (
-            extract_answer_so_far(
-                '{"answer":"MLX","citations":[{"slug":"entities/mlx"}],'
-                '"confidence":"high","suggestion":""}'
-            )
-            == "MLX"
-        )
-
-    def test_whitespace_around_key_and_colon(self):
-        assert extract_answer_so_far('{"answer"  :  "MLX"}') == "MLX"
-
-    def test_escaped_backslash(self):
-        assert extract_answer_so_far('{"answer": "C:\\\\mlx\\\\run"}') == "C:\\mlx\\run"
-
-    def test_never_raises_on_garbage(self):
-        for garbage in ["not json at all", "{{{{", '{"answer": "unterminated', "\x00\x01"]:
-            extract_answer_so_far(garbage)  # must not raise
 
 
 @pytest.fixture
@@ -120,7 +66,7 @@ def _build_query_agent(responses: list[AIMessage]) -> object:
     model = ScriptedChatModel(responses=responses)
     return create_agent(
         model=model,
-        tools=[wiki_search, wiki_read_page, submit_query_answer],
+        tools=[wiki_search, wiki_read_page],
         system_prompt="You are a query agent. Answer from the wiki.",
         checkpointer=MemorySaver(),  # mirrors build_agent; needed for get_state
     )
@@ -134,9 +80,9 @@ async def _collect(agent, message: str) -> list:
 
 
 class TestStreamQueryScriptedTurn:
-    """Acceptance: scripted two-tool turn (wiki_search -> submit_query_answer)."""
+    """Acceptance: scripted turn (wiki_search -> free-text final answer)."""
 
-    async def test_event_order_and_structured_final(self, wiki_with_mlx):
+    async def test_event_order_and_auto_built_final(self, wiki_with_mlx):
         init_shared_tools(str(wiki_with_mlx))
         agent = _build_query_agent(
             [
@@ -147,22 +93,10 @@ class TestStreamQueryScriptedTurn:
                     ],
                 ),
                 AIMessage(
-                    content="",
-                    tool_calls=[
-                        ToolCall(
-                            name="submit_query_answer",
-                            args={
-                                "answer": MLX_ANSWER,
-                                "citations": [
-                                    {"slug": "entities/mlx", "title": "MLX"},
-                                    {"slug": "entities/fabricated", "title": "Fabricated"},
-                                ],
-                                "confidence": "high",
-                                "suggestion": "",
-                            },
-                            id="tc-2",
-                        )
-                    ],
+                    content=(
+                        f"{MLX_ANSWER} "
+                        "([[entities/mlx]], [[entities/fabricated]])."
+                    )
                 ),
             ]
         )
@@ -170,35 +104,32 @@ class TestStreamQueryScriptedTurn:
         events = await _collect(agent, "What is MLX?")
 
         kinds = [e.kind for e in events]
-        assert kinds == [
-            "tool_start",
-            "tool_end",
-            "tool_start",
-            "answer_token",
-            "tool_end",
-            "final",
-        ]
+        assert kinds == ["tool_start", "tool_end", "answer_token", "final"]
 
-        # ToolStart for each tool, in order, with best-effort args.
+        # ToolStart for wiki_search, with best-effort args.
         starts = [e for e in events if e.kind == "tool_start"]
-        assert [e.name for e in starts] == ["wiki_search", "submit_query_answer"]
+        assert [e.name for e in starts] == ["wiki_search"]
         assert starts[0].args == {"query": "What is MLX?"}
-        assert starts[1].args["answer"] == MLX_ANSWER
 
-        # ToolEnd for wiki_search (and for the submit tool).
+        # ToolEnd for wiki_search.
         ends = [e for e in events if e.kind == "tool_end"]
-        assert [e.name for e in ends] == ["wiki_search", "submit_query_answer"]
+        assert [e.name for e in ends] == ["wiki_search"]
         assert "entities/mlx" in ends[0].output
 
-        # One or more AnswerToken whose concatenation equals the scripted answer.
+        # The final message streams live as AnswerTokens.
         tokens = [e for e in events if e.kind == "answer_token"]
         assert tokens, "expected at least one AnswerToken"
-        assert "".join(t.text for t in tokens) == MLX_ANSWER
+        assert "".join(t.text for t in tokens) == (
+            f"{MLX_ANSWER} ([[entities/mlx]], [[entities/fabricated]])."
+        )
 
-        # FinalAnswer: cite-or-die drops the non-navigated citation.
+        # FinalAnswer: auto-built from the model output; cite-or-die drops the
+        # non-navigated citation.
         final = events[-1]
         assert isinstance(final, FinalAnswer)
-        assert final.answer.answer == MLX_ANSWER
+        assert final.answer.answer == (
+            f"{MLX_ANSWER} ([[entities/mlx]], [[entities/fabricated]])."
+        )
         assert [c.slug for c in final.answer.citations] == ["entities/mlx"]
         assert final.answer.confidence == "high"
         assert final.answer.suggestion == ""
@@ -215,19 +146,7 @@ class TestStreamQueryScriptedTurn:
                     ],
                 ),
                 AIMessage(
-                    content="",
-                    tool_calls=[
-                        ToolCall(
-                            name="submit_query_answer",
-                            args={
-                                "answer": "MLX is Apple's ML framework.",
-                                "citations": [{"slug": "entities/mlx", "title": "MLX"}],
-                                "confidence": "high",
-                                "suggestion": "",
-                            },
-                            id="tc-2",
-                        )
-                    ],
+                    content="MLX is Apple's ML framework ([[entities/mlx]])."
                 ),
             ]
         )
@@ -243,24 +162,13 @@ class TestStreamQueryScriptedTurn:
         poisoned = grounding.new_nav_capture()
         poisoned.navigated.add("entities/mlx")
 
-        # Turn 2 (fresh agent, fresh ScriptedChatModel): submit only, no
-        # navigation. stream_query must replace the poisoned capture at start.
+        # Turn 2 (fresh agent, fresh ScriptedChatModel): no navigation, the
+        # answer still links entities/mlx. stream_query must replace the
+        # poisoned capture at start -> the link is dropped.
         agent2 = _build_query_agent(
             [
                 AIMessage(
-                    content="",
-                    tool_calls=[
-                        ToolCall(
-                            name="submit_query_answer",
-                            args={
-                                "answer": "MLX is Apple's ML framework.",
-                                "citations": [{"slug": "entities/mlx", "title": "MLX"}],
-                                "confidence": "high",
-                                "suggestion": "",
-                            },
-                            id="tc-3",
-                        )
-                    ],
+                    content="MLX is Apple's ML framework ([[entities/mlx]])."
                 ),
             ]
         )
@@ -287,103 +195,8 @@ class _FakeAgent:
         return SimpleNamespace(values={"messages": self._final_messages})
 
 
-def _submit_tool_call_chunks(*args_fragments: str) -> list[dict]:
-    return [
-        {"name": "submit_query_answer", "args": frag, "id": "tc-s", "index": 0}
-        for frag in args_fragments
-    ]
-
-
 class TestStreamQueryMultiChunk:
-    """Real incremental path: multiple tool_call_chunks with partial args."""
-
-    async def test_partial_args_fragments_produce_delta_tokens(self):
-        full_json = json.dumps(
-            {
-                "answer": "MLX is a great framework.",
-                "citations": [],
-                "confidence": "high",
-                "suggestion": "",
-            }
-        )
-        tool_msg = ToolMessage(content=full_json, name="submit_query_answer", tool_call_id="tc-s")
-        fake = _FakeAgent(
-            chunks=[
-                AIMessageChunk(
-                    content="",
-                    tool_call_chunks=_submit_tool_call_chunks('{"answer": "MLX is'),
-                ),
-                AIMessageChunk(
-                    content="",
-                    tool_call_chunks=_submit_tool_call_chunks(
-                        ' a great framework.","citations":[],"confidence":"high","suggestion":""}'
-                    ),
-                ),
-                tool_msg,
-                AIMessage(content="[done]"),
-            ],
-            final_messages=[tool_msg],
-        )
-
-        events = [event async for event in stream_query(fake, "What is MLX?", "t-mc", 30)]
-
-        starts = [e for e in events if e.kind == "tool_start"]
-        assert len(starts) == 1
-        assert starts[0].name == "submit_query_answer"
-        assert starts[0].args == {}  # first fragment not yet parseable
-
-        tokens = [e for e in events if e.kind == "answer_token"]
-        assert [t.text for t in tokens] == ["MLX is", " a great framework."]
-        assert "".join(t.text for t in tokens) == "MLX is a great framework."
-
-        final = events[-1]
-        assert isinstance(final, FinalAnswer)
-        assert final.answer.answer == "MLX is a great framework."
-        assert final.answer.citations == []
-
-    async def test_nameless_continuation_fragments_do_not_crash(self):
-        """Regression: real streaming sends the tool name only on the FIRST
-        chunk of a call; continuation fragments carry name=None and id=None
-        but keep the same index. Keying on id split one call into two keys
-        and the nameless fragment was treated as a new call -> ToolStart(
-        name=None) ValidationError. Index-keying + name tracking fixes it.
-        """
-        submit_json = json.dumps(
-            {"answer": "hi", "citations": [], "confidence": "low", "suggestion": ""}
-        )
-        tool_msg = ToolMessage(
-            content=submit_json, name="submit_query_answer", tool_call_id="call_s"
-        )
-        fake = _FakeAgent(
-            chunks=[
-                # First chunk: name + id present, args just opening.
-                AIMessageChunk(
-                    content="",
-                    tool_call_chunks=[
-                        {"name": "submit_query_answer", "args": '{"answer":', "id": "call_s", "index": 0}
-                    ],
-                ),
-                # Continuation: name=None, id=None, same index, args fragment.
-                AIMessageChunk(
-                    content="",
-                    tool_call_chunks=[
-                        {"name": None, "args": ' "hi"}', "id": None, "index": 0}
-                    ],
-                ),
-                tool_msg,
-            ],
-            final_messages=[tool_msg],
-        )
-
-        events = [event async for event in stream_query(fake, "q", "t-reg", 30)]
-
-        starts = [e for e in events if e.kind == "tool_start"]
-        assert len(starts) == 1
-        assert starts[0].name == "submit_query_answer"
-        tokens = [e for e in events if e.kind == "answer_token"]
-        assert "".join(t.text for t in tokens) == "hi"
-        assert isinstance(events[-1], FinalAnswer)
-        assert events[-1].answer.answer == "hi"
+    """Real incremental path: multi-chunk tool args and free text."""
 
     async def test_tool_end_output_truncated_to_500(self):
         long_output = "x" * 1200
@@ -401,11 +214,65 @@ class TestStreamQueryMultiChunk:
         assert len(ends[0].output) == 500
         assert ends[0].output == long_output[:500]
 
+    async def test_free_text_chunks_stream_as_answer_tokens(self):
+        """Multi-chunk free text accumulates into delta AnswerTokens, and the
+        FinalAnswer uses the last AI message from the thread state."""
+        fake = _FakeAgent(
+            chunks=[
+                AIMessageChunk(content="MLX is "),
+                AIMessageChunk(content="a great framework."),
+            ],
+            final_messages=[AIMessage(content="MLX is a great framework.")],
+        )
+
+        events = [event async for event in stream_query(fake, "q", "t-ft", 30)]
+
+        tokens = [e for e in events if e.kind == "answer_token"]
+        assert [t.text for t in tokens] == ["MLX is ", "a great framework."]
+        final = events[-1]
+        assert isinstance(final, FinalAnswer)
+        assert final.answer.answer == "MLX is a great framework."
+        assert final.answer.citations == []
+        assert final.answer.confidence == "low"
+
+    async def test_free_text_after_tool_calls_streams_as_answer(self):
+        """The model's free text AFTER navigation is the answer (no finalization
+        tool): it streams live and the FinalAnswer reflects it."""
+        tool_msg = ToolMessage(
+            content="Found 1 relevant: entities/mlx", name="wiki_search", tool_call_id="t-1"
+        )
+        fake = _FakeAgent(
+            chunks=[
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        ToolCall(name="wiki_search", args={"query": "mlx"}, id="t-1")
+                    ],
+                ),
+                tool_msg,
+                AIMessage(content="MLX is Apple's framework ([[entities/mlx]])."),
+            ],
+            final_messages=[AIMessage(content="MLX is Apple's framework ([[entities/mlx]]).")],
+        )
+
+        events = [event async for event in stream_query(fake, "q", "t-after", 30)]
+
+        assert [e.kind for e in events] == [
+            "tool_start",
+            "tool_end",
+            "answer_token",
+            "final",
+        ]
+        tokens = [e for e in events if e.kind == "answer_token"]
+        assert "".join(t.text for t in tokens) == "MLX is Apple's framework ([[entities/mlx]])."
+        final = events[-1]
+        assert final.answer.answer == "MLX is Apple's framework ([[entities/mlx]])."
+
 
 class TestStreamQueryFallbacks:
     async def test_plain_content_streams_as_answer_token(self):
         """Free content (no tool calls) streams live as the answer text; the
-        final fallback reuses it (mirrors cli.py's compat fallback)."""
+        final answer reuses it."""
         fake = _FakeAgent(
             chunks=[AIMessage(content="thinking out loud…")],
             final_messages=[AIMessage(content="thinking out loud…")],
@@ -419,11 +286,11 @@ class TestStreamQueryFallbacks:
         assert isinstance(final, FinalAnswer)
         assert final.answer.answer == "thinking out loud…"
         assert final.answer.confidence == "low"
-        assert final.answer.suggestion == "(no structured answer produced)"
+        assert final.answer.suggestion == ""
 
-    async def test_no_submit_tool_message_yields_fallback_answer(self):
-        # chunks=[] -> nothing streamed; fallback uses the last AIMessage
-        # content from the thread state (mirrors cli.py compat fallback).
+    async def test_answer_from_thread_state_when_nothing_streamed(self):
+        # chunks=[] -> nothing streamed; the answer is synthesized from the last
+        # AIMessage content in the thread state.
         fake = _FakeAgent(chunks=[], final_messages=[AIMessage(content="nothing")])
 
         events = [event async for event in stream_query(fake, "q", "t-none", 30)]
@@ -433,24 +300,7 @@ class TestStreamQueryFallbacks:
         assert final.answer.answer == "nothing"
         assert final.answer.citations == []
         assert final.answer.confidence == "low"
-        assert final.answer.suggestion == "(no structured answer produced)"
-
-    async def test_unparseable_submit_output_yields_fallback_answer(self):
-        tool_msg = ToolMessage(
-            content="not valid json", name="submit_query_answer", tool_call_id="tc-bad"
-        )
-        fake = _FakeAgent(
-            chunks=[tool_msg],
-            final_messages=[tool_msg],
-        )
-
-        events = [event async for event in stream_query(fake, "q", "t-bad", 30)]
-
-        final = events[-1]
-        assert isinstance(final, FinalAnswer)
-        assert final.answer.citations == []
-        assert final.answer.confidence == "low"
-        assert final.answer.suggestion == "(no structured answer produced)"
+        assert final.answer.suggestion == ""
 
     async def test_thread_id_and_recursion_limit_reach_config(self):
         """stream_query must pass config in the exact spec shape."""
@@ -482,7 +332,7 @@ class TestStreamQueryFallbacks:
         }
         final = events[-1]
         assert isinstance(final, FinalAnswer)
-        assert final.answer.suggestion == "(no structured answer produced)"
+        assert final.answer.suggestion == ""
 
     async def test_fresh_nav_capture_installed_on_fake_agent(self):
         fake = _FakeAgent(chunks=[], final_messages=[])

@@ -170,23 +170,15 @@ def query(question: str = typer.Argument(..., help="Question to ask the wiki")):
 
     logger.info("QUERY command finished")
 
-    from agentic_rag.schemas.query import QueryAnswer
-    from agentic_rag.tools.grounding import validate_citations
+    from agentic_rag.tools.grounding import build_final_answer, render_answer_text
 
-    # Structured render: locate the LAST submit_query_answer ToolMessage
-    # (its .content is the validated QueryAnswer JSON from the cite-or-die tool).
+    # Structured render: finalization is automatic — there is no finalization
+    # tool. The answer is synthesized from the model's last message, with
+    # [[Page]] links validated against the turn's navigated set (cite-or-die).
     nav_capture = getattr(agent, "_nav_capture", None)
-    submit_message = None
-    for msg in reversed(result["messages"]):
-        if getattr(msg, "name", None) == "submit_query_answer":
-            submit_message = msg
-            break
-
-    if submit_message is not None and nav_capture is not None:
-        qa = QueryAnswer.model_validate_json(submit_message.content)
-        # Belt-and-suspenders: re-validate against the turn's navigated set.
-        qa = validate_citations(qa, nav_capture.navigated)
-        out = f"Answer:\n{qa.answer}\n\nConfidence: {qa.confidence}"
+    if nav_capture is not None:
+        qa = build_final_answer(result["messages"], nav_capture.navigated)
+        out = f"Answer:\n{render_answer_text(qa.answer)}\n\nConfidence: {qa.confidence}"
         if qa.citations:
             out += "\nCitations:"
             for citation in qa.citations:
@@ -196,8 +188,8 @@ def query(question: str = typer.Argument(..., help="Question to ask the wiki")):
             out += f"\nSuggestion: {qa.suggestion}"
         typer.echo(out)
     else:
-        # Compat fallback: fake/plain agents (no submit tool call, no
-        # _nav_capture) render the raw final message.
+        # Compat fallback: fake/plain agents (no _nav_capture) render the raw
+        # final message.
         typer.echo(result["messages"][-1].content)
 
 

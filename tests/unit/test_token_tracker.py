@@ -139,7 +139,7 @@ class TestModelPricing:
 
     def test_known_models_have_pricing(self):
         """Test known models have pricing defined."""
-        known_models = ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o", "deepseek-v4-flash"]
+        known_models = ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o", "glm-5.2", "deepseek-v4-pro", "deepseek-v4-flash"]
         for model in known_models:
             assert model in MODEL_PRICING
             assert "input" in MODEL_PRICING[model]

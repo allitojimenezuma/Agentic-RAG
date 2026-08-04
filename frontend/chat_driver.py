@@ -15,6 +15,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from pydantic import BaseModel
 
 from agentic_rag.schemas.query import QueryAnswer
+from agentic_rag.tools.grounding import build_final_answer
 
 logger = logging.getLogger(__name__)
 
@@ -44,58 +45,6 @@ class FinalAnswer(BaseModel):
 StreamEvent = ToolStart | ToolEnd | AnswerToken | FinalAnswer
 
 
-def extract_answer_so_far(accumulated_args_json: str) -> str:
-    """Tolerant extraction of the `answer` field value from a (possibly partial)
-    JSON string matching submit_query_answer's args schema, whose `answer` key is
-    first. Reads from the opening quote after `"answer"` to the next unescaped
-    quote, honouring `\\"` escapes. Returns the decoded substring accumulated so
-    far (may be incomplete if the JSON is mid-stream). Returns "" if the answer
-    field has not started or no opening quote is seen yet. Never raises.
-    """
-    marker = '"answer"'
-    idx = accumulated_args_json.find(marker)
-    if idx == -1:
-        return ""
-    pos = idx + len(marker)
-    # Skip whitespace, ':', whitespace up to the opening quote of the value.
-    while pos < len(accumulated_args_json) and accumulated_args_json[pos].isspace():
-        pos += 1
-    if pos < len(accumulated_args_json) and accumulated_args_json[pos] == ":":
-        pos += 1
-    while pos < len(accumulated_args_json) and accumulated_args_json[pos].isspace():
-        pos += 1
-    if pos >= len(accumulated_args_json) or accumulated_args_json[pos] != '"':
-        return ""
-    pos += 1  # skip the opening quote
-
-    out: list[str] = []
-    while pos < len(accumulated_args_json):
-        ch = accumulated_args_json[pos]
-        if ch == '"':
-            return "".join(out)  # closing quote -> complete value
-        if ch == "\\":
-            nxt = accumulated_args_json[pos + 1] if pos + 1 < len(accumulated_args_json) else ""
-            if nxt == '"':
-                out.append('"')
-            elif nxt == "\\":
-                out.append("\\")
-            elif nxt == "n":
-                out.append("\n")
-            elif nxt == "t":
-                out.append("\t")
-            elif nxt == "r":
-                out.append("\r")
-            elif nxt == "":
-                return "".join(out)  # dangling backslash at end of stream
-            else:
-                out.append(nxt)
-            pos += 2
-            continue
-        out.append(ch)
-        pos += 1
-    return "".join(out)  # end of stream -> incomplete, return what we have
-
-
 def _best_effort_args(raw: Any) -> dict:
     """Parse accumulated tool-call args (string fragments or a full dict)."""
     if isinstance(raw, dict):
@@ -112,23 +61,12 @@ def _best_effort_args(raw: Any) -> dict:
         return {}
 
 
-def _fallback_answer(text: str) -> QueryAnswer:
-    """QueryAnswer used when no structured submit_query_answer result exists."""
-    return QueryAnswer(
-        answer=text,
-        citations=[],
-        confidence="low",
-        suggestion="(no structured answer produced)",
-    )
-
-
 def _on_tool_args_fragment(
     key: Any,
     name: str | None,
     fragment: str,
     accumulated: dict[Any, str],
     seen_starts: set[Any],
-    emitted: dict[Any, str],
     names: dict[Any, str],
 ) -> list[StreamEvent]:
     """Accumulate one args fragment for a tool call and produce events.
@@ -150,14 +88,6 @@ def _on_tool_args_fragment(
     if key not in seen_starts and effective_name:
         seen_starts.add(key)
         events.append(ToolStart(name=effective_name, args=_best_effort_args(accumulated[key])))
-
-    if effective_name == "submit_query_answer":
-        text = extract_answer_so_far(accumulated[key])
-        prev = emitted.get(key, "")
-        if text != prev:
-            delta = text[len(prev):] if text.startswith(prev) else text
-            events.append(AnswerToken(text=delta))
-            emitted[key] = text
     return events
 
 
@@ -199,9 +129,8 @@ async def stream_query(
     # Per-tool-call accumulation state for this turn.
     accumulated: dict[Any, str] = {}  # key -> accumulated args JSON string
     seen_starts: set[Any] = set()
-    emitted: dict[Any, str] = {}  # key -> last emitted answer text
     names: dict[Any, str] = {}  # key -> known tool name (first non-empty wins)
-    free_text: list[str] = []  # free-text AIMessage content (no tool calls)
+    free_text: list[str] = []  # free-text AIMessage content (the live answer)
 
     async for chunk, _metadata in agent.astream(
         {"messages": [{"role": "user", "content": message}]},
@@ -225,7 +154,6 @@ async def stream_query(
                     tc.get("args", "") or "",
                     accumulated,
                     seen_starts,
-                    emitted,
                     names,
                 ):
                     yield event
@@ -242,43 +170,28 @@ async def stream_query(
                     json.dumps(tc.get("args", {})),
                     accumulated,
                     seen_starts,
-                    emitted,
                     names,
                 ):
                     yield event
             continue
 
-        # Plain content with no tool calls: stream it live as the answer text,
-        # but ONLY before any tool has been called this turn. The query agent
-        # normally finalizes via submit_query_answer (whose structured render
-        # overwrites the bubble at the end); trailing free text after the tool
-        # call (e.g. "Done.") is closing chatter, not the answer. For inputs
-        # where the model replies with free text only (e.g. a casual "hello"),
-        # this is the answer -- mirrors the CLI's compat fallback.
+        # Plain content with no tool calls: the model's answer text. Stream it
+        # live as AnswerTokens; the FinalAnswer render overwrites the bubble
+        # at the end with the cite-or-die-validated QueryAnswer.
         content = getattr(chunk, "content", "")
-        if content and not seen_starts:
+        if content:
             free_text.append(content)
             yield AnswerToken(text=content)
 
-    # Final: emit the structured, cite-or-die-filtered QueryAnswer from the last
-    # submit_query_answer ToolMessage in the thread state; fall back if absent.
+    # Final: finalization is automatic — no finalization tool exists. The
+    # answer is synthesized from the streamed free text / last AI message, with
+    # [[Page]] links validated against the turn's navigated set (cite-or-die).
+    nav_capture = getattr(agent, "_nav_capture", None)
+    navigated = nav_capture.navigated if nav_capture is not None else set()
     state_messages = agent.get_state(config).values.get("messages", [])
-    last_submit = None
-    last_ai_content = ""
-    for msg in state_messages:
-        if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "submit_query_answer":
-            last_submit = msg
-        if isinstance(msg, (AIMessage, AIMessageChunk)) and getattr(msg, "content", ""):
-            last_ai_content = msg.content
-
-    if last_submit is not None:
-        try:
-            answer = QueryAnswer.model_validate_json(str(last_submit.content))
-        except Exception:
-            logger.exception("Could not parse submit_query_answer output; falling back")
-            answer = _fallback_answer("".join(free_text) or last_ai_content)
-    else:
-        # No structured finalization: use the streamed free text, or the last
-        # AIMessage content (mirrors cli.py's compat fallback).
-        answer = _fallback_answer("".join(free_text) or last_ai_content)
+    answer = build_final_answer(
+        state_messages,
+        navigated,
+        free_text="".join(free_text),
+    )
     yield FinalAnswer(answer=answer)

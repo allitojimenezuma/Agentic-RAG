@@ -15,6 +15,8 @@ MODEL_PRICING = {
     "gpt-4.1": {"input": 2.00, "output": 8.00},
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "gpt-4o": {"input": 2.50, "output": 10.00},
+    "glm-5.2": {"input": 1.40, "output": 4.40},
+    "deepseek-v4-pro": {"input": 0.44, "output": 0.87},
     "deepseek-v4-flash": {"input": 0.14, "output": 0.28},
     # Add more models as needed
 }

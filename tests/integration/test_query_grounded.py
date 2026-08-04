@@ -1,9 +1,11 @@
-"""Grounded-flow tests for the rebuilt query agent (cite-or-die) and CLI rendering.
+"""Grounded-flow tests for the query agent (cite-or-die) and CLI rendering.
 
-Tests the nav-tools + ``submit_query_answer`` pipeline end-to-end with the
-``ScriptedChatModel`` harness: a fabricated citation is dropped because the
-agent never navigated that page; the CLI renders the structured ``QueryAnswer``
-and falls back to the raw final message for plain (non-grounded) agents.
+Tests the nav-tools + auto-built answer pipeline end-to-end with the
+``ScriptedChatModel`` harness: there is no finalization tool — the answer is
+synthesized from the model's final message, a fabricated ``[[link]]`` citation
+is dropped because the agent never navigated that page, and the CLI renders the
+structured ``QueryAnswer`` (falling back to the raw final message for plain
+agents without a NavCapture).
 """
 
 from __future__ import annotations
@@ -18,8 +20,7 @@ from typer.testing import CliRunner
 
 from agentic_rag.agents.factory import build_agent
 from agentic_rag.agents.prompts import build_query_prompt
-from agentic_rag.schemas.query import QueryAnswer
-from agentic_rag.tools.grounding import new_nav_capture, submit_query_answer
+from agentic_rag.tools.grounding import build_final_answer, new_nav_capture
 from agentic_rag.tools.nav import wiki_read_page, wiki_search, wiki_summary
 from agentic_rag.tools.shared import init_shared_tools
 from agentic_rag.cli import app
@@ -73,8 +74,8 @@ def env_with_api_key(tmp_path: Path, grounded_wiki: Path):
 
 
 def _build_grounded_agent(wiki: Path):
-    """Grounded scripted agent (Test A fixture): navigates mlx via wiki_search,
-    then submits an answer citing BOTH the navigated slug and a fabricated one."""
+    """Grounded scripted agent: navigates mlx via wiki_search, then writes a
+    final answer citing BOTH the navigated slug and a fabricated one."""
     init_shared_tools(str(wiki))
     model = ScriptedChatModel(
         responses=[
@@ -83,32 +84,16 @@ def _build_grounded_agent(wiki: Path):
                 tool_calls=[ToolCall(name="wiki_search", args={"query": "mlx"}, id="tc-1")],
             ),
             AIMessage(
-                content="",
-                tool_calls=[
-                    ToolCall(
-                        name="submit_query_answer",
-                        args={
-                            "answer": (
-                                "MLX is a machine learning framework by Apple "
-                                "([[entities/mlx]], [[entities/fabricated]])."
-                            ),
-                            "citations": [
-                                {"slug": "entities/mlx", "title": "MLX"},
-                                {"slug": "entities/fabricated", "title": "Fabricated Page"},
-                            ],
-                            "confidence": "medium",
-                            "suggestion": "",
-                        },
-                        id="tc-2",
-                    )
-                ],
+                content=(
+                    "MLX is a machine learning framework by Apple "
+                    "([[entities/mlx]], [[entities/fabricated]])."
+                )
             ),
-            AIMessage(content="Done."),
         ]
     )
     agent = build_agent(
         model=model,
-        tools=[wiki_search, wiki_read_page, wiki_summary, submit_query_answer],
+        tools=[wiki_search, wiki_read_page, wiki_summary],
         system_prompt=build_query_prompt("# Test schema"),
     )
     agent._nav_capture = new_nav_capture()
@@ -118,7 +103,7 @@ def _build_grounded_agent(wiki: Path):
 class TestGroundedQueryAgent:
     """Agent-level grounded flow: fabricated citations are dropped (cite-or-die)."""
 
-    def test_submit_tool_drops_fabricated_citation(self, grounded_wiki):
+    def test_final_answer_drops_fabricated_citation(self, grounded_wiki):
         agent = _build_grounded_agent(grounded_wiki)
         config = {"configurable": {"thread_id": str(uuid4())}}
         result = agent.invoke(
@@ -129,31 +114,27 @@ class TestGroundedQueryAgent:
         # wiki_search must have recorded the navigated slug into the capture.
         assert "entities/mlx" in agent._nav_capture.navigated
 
-        submit_msg = next(
-            msg
-            for msg in reversed(result["messages"])
-            if getattr(msg, "name", None) == "submit_query_answer"
-        )
-        qa = QueryAnswer.model_validate_json(submit_msg.content)
+        qa = build_final_answer(result["messages"], agent._nav_capture.navigated)
         assert [c.slug for c in qa.citations] == ["entities/mlx"]
         assert all(c.slug != "entities/fabricated" for c in qa.citations)
-        assert qa.confidence == "medium"
+        assert qa.confidence == "high"
 
 
 class TestGroundedCli:
-    """CLI-level rendering of the structured QueryAnswer + compat fallback."""
+    """CLI-level rendering of the auto-built QueryAnswer + compat fallback."""
 
-    def test_cli_renders_grounded_answer(self, grounded_wiki, env_with_api_key):
+    def test_cli_renders_auto_built_answer(self, grounded_wiki, env_with_api_key):
         agent = _build_grounded_agent(grounded_wiki)
         with patch("agentic_rag.agents.query.build_query_agent", lambda settings: agent):
             result = runner.invoke(app, ["query", "What is MLX?"])
 
         assert result.exit_code == 0
         assert "Answer:" in result.output
-        assert "Confidence: medium" in result.output
-        assert "entities/mlx" in result.output
-        # Raw final model message must NOT be echoed raw.
-        assert "Done." not in result.output
+        assert "Confidence: high" in result.output
+        # The navigated [[link]] became a citation (with its frontmatter title).
+        assert "entities/mlx - MLX" in result.output
+        # The fabricated link is NOT promoted to a citation.
+        assert "entities/fabricated -" not in result.output
 
     def test_cli_compat_fallback_plain_agent(self, env_with_api_key):
         """Plain agent (create_agent, no _nav_capture) falls back to raw content."""

@@ -1,8 +1,9 @@
-"""Unit tests for grounding: NavCapture, record_navigated, validate_citations, submit_query_answer."""
+"""Unit tests for grounding: NavCapture, record_navigated, validate_citations, build_final_answer."""
 
 from __future__ import annotations
 
 import pytest
+from langchain_core.messages import AIMessage
 
 from agentic_rag.schemas.query import QueryAnswer, SourceCitation
 from agentic_rag.tools import grounding
@@ -99,43 +100,118 @@ class TestNavCapture:
         assert grounding._NAV_CAPTURE is capture
 
 
-class TestSubmitQueryAnswer:
-    def test_drops_fabricated_and_returns_parseable_json(self):
-        capture = grounding.new_nav_capture()
-        capture.navigated.add("entities/mlx")
-        valid = SourceCitation(slug="entities/mlx", title="MLX")
-        fabricated = SourceCitation(slug="entities/fabricated", title="Fabricated")
+def _ai(content: str) -> AIMessage:
+    return AIMessage(content=content)
 
-        result = grounding.submit_query_answer.invoke(
-            {
-                "answer": "MLX is Apple's framework.",
-                "citations": [valid, fabricated],
-                "confidence": "high",
-                "suggestion": "",
-            }
+
+class TestRenderAnswerText:
+    """Display cleanup: wikilink markup is stripped from the rendered answer."""
+
+    def test_plain_text_unchanged(self):
+        assert grounding.render_answer_text("GLM is cheap.") == "GLM is cheap."
+
+    def test_slug_link_becomes_basename(self):
+        assert grounding.render_answer_text("[[glm-5.2]] is ~10x pricier.") == (
+            "glm-5.2 is ~10x pricier."
         )
 
-        parsed = QueryAnswer.model_validate_json(result)
-        assert parsed.answer == "MLX is Apple's framework."
-        assert [c.slug for c in parsed.citations] == ["entities/mlx"]
-        assert parsed.citations[0].title == "MLX"
-        assert parsed.confidence == "high"
-        assert parsed.suggestion == ""
-
-    def test_does_not_crash_when_all_citations_dropped(self):
-        grounding.new_nav_capture()
-        fabricated = SourceCitation(slug="entities/fabricated", title="Fabricated")
-
-        result = grounding.submit_query_answer.invoke(
-            {
-                "answer": "Nothing grounded.",
-                "citations": [fabricated],
-                "confidence": "low",
-                "suggestion": "No pages covered this.",
-            }
+    def test_aliased_link_uses_alias(self):
+        assert grounding.render_answer_text("See [[entities/mlx|MLX]] for details.") == (
+            "See MLX for details."
         )
 
-        parsed = QueryAnswer.model_validate_json(result)
-        assert parsed.citations == []
-        assert parsed.confidence == "low"
-        assert parsed.suggestion == "No pages covered this."
+    def test_full_path_link_uses_basename(self):
+        assert grounding.render_answer_text("[[entities/deepseek-v4-pro]]") == (
+            "deepseek-v4-pro"
+        )
+
+    def test_display_name_link_stays(self):
+        assert grounding.render_answer_text("[[Spec-Driven Subagent Harness]]") == (
+            "Spec-Driven Subagent Harness"
+        )
+
+    def test_multiple_links_and_empty(self):
+        assert (
+            grounding.render_answer_text(
+                "A [[one]] and [[two|Two]] done."
+            )
+            == "A one and Two done."
+        )
+        assert grounding.render_answer_text("") == ""
+
+
+class TestBuildFinalAnswer:
+    """Auto-built final answer: there is no finalization tool."""
+
+    @pytest.fixture(autouse=True)
+    def _stub_titles(self, monkeypatch):
+        """Keep title lookups offline: unit tests stub the wiki title map."""
+        monkeypatch.setattr(grounding, "_navigated_titles", lambda slugs: {})
+
+    def test_auto_build_from_last_ai_message_with_links(self):
+        navigated = {"entities/mlx"}
+        messages = [
+            _ai("MLX is Apple's ML framework ([[entities/mlx]], [[entities/fabricated]]).")
+        ]
+
+        qa = grounding.build_final_answer(messages, navigated)
+
+        assert qa.answer == "MLX is Apple's ML framework ([[entities/mlx]], [[entities/fabricated]])."
+        assert [c.slug for c in qa.citations] == ["entities/mlx"]  # fabricated link dropped
+        assert qa.confidence == "high"  # navigated pages cited
+        assert qa.suggestion == ""
+
+    def test_auto_finalize_display_name_and_alias_links(self):
+        navigated = {"entities/mlx", "concepts/array-fire"}
+        messages = [
+            _ai("See [[MLX]] and [[concepts/array-fire|ArrayFire]] for details.")
+        ]
+
+        qa = grounding.build_final_answer(messages, navigated)
+
+        assert [c.slug for c in qa.citations] == ["entities/mlx", "concepts/array-fire"]
+        # Alias becomes the title when no frontmatter title is available.
+        assert qa.citations[1].title == "ArrayFire"
+
+    def test_auto_finalize_uses_titles_from_wiki_when_available(self):
+        navigated = {"entities/mlx"}
+        messages = [_ai("MLX ([[entities/mlx]]) is Apple's framework.")]
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(grounding, "_navigated_titles", lambda slugs: {"entities/mlx": "MLX"})
+            qa = grounding.build_final_answer(messages, navigated)
+
+        assert qa.citations[0].title == "MLX"
+
+    def test_auto_finalize_navigated_but_no_links_is_medium(self):
+        navigated = {"entities/mlx"}
+        messages = [_ai("MLX is Apple's machine learning framework.")]
+
+        qa = grounding.build_final_answer(messages, navigated)
+
+        assert qa.citations == []
+        assert qa.confidence == "medium"  # consulted the wiki but cited nothing
+
+    def test_auto_finalize_nothing_navigated_is_low(self):
+        messages = [_ai("I don't know.")]
+
+        qa = grounding.build_final_answer(messages, set())
+
+        assert qa.citations == []
+        assert qa.confidence == "low"
+        assert qa.answer == "I don't know."
+
+    def test_auto_finalize_falls_back_to_free_text(self):
+        messages = []  # no AI message in state
+
+        qa = grounding.build_final_answer(messages, set(), free_text="streamed text")
+
+        assert qa.answer == "streamed text"
+        assert qa.confidence == "low"
+
+    def test_never_raises_on_empty_input(self):
+        qa = grounding.build_final_answer([], set())
+
+        assert qa.answer == ""
+        assert qa.citations == []
+        assert qa.confidence == "low"

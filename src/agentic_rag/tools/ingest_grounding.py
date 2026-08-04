@@ -1,10 +1,10 @@
 """Structured extraction finalization tool for the ingest agent.
 
-Mirrors ``tools/grounding.py::submit_query_answer`` (the project standard for a
-finalization-as-``@tool``): ``submit_extraction`` forces a structured, testable
+Finalization-as-``@tool``: ``submit_extraction`` forces a structured, testable
 extraction boundary before the ingest agent writes any pages. It is PURE — no
 filesystem writes, no side effects, never raises. No ``NavCapture``-style store
-is needed: extraction has no citation-binding.
+is needed: extraction has no citation-binding. (The query agent, by contrast,
+has no finalization tool — its answer is auto-built from the model output.)
 """
 
 from __future__ import annotations

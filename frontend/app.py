@@ -82,7 +82,12 @@ def _tool_start_label(event: ToolStart) -> str:
 def _render_query_answer(answer) -> str:
     """Structured markdown mirroring cli.py: answer + Confidence + Citations
     (``- {slug} - {title}{ (section: {section})}``) + Suggestion if non-empty."""
-    out = [f"**Answer:**\n{answer.answer}", f"**Confidence:** {answer.confidence}"]
+    from agentic_rag.tools.grounding import render_answer_text
+
+    out = [
+        f"**Answer:**\n{render_answer_text(answer.answer)}",
+        f"**Confidence:** {answer.confidence}",
+    ]
     if answer.citations:
         lines = [
             f"- {c.slug} - {c.title}" + (f" (section: {c.section})" if c.section else "")
