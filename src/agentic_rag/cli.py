@@ -47,7 +47,7 @@ def ingest(input_text: str = typer.Argument(..., help="File path to ingest OR na
     agent = build_ingest_agent(settings)
     config = {
         "configurable": {"thread_id": str(uuid4())},
-        "recursion_limit": settings.recursion_limit,
+        "recursion_limit": settings.ingest_recursion_limit,
     }
 
     try:

@@ -22,6 +22,10 @@ class Settings(BaseSettings):
 
     # Agent runtime
     recursion_limit: int = 30
+    # Ingest needs many super-steps (multi-page + navigation). LangGraph always
+    # enforces SOME technical cap (omitting the key means the default 25 — worse),
+    # so 200 is an effective "no practical limit" for ingest while query/lint keep 30.
+    ingest_recursion_limit: int = 200
     hitl_enabled: bool = True
 
     # Logging

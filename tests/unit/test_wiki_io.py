@@ -173,7 +173,7 @@ class TestIndexDisplayNames:
     def test_source_entry_uses_sources_prefix(self, wiki: Path) -> None:
         index = read_index(wiki)
         source_entry = index.categories["sources"][0]
-        assert source_entry.slug == "cv"
+        assert source_entry.slug == "sources/cv"
 
     def test_write_and_read_preserves_display_name(self, wiki: Path) -> None:
         index = read_index(wiki)
@@ -182,10 +182,10 @@ class TestIndexDisplayNames:
         assert read_back.categories["entities"][0].display_name == "Python"
 
     def test_source_path_format_in_output(self, wiki: Path) -> None:
-        """Verify _format_entry produces sources/[slug].md for source entries."""
+        """Verify _format_entry links source entries at their full slug path."""
         from agentic_rag.io.index_manager import _format_entry
         entry = IndexEntry(
-            slug="cv",
+            slug="sources/cv",
             summary="Cv",
             type="source",
             sources=["cv.pdf"],
@@ -193,7 +193,9 @@ class TestIndexDisplayNames:
             display_name="Cv",
         )
         line = _format_entry(entry)
+        # entry.slug already includes the sources/ prefix — no double prefix
         assert "(sources/cv.md)" in line
+        assert "sources/sources" not in line
 
     def test_section_to_type_entities(self) -> None:
         from agentic_rag.io.index_manager import _SECTION_TO_TYPE

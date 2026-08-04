@@ -25,7 +25,7 @@ CURATED_QUERIES: list[tuple[str, str]] = [
     ("quantized fine tuning of language models", "concepts/llm-fine-tuning-with-qlora"),
     ("calling functions and tools from an LLM", "concepts/tool-calling"),
     ("real estate ownership on a blockchain", "concepts/real-estate-tokenization"),
-    ("designing agents that call tools safely", "concepts/safe-by-design-ai"),
+    ("design philosophy integrating safety guardrails into AI systems from the outset", "concepts/safe-by-design-ai"),
     ("high-performance ARM processors by Apple", "entities/apple-silicon"),
     ("Microsoft cloud platform", "entities/azure"),
     ("ethereum sidechain for digital assets", "entities/polygon-network"),

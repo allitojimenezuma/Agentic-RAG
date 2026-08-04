@@ -96,7 +96,7 @@ def read_index(wiki_path: Path) -> Index:
             title = m.group(1).strip()
             path_str = m.group(2).strip()
             updated_str = m.group(3).strip()
-            slug = Path(path_str).stem
+            slug = str(Path(path_str).with_suffix(""))
             entries.append(
                 IndexEntry(
                     slug=slug,
@@ -118,7 +118,8 @@ def _format_entry(entry: IndexEntry) -> str:
     updated_str = entry.updated.isoformat()
     if entry.type == "source":
         sources_str = ", ".join(entry.sources) if entry.sources else entry.slug
-        return f"- [{entry.summary}](sources/{entry.slug}.md) - Ingested: {updated_str}"
+        # entry.slug already includes the sources/ directory prefix
+        return f"- [{entry.summary}]({entry.slug}.md) - Ingested: {updated_str}"
     else:
         # entity, concept, comparison, overview
         sources_str = ", ".join(entry.sources) if entry.sources else "manual"

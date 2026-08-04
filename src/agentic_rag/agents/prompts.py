@@ -39,6 +39,7 @@ def build_ingest_prompt(agents_md: str) -> str:
 - Never ignore contradictions, always flag_contradiction.
 - NEVER call update_index — the index is a derived view; regenerate_index rebuilds it.
 - submit_extraction MUST be called BEFORE any create_page/update_page.
+- The content you pass to create_page/update_page is the page BODY ONLY — never include a --- frontmatter block; the tools write frontmatter themselves.
 - ALWAYS end with regenerate_index followed by append_log(op="ingest")."""
 
 

@@ -23,6 +23,18 @@ from agentic_rag.tools.shared import get_wiki_path
 logger = logging.getLogger(__name__)
 
 
+def _strip_embedded_frontmatter(content: str) -> str:
+    """If content begins with a YAML frontmatter block (--- ... ---), strip it — create_page/update_page always write their own frontmatter, so an embedded block would produce a double-frontmatter page."""
+    stripped = content.lstrip("\n")
+    if not stripped.startswith("---"):
+        return content
+    lines = stripped.split("\n")
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "\n".join(lines[i + 1 :]).lstrip("\n")
+    return content
+
+
 @tool
 def read_source(source_path: str) -> str:
     """Read and convert a source file to markdown using MarkItDown. Supports pdf, docx, pptx, xlsx, html, csv, json, xml, ipynb, images, epub, and more."""
@@ -60,6 +72,7 @@ def create_page(
         updated=date.today(),
         tags=tags or [],
     )
+    content = _strip_embedded_frontmatter(content)
     _write_page(get_wiki_path(), slug, content, frontmatter=fm)
     logger.debug("Page written: %s", slug)
     return f"Created page: {slug} (type={page_type}, title={title})"
@@ -98,6 +111,7 @@ def update_page(
         fm.sources = sources
     if tags is not None:
         fm.tags = tags
+    content = _strip_embedded_frontmatter(content)
     _write_page(get_wiki_path(), resolved_slug, content, frontmatter=fm)
     return f"Updated page: {resolved_slug}"
 
