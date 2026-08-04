@@ -164,9 +164,12 @@ def build_fix_prompt(agents_md: str) -> str:
 {agents_md}
 
 # Issue Context
-The lint issues to fix are listed in the user message of this conversation, one
-per line. Do NOT read `lint-report-YYYY-MM-DD.md` and do NOT call
-`wiki_read_page('lint-report-...')` — the structured issues are already provided.
+The user message contains YOUR INSTRUCTIONS. It may be a direct natural-language
+request (e.g. "fix the price on the glm-5.2 page") and/or a list of deterministic lint
+issues (one per line, `[kind] slug: detail`). If a direct request is present, follow it
+FIRST — the issue list, when present, is supplementary context: address those issues
+only if they are relevant to the request. Do NOT read `lint-report-YYYY-MM-DD.md` and
+do NOT call `wiki_read_page('lint-report-...')` — the structured issues are already provided.
 
 # Issue-kind → tool map (PINNED)
 - `missing-frontmatter` → `add_frontmatter`

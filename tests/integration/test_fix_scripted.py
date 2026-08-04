@@ -355,8 +355,8 @@ class TestFixCliCommand:
         assert "Nothing to do." in result.output
         assert captured["user"] == "No issues"
 
-    def test_fix_unmatched_filter_falls_back_to_all_issues(self, tmp_path, fixable_wiki):
-        """A filter matching nothing falls back to all issues (never 'No issues')."""
+    def test_fix_unmatched_filter_passes_user_request_through(self, tmp_path, fixable_wiki):
+        """A natural-language arg is kept as the instruction; issues become context."""
         (tmp_path / "AGENTS.md").write_text("# Wiki Schema\n")
         captured: dict = {}
         with (
@@ -367,16 +367,19 @@ class TestFixCliCommand:
             ),
         ):
             result = runner.invoke(
-                app, ["fix", "fix everything inside the lint report"]
+                app, ["fix", "deepseek flash is cheaper than glm5.2, fix that in glm5.2 page"]
             )
 
         assert result.exit_code == 0
         assert "Fixed all issues." in result.output
         # Warning echoed to the user
         assert "Warning: no issues matched" in result.output
-        # Agent received all issues, not a bare "No issues"
-        assert "No issues matched filter" in captured["user"]
-        assert "Fix these lint issues:" in captured["user"]
+        # The agent receives the USER'S ACTUAL WORDS as the instruction...
+        assert captured["user"].startswith(
+            "deepseek flash is cheaper than glm5.2, fix that in glm5.2 page"
+        )
+        # ...plus the deterministic issues as context (not a bare 'No issues')
+        assert "health check found" in captured["user"]
         assert "[missing-frontmatter] entities/mlx" in captured["user"]
         assert captured["user"] != "No issues"
 

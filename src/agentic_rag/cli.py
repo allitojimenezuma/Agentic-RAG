@@ -291,24 +291,29 @@ def fix(
                 if needle in i.kind.lower() or needle in i.slug.lower()
             ]
             if not issues and report.issues:
-                # A filter that matches nothing is NOT a clean bill of health:
-                # the user asked to fix and real issues exist. Warn, then fall
-                # back to fixing all of them instead of sending "No issues".
+                # A filter that matches nothing is NOT a clean bill of health and
+                # is usually a natural-language instruction, not a typo'd filter.
+                # Keep the user's words as the instruction and append the
+                # deterministic issues as context the agent may use.
                 filter_mismatch = True
-                issues = report.issues
                 warning = (
                     f"Warning: no issues matched '{issue}'; "
-                    f"fixing all {len(issues)} issues."
+                    f"passing your request through with "
+                    f"{len(report.issues)} health-check issues as context."
                 )
                 typer.echo(warning)
                 logger.warning(warning)
-        if issues:
+        if filter_mismatch:
+            context = "\n".join(
+                f"- [{i.kind}] {i.slug}: {i.detail}" for i in report.issues
+            )
+            user_message = (
+                f"{issue}\n\n"
+                f"The deterministic health check found {len(report.issues)} issues "
+                f"(for context — address them only if relevant to the request):\n{context}"
+            )
+        elif issues:
             lines = ["Fix these lint issues:"]
-            if filter_mismatch:
-                lines.insert(
-                    0,
-                    f"No issues matched filter '{issue}' — fixing all {len(issues)} issues.",
-                )
             for i in issues:
                 lines.append(f"- [{i.kind}] {i.slug}: {i.detail}")
             user_message = "\n".join(lines)
