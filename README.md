@@ -178,6 +178,17 @@ agentic-rag log
 agentic-rag log --tail 5
 ```
 
+## Web UI (Streamlit)
+
+A minimal Streamlit chat frontend for the query agent (real token streaming, live tool-call
+chips, multi-turn memory, structured answer + citations render). It runs the agent in-process
+— no HTTP server.
+
+```bash
+uv sync --extra ui
+uv run streamlit run frontend/app.py
+```
+
 ## Development
 
 ### Running Tests

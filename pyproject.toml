@@ -27,6 +27,7 @@ dev = [
     "pytest-asyncio>=0.23",
     "respx>=0.21",
 ]
+ui = ["streamlit>=1.40"]
 
 [project.scripts]
 agentic-rag = "agentic_rag.cli:app"
