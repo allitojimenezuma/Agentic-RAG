@@ -1,4 +1,11 @@
-"""Audit logging middleware — logs tool calls and captures LLM token usage."""
+"""Audit logging middleware — logs tool calls and captures LLM token usage.
+
+Implements BOTH the sync ``wrap_tool_call`` and async ``awrap_tool_call`` hooks so
+this middleware works for agents invoked synchronously (``invoke()``/``stream()``
+in cli.py) and asynchronously (``astream()`` in the Streamlit frontend). A
+sync-only implementation crashes async runs with ``NotImplementedError`` (and an
+async-only one crashes sync runs with the same error in reverse).
+"""
 
 from __future__ import annotations
 
@@ -6,7 +13,7 @@ import logging
 import time
 from typing import Optional
 
-from langchain.agents.middleware import wrap_tool_call, after_model
+from langchain.agents.middleware import AgentMiddleware, after_model
 
 from agentic_rag.token_tracker import TokenTracker
 
@@ -27,24 +34,47 @@ def get_tracker() -> Optional[TokenTracker]:
     return _current_tracker
 
 
-@wrap_tool_call
-def audit_logging_middleware(request, handler):
-    """Log every tool call with args, result, and duration."""
-    tool_name = request.tool_call["name"]
-    tool_args = request.tool_call.get("args", {})
+class AuditLoggingMiddleware(AgentMiddleware):
+    """Log every tool call with args, result, and duration (sync + async)."""
 
-    logger.info(f"TOOL CALL: {tool_name}({tool_args})")
-    start_time = time.time()
+    def wrap_tool_call(self, request, handler):
+        """Synchronous path (CLI: invoke()/stream())."""
+        tool_name = request.tool_call["name"]
+        tool_args = request.tool_call.get("args", {})
 
-    try:
-        result = handler(request)
-        duration = time.time() - start_time
-        logger.debug(f"TOOL OUTPUT: {tool_name} -> {str(result)[:500]}")
-        return result
-    except Exception as e:
-        duration = time.time() - start_time
-        logger.error(f"TOOL ERROR: {tool_name} failed after {duration:.3f}s: {e}")
-        raise
+        logger.info(f"TOOL CALL: {tool_name}({tool_args})")
+        start_time = time.time()
+
+        try:
+            result = handler(request)
+            duration = time.time() - start_time
+            logger.debug(f"TOOL OUTPUT: {tool_name} -> {str(result)[:500]}")
+            return result
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.error(f"TOOL ERROR: {tool_name} failed after {duration:.3f}s: {e}")
+            raise
+
+    async def awrap_tool_call(self, request, handler):
+        """Asynchronous path (Streamlit frontend: astream())."""
+        tool_name = request.tool_call["name"]
+        tool_args = request.tool_call.get("args", {})
+
+        logger.info(f"TOOL CALL: {tool_name}({tool_args})")
+        start_time = time.time()
+
+        try:
+            result = await handler(request)
+            duration = time.time() - start_time
+            logger.debug(f"TOOL OUTPUT: {tool_name} -> {str(result)[:500]}")
+            return result
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.error(f"TOOL ERROR: {tool_name} failed after {duration:.3f}s: {e}")
+            raise
+
+
+audit_logging_middleware = AuditLoggingMiddleware()
 
 
 @after_model

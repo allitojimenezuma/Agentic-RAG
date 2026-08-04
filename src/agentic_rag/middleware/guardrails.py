@@ -1,13 +1,19 @@
-"""Guardrails middleware — rejects writes outside wiki_path and touching raw/."""
+"""Guardrails middleware — rejects writes outside wiki_path and touching raw/.
+
+Implements BOTH the sync ``wrap_tool_call`` and async ``awrap_tool_call`` hooks so
+the same middleware works for agents invoked synchronously (``invoke()``/``stream()``
+in cli.py) and asynchronously (``astream()`` in the Streamlit frontend). A
+sync-only implementation crashes async runs with ``NotImplementedError`` (and an
+async-only one crashes sync runs with the same error in reverse).
+"""
 
 from __future__ import annotations
 
-from langchain.agents.middleware import wrap_tool_call
+from langchain.agents.middleware import AgentMiddleware
 
 
-@wrap_tool_call
-def path_guard_middleware(request, handler):
-    """Reject any tool call that tries to write outside wiki_path or touch raw/."""
+def _path_guard_error(request) -> str | None:
+    """Return an ERROR string to short-circuit with, or None to allow the call."""
     tool_name = request.tool_call["name"]
     args = request.tool_call.get("args", {})
 
@@ -36,4 +42,23 @@ def path_guard_middleware(request, handler):
         if "raw/" in val and not val.startswith("./raw"):
             return f"ERROR: Cannot write to raw/ directory: {val}"
 
-    return handler(request)
+    return None
+
+
+class PathGuardMiddleware(AgentMiddleware):
+    """Reject any tool call that tries to write outside wiki_path or touch raw/."""
+
+    def wrap_tool_call(self, request, handler):
+        error = _path_guard_error(request)
+        if error is not None:
+            return error
+        return handler(request)
+
+    async def awrap_tool_call(self, request, handler):
+        error = _path_guard_error(request)
+        if error is not None:
+            return error
+        return await handler(request)
+
+
+path_guard_middleware = PathGuardMiddleware()
