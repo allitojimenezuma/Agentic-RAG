@@ -2,6 +2,7 @@
 /wiki*/
 /wiki copy*/
 raw/
+frontend/history/
 .venv
 .env
 __pycache__/
