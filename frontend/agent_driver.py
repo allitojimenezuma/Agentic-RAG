@@ -145,19 +145,43 @@ def build_fix_message(issue: str, wiki_path: Path) -> str:
     ``"latest"``/empty means no filter), and returns either
     ``"Fix these lint issues:\n- [kind] slug: detail"`` — one line per issue,
     byte-identical to cli.py's ``fix`` construction — or ``"No issues"``
-    when nothing matches. Pure (no Streamlit import); ``health_check``
-    exceptions propagate (the Streamlit shell surfaces them).
+    when the wiki is clean. When the filter matches nothing, cli.py's
+    ``filter_mismatch`` branch applies: the user's own words become the
+    instruction, with the deterministic issues appended as context (or a
+    "no issues" note when the wiki is clean). Pure (no Streamlit import);
+    ``health_check`` exceptions propagate (the Streamlit shell surfaces them).
     """
     from agentic_rag.lint.health import health_check
 
     report = health_check(wiki_path)
     issues = report.issues
+    filter_mismatch = False
     if issue and issue != "latest":
         needle = issue.lower()
         issues = [
             i for i in issues
             if needle in i.kind.lower() or needle in i.slug.lower()
         ]
+        if not issues:
+            # Natural-language instruction (or typo'd filter), NOT a clean
+            # bill of health — mirror cli.py: keep the user's words as the
+            # instruction, append the deterministic issues as context.
+            filter_mismatch = True
+    if filter_mismatch:
+        if report.issues:
+            context = "\n".join(
+                f"- [{i.kind}] {i.slug}: {i.detail}" for i in report.issues
+            )
+            return (
+                f"{issue}\n\n"
+                f"The deterministic health check found {len(report.issues)} issues "
+                f"(for context — address them only if relevant to the request):\n{context}"
+            )
+        return (
+            f"{issue}\n\n"
+            "Note: the deterministic health check found no issues — "
+            "the wiki is structurally clean."
+        )
     if issues:
         lines = ["Fix these lint issues:"]
         for i in issues:

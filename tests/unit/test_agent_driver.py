@@ -610,10 +610,29 @@ class TestBuildFixMessage:
             "Fix these lint issues:\n- [orphan] entities/mlx: d1"
         )
 
-    def test_no_match_after_filter_yields_no_issues(self, monkeypatch):
+    def test_no_match_after_filter_passes_request_through_with_context(self, monkeypatch):
+        """cli.py filter_mismatch branch: unmatched filter/instruction keeps the
+        user's words and appends the deterministic issues as context."""
         issues = [self._issue("orphan", "entities/a", "d")]
         self._patch_report(monkeypatch, issues)
-        assert build_fix_message("stale", Path("/wiki")) == "No issues"
+        assert build_fix_message(
+            "please fix the mlx page frontmatter", Path("/wiki")
+        ) == (
+            "please fix the mlx page frontmatter\n\n"
+            "The deterministic health check found 1 issues "
+            "(for context — address them only if relevant to the request):\n"
+            "- [orphan] entities/a: d"
+        )
+
+    def test_no_match_after_filter_passes_request_through_when_clean(self, monkeypatch):
+        """cli.py filter_mismatch branch with a clean wiki: user's words plus
+        the structurally-clean note — never the bare "No issues" swallow."""
+        self._patch_report(monkeypatch, [])
+        assert build_fix_message("stale", Path("/wiki")) == (
+            "stale\n\n"
+            "Note: the deterministic health check found no issues — "
+            "the wiki is structurally clean."
+        )
 
     def test_health_check_receives_wiki_path(self, monkeypatch):
         import agentic_rag.lint.health as health_mod

@@ -5,8 +5,10 @@ broken-link / missing-related / missing-index) mirroring the CLI ``fix``
 command's ``issue`` argument. Whatever is submitted — a pill selection or free
 text — becomes the fix request exactly as the CLI shapes it: the page pre-runs
 ``health_check(settings.wiki_path)`` and builds the message via
-:func:`frontend.agent_driver.build_fix_message` ("Fix these lint issues:…" or
-"No issues"). If health_check is slow, that's acceptable — the page renders the
+:func:`frontend.agent_driver.build_fix_message` ("Fix these lint issues:…";
+"No issues" when the wiki is clean; otherwise the user's words pass through
+with the health report as context, exactly like cli.py's ``fix`` command).
+If health_check is slow, that's acceptable — the page renders the
 result message. Everything turn-related — streaming chips, the HITL decision
 widgets (Approve all / Reject all + feedback for ``delete_wiki_page``), durable
 history — comes from the shared ``ui_common.run_turn("fix", …)`` shell.
