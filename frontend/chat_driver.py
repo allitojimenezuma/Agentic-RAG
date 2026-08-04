@@ -112,10 +112,10 @@ def _best_effort_args(raw: Any) -> dict:
         return {}
 
 
-def _fallback_answer(emitted_text: dict[Any, str]) -> QueryAnswer:
+def _fallback_answer(text: str) -> QueryAnswer:
     """QueryAnswer used when no structured submit_query_answer result exists."""
     return QueryAnswer(
-        answer="".join(emitted_text.values()),
+        answer=text,
         citations=[],
         confidence="low",
         suggestion="(no structured answer produced)",
@@ -124,25 +124,34 @@ def _fallback_answer(emitted_text: dict[Any, str]) -> QueryAnswer:
 
 def _on_tool_args_fragment(
     key: Any,
-    name: str,
+    name: str | None,
     fragment: str,
     accumulated: dict[Any, str],
     seen_starts: set[Any],
     emitted: dict[Any, str],
+    names: dict[Any, str],
 ) -> list[StreamEvent]:
     """Accumulate one args fragment for a tool call and produce events.
 
     Shared by the one-chunk path (full args in a single fragment) and the
     multi-chunk incremental path (partial fragments) so both behave identically.
+
+    ``name`` may be None on continuation fragments (real streaming only sends
+    the tool name on the first chunk of a call). We track the known name per
+    key in ``names`` and defer ``ToolStart`` until the name is known, so a
+    nameless fragment never creates an invalid event.
     """
     events: list[StreamEvent] = []
+    if name:  # non-empty string -> remember it for this call
+        names[key] = name
     accumulated[key] = accumulated.get(key, "") + fragment
 
-    if key not in seen_starts:
+    effective_name = names.get(key, "")
+    if key not in seen_starts and effective_name:
         seen_starts.add(key)
-        events.append(ToolStart(name=name, args=_best_effort_args(accumulated[key])))
+        events.append(ToolStart(name=effective_name, args=_best_effort_args(accumulated[key])))
 
-    if name == "submit_query_answer":
+    if effective_name == "submit_query_answer":
         text = extract_answer_so_far(accumulated[key])
         prev = emitted.get(key, "")
         if text != prev:
@@ -153,10 +162,16 @@ def _on_tool_args_fragment(
 
 
 def _tool_call_key(tc: dict) -> Any:
-    """A stable per-call identity: tool-call id when present, else index."""
-    key = tc.get("id")
+    """A stable per-call identity for streaming fragments.
+
+    Prefer ``index`` over ``id``: in real token streaming the ``id`` appears
+    only on the FIRST chunk of a tool call while continuation fragments carry
+    ``id=None`` but keep the same ``index``. Keying on ``id`` would split one
+    call into two keys and treat the nameless continuation as a new call.
+    """
+    key = tc.get("index")
     if key is None:
-        key = tc.get("index")
+        key = tc.get("id")
     if key is None:
         key = f"tc-{id(tc)}"
     return key
@@ -185,6 +200,8 @@ async def stream_query(
     accumulated: dict[Any, str] = {}  # key -> accumulated args JSON string
     seen_starts: set[Any] = set()
     emitted: dict[Any, str] = {}  # key -> last emitted answer text
+    names: dict[Any, str] = {}  # key -> known tool name (first non-empty wins)
+    free_text: list[str] = []  # free-text AIMessage content (no tool calls)
 
     async for chunk, _metadata in agent.astream(
         {"messages": [{"role": "user", "content": message}]},
@@ -204,11 +221,12 @@ async def stream_query(
             for tc in tool_call_chunks:
                 for event in _on_tool_args_fragment(
                     _tool_call_key(tc),
-                    tc.get("name", ""),
+                    tc.get("name") or "",
                     tc.get("args", "") or "",
                     accumulated,
                     seen_starts,
                     emitted,
+                    names,
                 ):
                     yield event
             continue
@@ -220,32 +238,47 @@ async def stream_query(
             for tc in tool_calls:
                 for event in _on_tool_args_fragment(
                     tc.get("id") or _tool_call_key(tc),
-                    tc.get("name", ""),
+                    tc.get("name") or "",
                     json.dumps(tc.get("args", {})),
                     accumulated,
                     seen_starts,
                     emitted,
+                    names,
                 ):
                     yield event
             continue
 
-        # Plain content with no tool calls (final free-text chatter): ignore —
-        # the query agent's user-facing answer lives in submit_query_answer args.
+        # Plain content with no tool calls: stream it live as the answer text,
+        # but ONLY before any tool has been called this turn. The query agent
+        # normally finalizes via submit_query_answer (whose structured render
+        # overwrites the bubble at the end); trailing free text after the tool
+        # call (e.g. "Done.") is closing chatter, not the answer. For inputs
+        # where the model replies with free text only (e.g. a casual "hello"),
+        # this is the answer -- mirrors the CLI's compat fallback.
+        content = getattr(chunk, "content", "")
+        if content and not seen_starts:
+            free_text.append(content)
+            yield AnswerToken(text=content)
 
     # Final: emit the structured, cite-or-die-filtered QueryAnswer from the last
     # submit_query_answer ToolMessage in the thread state; fall back if absent.
     state_messages = agent.get_state(config).values.get("messages", [])
     last_submit = None
+    last_ai_content = ""
     for msg in state_messages:
         if isinstance(msg, ToolMessage) and getattr(msg, "name", None) == "submit_query_answer":
             last_submit = msg
+        if isinstance(msg, (AIMessage, AIMessageChunk)) and getattr(msg, "content", ""):
+            last_ai_content = msg.content
 
     if last_submit is not None:
         try:
             answer = QueryAnswer.model_validate_json(str(last_submit.content))
         except Exception:
             logger.exception("Could not parse submit_query_answer output; falling back")
-            answer = _fallback_answer(emitted)
+            answer = _fallback_answer("".join(free_text) or last_ai_content)
     else:
-        answer = _fallback_answer(emitted)
+        # No structured finalization: use the streamed free text, or the last
+        # AIMessage content (mirrors cli.py's compat fallback).
+        answer = _fallback_answer("".join(free_text) or last_ai_content)
     yield FinalAnswer(answer=answer)

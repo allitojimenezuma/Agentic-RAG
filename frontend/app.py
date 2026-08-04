@@ -100,6 +100,8 @@ def _sync_events(agent, message: str, thread_id: str, recursion_limit: int):
 
     Streamlit scripts have no event loop, so drive the async generator with a
     dedicated loop. st.* calls stay on the script thread (no threads involved).
+    The generator is explicitly aclosed on exit so a mid-stream exception does
+    not leave pending asyncio tasks ("Task was destroyed but it is pending").
     """
     loop = asyncio.new_event_loop()
     agen = stream_query(agent, message, thread_id, recursion_limit)
@@ -110,6 +112,10 @@ def _sync_events(agent, message: str, thread_id: str, recursion_limit: int):
             except StopAsyncIteration:
                 return
     finally:
+        try:
+            loop.run_until_complete(agen.aclose())
+        except Exception:
+            pass
         loop.close()
 
 

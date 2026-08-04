@@ -341,6 +341,50 @@ class TestStreamQueryMultiChunk:
         assert final.answer.answer == "MLX is a great framework."
         assert final.answer.citations == []
 
+    async def test_nameless_continuation_fragments_do_not_crash(self):
+        """Regression: real streaming sends the tool name only on the FIRST
+        chunk of a call; continuation fragments carry name=None and id=None
+        but keep the same index. Keying on id split one call into two keys
+        and the nameless fragment was treated as a new call -> ToolStart(
+        name=None) ValidationError. Index-keying + name tracking fixes it.
+        """
+        submit_json = json.dumps(
+            {"answer": "hi", "citations": [], "confidence": "low", "suggestion": ""}
+        )
+        tool_msg = ToolMessage(
+            content=submit_json, name="submit_query_answer", tool_call_id="call_s"
+        )
+        fake = _FakeAgent(
+            chunks=[
+                # First chunk: name + id present, args just opening.
+                AIMessageChunk(
+                    content="",
+                    tool_call_chunks=[
+                        {"name": "submit_query_answer", "args": '{"answer":', "id": "call_s", "index": 0}
+                    ],
+                ),
+                # Continuation: name=None, id=None, same index, args fragment.
+                AIMessageChunk(
+                    content="",
+                    tool_call_chunks=[
+                        {"name": None, "args": ' "hi"}', "id": None, "index": 0}
+                    ],
+                ),
+                tool_msg,
+            ],
+            final_messages=[tool_msg],
+        )
+
+        events = [event async for event in stream_query(fake, "q", "t-reg", 30)]
+
+        starts = [e for e in events if e.kind == "tool_start"]
+        assert len(starts) == 1
+        assert starts[0].name == "submit_query_answer"
+        tokens = [e for e in events if e.kind == "answer_token"]
+        assert "".join(t.text for t in tokens) == "hi"
+        assert isinstance(events[-1], FinalAnswer)
+        assert events[-1].answer.answer == "hi"
+
     async def test_tool_end_output_truncated_to_500(self):
         long_output = "x" * 1200
         tool_msg = ToolMessage(content=long_output, name="wiki_search", tool_call_id="t-1")
@@ -359,8 +403,9 @@ class TestStreamQueryMultiChunk:
 
 
 class TestStreamQueryFallbacks:
-    async def test_plain_content_ignored_no_answer_token(self):
-        """Free content (no tool calls) must not emit AnswerToken."""
+    async def test_plain_content_streams_as_answer_token(self):
+        """Free content (no tool calls) streams live as the answer text; the
+        final fallback reuses it (mirrors cli.py's compat fallback)."""
         fake = _FakeAgent(
             chunks=[AIMessage(content="thinking out loud…")],
             final_messages=[AIMessage(content="thinking out loud…")],
@@ -368,18 +413,24 @@ class TestStreamQueryFallbacks:
 
         events = [event async for event in stream_query(fake, "q", "t-plain", 30)]
 
-        assert not any(e.kind == "answer_token" for e in events)
+        tokens = [e for e in events if e.kind == "answer_token"]
+        assert [t.text for t in tokens] == ["thinking out loud…"]
         final = events[-1]
         assert isinstance(final, FinalAnswer)
+        assert final.answer.answer == "thinking out loud…"
+        assert final.answer.confidence == "low"
+        assert final.answer.suggestion == "(no structured answer produced)"
 
     async def test_no_submit_tool_message_yields_fallback_answer(self):
+        # chunks=[] -> nothing streamed; fallback uses the last AIMessage
+        # content from the thread state (mirrors cli.py compat fallback).
         fake = _FakeAgent(chunks=[], final_messages=[AIMessage(content="nothing")])
 
         events = [event async for event in stream_query(fake, "q", "t-none", 30)]
 
         final = events[-1]
         assert isinstance(final, FinalAnswer)
-        assert final.answer.answer == ""
+        assert final.answer.answer == "nothing"
         assert final.answer.citations == []
         assert final.answer.confidence == "low"
         assert final.answer.suggestion == "(no structured answer produced)"
