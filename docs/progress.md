@@ -2,7 +2,7 @@
 
 <!-- One line per task. Status markers: PENDING | RUNNING | COMPLETED | BLOCKED -->
 
-- [ ] [PENDING] T1: Build `frontend/agent_driver.py` — multi-mode streaming driver for HITL agents (`InterruptEvent`, `FinalMessage`, `extract_interrupts`, `build_decisions`, `stream_turn`, `resume_turn`; reuses `ToolStart/ToolEnd/AnswerToken` from `chat_driver.py`) + `tests/unit/test_agent_driver.py` `frontend/agent_driver.py` `tests/unit/test_agent_driver.py`
+- [x] [COMPLETED] T1: Build `frontend/agent_driver.py` — multi-mode streaming driver for HITL agents (`InterruptEvent`, `FinalMessage`, `extract_interrupts`, `build_decisions`, `stream_turn`, `resume_turn`; reuses `ToolStart/ToolEnd/AnswerToken` from `chat_driver.py`) + `tests/unit/test_agent_driver.py` `frontend/agent_driver.py` `tests/unit/test_agent_driver.py`
 - [ ] [PENDING] T2: Build `frontend/history_store.py` — durable JSONL transcript store (`append/load/list_threads/delete/new_thread_id`) + `tests/unit/test_history_store.py`; add `frontend/history/` to `.gitignore` `frontend/history_store.py` `tests/unit/test_history_store.py` `.gitignore`
 - [ ] [PENDING] T3: Build `frontend/agents.py` (cached `get_*_agent` + `agent_config` mirroring cli.py per-agent config shapes) + `frontend/ui_common.py` (session init, sidebar thread manager, HITL action renderer + decision widgets, `run_turn` rerun shell) + `tests/unit/test_ui_common.py` (pure asserts + AppTest HITL flow) `frontend/agents.py` `frontend/ui_common.py` `tests/unit/test_ui_common.py`
 - [ ] [PENDING] T4: Restructure `frontend/app.py` into `st.navigation` entry (4 pages, `st.Page` paths relative to `frontend/`) + move query chat to `frontend/app_pages/query.py` (chat_driver + structured render + durable history via `HistoryStore`) + `tests/unit/test_app_smoke.py` (AppTest renders app.py + query page, no LLM) `frontend/app.py` `frontend/app_pages/query.py` `tests/unit/test_app_smoke.py`
@@ -11,4 +11,4 @@
 
 ## Interface handoffs
 <!-- Populated by the orchestrator from each task's handoff contract block. Do not pre-fill beyond the stub. -->
-- (none yet)
+- T1 exports: `InterruptEvent`, `FinalMessage`, `AgentEvent`, `ALLOWED_DECISIONS`, `extract_interrupts(state) -> list[dict]`, `build_decisions(choice, actions, *, feedback, index, new_resolution) -> list[dict]`, `stream_turn(agent, message, config, agent_name) -> AsyncGenerator[AgentEvent]`, `resume_turn(agent, decisions, config, agent_name) -> AsyncGenerator[AgentEvent]` in `frontend/agent_driver.py` (private: `_drive_turn`, `_state_values`, `_last_ai_text`; module constant `PAUSED_TOOL_OUTPUT`)
