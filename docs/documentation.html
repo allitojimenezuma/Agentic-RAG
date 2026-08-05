@@ -510,7 +510,7 @@ sequenceDiagram
           matching is deterministic; only the create/update/flag branch touches the wiki.</figcaption>
         </figure>
         <p>
-          The deliberate split: <code>submit_extraction</code> (<code>tools/ingest_grounding.py</code>)
+          The deliberate split: <code>submit_extraction</code> (<code>tools/extraction.py</code>)
           performs <strong>no writes</strong> — it validates an <code>ExtractionResult</code> of
           entities, concepts, and contradictions and returns it as JSON. It forces a structured,
           testable extraction boundary before any page write, and the agent
@@ -720,7 +720,6 @@ flowchart LR
             <tr><td><code>OPENAI_MODEL</code></td><td><code>gpt-4.1-mini</code></td><td>Default model for all agents (temperature 0).</td></tr>
             <tr><td><code>WIKI_PATH</code> / <code>RAW_SOURCES_PATH</code> / <code>AGENTS_MD_PATH</code></td><td><code>./wiki</code> / <code>./raw</code> / <code>./AGENTS.md</code></td><td>Layer locations.</td></tr>
             <tr><td><code>RECURSION_LIMIT</code></td><td><code>30</code></td><td>Query agent loop cap; ingest uses <code>INGEST_RECURSION_LIMIT</code> (default 200).</td></tr>
-            <tr><td><code>HITL_ENABLED</code></td><td><code>true</code></td><td>Master switch for human-in-the-loop interruptions.</td></tr>
             <tr><td><code>LOG_LEVEL</code> / <code>LOG_DIR</code></td><td><code>INFO</code> / none</td><td>None = console only.</td></tr>
           </tbody>
         </table>
@@ -731,13 +730,13 @@ flowchart LR
         <h2>9. Frontend (Streamlit)</h2>
         <p>
           The web UI (<code>frontend/app.py</code>) is not a separate implementation — it drives the
-          <em>same</em> four agents in-process (<code>frontend/agents.py</code> calls
+          <em>same</em> four agents in-process (<code>frontend/builders.py</code> calls
           <code>build_query_agent</code>, <code>build_ingest_agent</code>, …) and streams them with
           <code>agent.astream()</code>. The middleware's async hooks exist precisely so the same chain
           works under <code>astream</code>.
         </p>
         <ul>
-          <li><strong>Chat driver</strong> (<code>frontend/chat_driver.py</code>) — for the query page, it creates a <em>fresh</em> <code>new_nav_capture()</code> per turn (cite-or-die), streams <code>stream_mode="messages"</code>, and renders the final <code>QueryAnswer</code> with the same <code>build_final_answer</code> the CLI uses.</li>
+          <li><strong>Query driver</strong> (<code>frontend/query_driver.py</code>) — for the query page, it creates a <em>fresh</em> <code>new_nav_capture()</code> per turn (cite-or-die), streams <code>stream_mode="messages"</code>, and renders the final <code>QueryAnswer</code> with the same <code>build_final_answer</code> the CLI uses.</li>
           <li><strong>Tool chips</strong> — tool calls surface live in the UI, so the loop is visible: search → read → answer.</li>
           <li><strong>HITL controls</strong> — <code>agent_driver.build_decisions</code> turns the UI's approve/edit/reject buttons into the same <code>Command(resume=…)</code> payloads.</li>
           <li><strong>Run it</strong> — <code>uv sync --extra ui</code> then <code>uv run streamlit run frontend/app.py</code>.</li>
@@ -798,7 +797,8 @@ flowchart LR
       <footer>
         Agentic RAG · agent layer documentation · code references verified against
         <code>src/agentic_rag</code> · the deterministic wiki engine is documented in
-        <a href="wiki-engine.html" style="color: var(--muted);">wiki-engine.html</a>.
+        <a href="wiki-engine.html" style="color: var(--muted);">wiki-engine.html</a> ·
+        full repo layout: <a href="architecture.md" style="color: var(--muted);">architecture.md</a>.
       </footer>
     </main>
   </div>

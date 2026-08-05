@@ -335,7 +335,7 @@
               <td>Pages (<code>entities/</code>, <code>concepts/</code>, <code>sources/</code>, …) plus
                   <code>index.md</code> and <code>log.md</code>. <code>index.md</code> is a <strong>derived
                   view</strong> — rebuilt atomically from the model, never hand-edited.</td>
-              <td><code>io/wiki_io.py</code>, <code>wiki/*.py</code>, <code>io/index_manager.py</code>, <code>io/log_manager.py</code></td>
+              <td><code>io/wiki_io.py</code>, <code>wiki/*.py</code>, <code>io/index.py</code>, <code>io/log.py</code></td>
             </tr>
             <tr>
               <td><code>AGENTS.md</code></td><td>Schema / conventions</td>
@@ -370,8 +370,8 @@ flowchart TB
       <!-- ============ 3. Code map ============ -->
       <section class="card" id="s3">
         <h2>3. Code map</h2>
-        <p>Where each responsibility lives. Everything under <code>io/</code>, <code>wiki/</code>,
-        and <code>lint/</code> is deterministic Python with zero LLM calls.</p>
+        <p>Where each responsibility lives. Everything under <code>io/</code> and <code>wiki/</code>
+        is deterministic Python with zero LLM calls.</p>
         <table>
           <thead>
             <tr><th>Module</th><th>Responsibility</th></tr>
@@ -379,14 +379,14 @@ flowchart TB
           <tbody>
             <tr><td><code>io/wiki_io.py</code></td><td>Filesystem ops: list / read / write / delete pages, slug validation, atomic writes.</td></tr>
             <tr><td><code>io/markdown_parser.py</code></td><td><code>slugify()</code>, <code>[[link]]</code> extraction, heading extraction, frontmatter parse/serialize.</td></tr>
-            <tr><td><code>io/index_manager.py</code></td><td>Read / parse / write <code>wiki/index.md</code>: entry regexes, atomic write, upsert / remove / find.</td></tr>
-            <tr><td><code>io/log_manager.py</code></td><td>Append + tail <code>wiki/log.md</code> with timestamped, prefixed entries.</td></tr>
+            <tr><td><code>io/index.py</code></td><td>Read / parse / write <code>wiki/index.md</code>: entry regexes, atomic write.</td></tr>
+            <tr><td><code>io/log.py</code></td><td>Append + tail <code>wiki/log.md</code> with timestamped, prefixed entries.</td></tr>
             <tr><td><code>io/source_loader.py</code></td><td>MarkItDown conversion of raw sources (pdf, docx, html, …) to markdown.</td></tr>
             <tr><td><code>wiki/model.py</code></td><td><code>load_wiki()</code> → in-memory <code>Wiki(pages, by_slug)</code>; page parsing, sections, link resolution.</td></tr>
             <tr><td><code>wiki/search.py</code></td><td>BM25 search over page fields + bounded one-hop link expansion.</td></tr>
             <tr><td><code>wiki/match.py</code></td><td>Deterministic create / update / conflict decision (<code>match_page</code>) + <code>@tool</code> wrapper.</td></tr>
             <tr><td><code>wiki/dedupe_index.py</code></td><td><code>regenerate_index()</code> — rebuilds <code>index.md</code> from the Wiki model.</td></tr>
-            <tr><td><code>lint/health.py</code></td><td>Deterministic health check: 7 structural issue kinds, severity map, report rendering.</td></tr>
+            <tr><td><code>wiki/health.py</code></td><td>Deterministic health check: 7 structural issue kinds, severity map, report rendering.</td></tr>
             <tr><td><code>schemas/wiki.py</code></td><td>Pydantic models: <code>Frontmatter</code>, <code>IndexEntry</code>, <code>Index</code>, <code>LogEntry</code>, <code>Heading</code>, <code>Link</code>.</td></tr>
             <tr><td><code>schemas/agents_md.py</code></td><td>AGENTS.md loader (schema injected into agent prompts) with a built-in default.</td></tr>
           </tbody>
@@ -494,7 +494,7 @@ tags:
           frontmatter is malformed, <code>load_wiki</code> <em>synthesizes</em> one instead of crashing:
         </p>
         <ul>
-          <li><strong>type</strong> — inferred from the first path segment via <code>_DIR_TO_TYPE</code> (<code>entities/</code> → <code>entity</code>, …); <code>"unknown"</code> for root pages.</li>
+          <li><strong>type</strong> — inferred from the first path segment via <code>DIR_TO_TYPE</code> (<code>entities/</code> → <code>entity</code>, …); <code>"unknown"</code> for root pages.</li>
           <li><strong>title</strong> — the first <code># H1</code> heading, or the slug basename when there is no H1.</li>
           <li><strong>updated</strong> — the file's mtime (falling back to today).</li>
         </ul>
@@ -680,7 +680,7 @@ return MatchResult("none", [], ...)</code></pre>
           <code>wiki/index.md</code> is <strong>not a source of truth</strong>. It is a human-readable
           view rebuilt from the pages. Two modules handle it:
         </p>
-        <h3>Reading &amp; writing the file — <code>io/index_manager.py</code></h3>
+        <h3>Reading &amp; writing the file — <code>io/index.py</code></h3>
         <p>Entries follow two formats, parsed with two regexes:</p>
         <pre><code># Non-source pages:
 - [[Display Name]] - summary | Sources: manual | Updated: 2026-08-05
@@ -691,8 +691,9 @@ return MatchResult("none", [], ...)</code></pre>
           name to a page type (<code>entities</code> → <code>entity</code>, …), and parses entries —
           including the <code>Source: X</code>/<code>Sources: N</code> field, where a bare number is
           treated as a count that cannot reconstruct filenames. <code>write_index</code> writes the
-          file atomically (temp + replace), and <code>upsert_entry</code>/<code>remove_entry</code>/
-          <code>find_in_index</code> provide incremental read-modify-write helpers.
+          file atomically (temp + replace). That is the whole interface: the index is a derived
+          view rebuilt wholesale by <code>regenerate_index</code>, so there are no incremental
+          entry-editing helpers — nothing else edits <code>index.md</code> directly.
         </p>
         <h3>Regenerating — <code>wiki/dedupe_index.py</code></h3>
         <p>
@@ -730,7 +731,7 @@ flowchart LR
         <h2>11. The log</h2>
         <p>
           <code>wiki/log.md</code> is an append-only audit trail managed by
-          <code>io/log_manager.py</code>. Every entry starts with a parseable prefix:
+          <code>io/log.py</code>. Every entry starts with a parseable prefix:
         </p>
         <pre><code>## [2026-07-26 12:00] update | Fix orphan pages from lint report
 - Created entities/python.md to resolve broken index reference C1
@@ -750,7 +751,7 @@ flowchart LR
       <section class="card" id="s12">
         <h2>12. Health check — 7 structural issue kinds</h2>
         <p>
-          <code>lint/health.py:health_check(wiki_path)</code> audits the wiki with
+          <code>wiki/health.py:health_check(wiki_path)</code> audits the wiki with
           <strong>zero LLM calls</strong>. It computes seven issue kinds with pinned severities:
         </p>
         <table>
@@ -857,12 +858,12 @@ except BaseException:
             <tr><td><code>wiki_link_graph</code></td><td><code>io.wiki_io.list_pages()</code> + <code>io.markdown_parser</code> (local 3-step resolver mirroring <code>wiki.model._resolve_link</code>)</td><td>All pages with inbound/outbound sets + orphan summary.</td></tr>
             <tr><td><code>match_page_tool</code></td><td><code>wiki.match.match_page()</code></td><td>Returns <code>decision: slugs — detail</code>.</td></tr>
             <tr><td><code>regenerate_index</code></td><td><code>wiki.dedupe_index.regenerate_index()</code></td><td>Derived index rebuild.</td></tr>
-            <tr><td><code>run_health_check</code></td><td><code>lint.health.health_check()</code></td><td>0-LLM structural audit.</td></tr>
-            <tr><td><code>write_lint_report</code></td><td><code>lint.health._render_report_markdown()</code></td><td>Structured or plain-string report → <code>lint-report-YYYY-MM-DD.md</code>.</td></tr>
+            <tr><td><code>run_health_check</code></td><td><code>wiki.health.health_check()</code></td><td>0-LLM structural audit.</td></tr>
+            <tr><td><code>write_lint_report</code></td><td><code>wiki.health._render_report_markdown()</code></td><td>Structured or plain-string report → <code>lint-report-YYYY-MM-DD.md</code>.</td></tr>
             <tr><td><code>create_page</code> / <code>update_page</code> / <code>delete_wiki_page</code></td><td><code>io.wiki_io</code> write/delete + frontmatter serialize</td><td>Auto-prefix type dirs; preserve frontmatter on update.</td></tr>
             <tr><td><code>add_frontmatter</code> / <code>fix_link</code> / <code>append_related_section</code> / <code>edit_wiki_page</code></td><td><code>io.wiki_io</code> + <code>io.markdown_parser</code></td><td>Pinned fixes for lint kinds.</td></tr>
             <tr><td><code>read_source</code></td><td><code>io.source_loader.SourceLoader</code></td><td>MarkItDown conversion of raw sources.</td></tr>
-            <tr><td><code>append_log</code></td><td><code>io.log_manager.append_log()</code></td><td>Append-only audit trail.</td></tr>
+            <tr><td><code>append_log</code></td><td><code>io.log.append_log()</code></td><td>Append-only audit trail.</td></tr>
             <tr><td><code>get_index_summary</code> (prompt injection)</td><td>raw <code>index.md</code> read</td><td>Injected into every agent system prompt as <code># Current Wiki Pages</code>.</td></tr>
           </tbody>
         </table>
@@ -890,7 +891,8 @@ except BaseException:
       <footer>
         Agentic RAG · the deterministic wiki engine · code references verified against
         <code>src/agentic_rag</code> · agent layer documented in
-        <a href="documentation.html" style="color: var(--muted);">documentation.html</a>.
+        <a href="documentation.html" style="color: var(--muted);">documentation.html</a> ·
+        full repo layout: <a href="architecture.md" style="color: var(--muted);">architecture.md</a>.
       </footer>
     </main>
   </div>
