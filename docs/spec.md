@@ -5,8 +5,12 @@
 Replace the thin/broken eval coverage in `tests/eval/` with a from-scratch, three-tier
 evaluation suite for the four agents (query, ingest, lint, fix). Tier 1 verifies
 deterministic correctness with **zero LLM calls** (schema conformance, path guards,
-link integrity, cite-or-die). Tier 2 verifies trajectory/tool-calling discipline with
-scripted models (tool selection, argument schemas, turn efficiency, state consistency).
+link integrity, cite-or-die). Tier 2 verifies trajectory/tool-calling discipline on TWO layers: an always-on
+**deterministic layer** with scripted models (system-level guarantees: tool availability,
+path guards, argument schemas, ordering constraints, turn-efficiency caps, state
+consistency) and a **real-LLM trajectory layer** (acceptance-tier, skips without a key)
+that runs the actual agents over a pinned ~8-task set against the eval corpus and
+measures tool-selection accuracy and per-task trajectory contracts end-to-end.
 Tier 3 verifies RAG/output quality: reproducible Context Recall@K on a committed corpus,
 faithfulness and answer-relevancy via **real-LLM judges** (model/url/key read from
 `.env` via the existing `Settings()` loader; tests auto-skip when no key is present),
@@ -32,7 +36,9 @@ untouched as the regression baseline.
   - `tests/levels/level1/`: `test_schema_conformance.py`, `test_path_guard_matrix.py`,
     `test_link_integrity.py`.
   - `tests/levels/level2/`: `test_tool_selection.py`, `test_argument_schemas.py`,
-    `test_turn_efficiency.py`, `test_state_consistency.py`.
+    `test_turn_efficiency.py`, `test_state_consistency.py` (all deterministic, 0 LLM)
+    plus `test_trajectory_real_llm.py` (acceptance-tier, `skipif` no key): runs the REAL
+    agents over a pinned task set and asserts trajectory contracts + tool-selection accuracy.
   - `tests/levels/level3/`: `test_context_recall.py`, `test_faithfulness.py`,
     `test_answer_relevancy.py`, `test_contradiction_handling.py`.
   - `tests/levels/conftest.py` — level-scoped fixtures (re-export `eval_wiki`, judge
@@ -63,7 +69,11 @@ untouched as the regression baseline.
 - Test command (executors and gate run this): `uv sync --all-extras && uv run pytest`.
   Per-level: `uv run pytest tests/levels/level1 -q` (likewise level2/level3).
   Judge tests: `@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY")`
-  — same pattern as `tests/acceptance/`.
+  — same pattern as `tests/acceptance/`. The real-LLM trajectory tier (L2) follows the
+  same pattern: build agents via the REAL builders (`build_query_agent(settings)` etc.,
+  as `tests/acceptance/test_wiki_health.py` does), extract the trajectory from
+  `result["messages"]` (AIMessage.tool_calls + ToolMessage per step), never assert exact
+  model wording — only tool names, order, args, and counts.
 - Agent construction in tests: build agents directly with the scripted model via
   `build_agent(model=ScriptedChatModel(...), tools=[...], system_prompt=..., middleware=[...])`
   (pattern from `tests/integration/test_query_grounded.py`). Never call
@@ -135,6 +145,29 @@ Pin: judges never silently pass — score must be a real float in [0,1] with rat
 Judge tests are `skipif(not os.getenv("OPENAI_API_KEY"))`; deterministic proxies for
 the same metrics live in the same test files and ALWAYS run.
 
+### L2 real-LLM trajectory tier — `tests/levels/level2/test_trajectory_real_llm.py` (NEW, acceptance)
+```python
+TRAJECTORY_TASKS: list[tuple[str, str, list[str]]]  # (agent_name, user_message, expected tool-name ORDER)
+# Pinned set (~8 tasks; one per agent flow):
+#   query: "What is MLX?"                      -> [wiki_search, wiki_read_page]
+#   query: "How does MLX relate to Apple Silicon?" -> [wiki_search, wiki_read_page, wiki_read_page]  (multi-hop)
+#   ingest: "Ingest raw/sample.md"             -> [read_source, submit_extraction, match_page_tool,
+#                                                   create_page|update_page, regenerate_index, append_log]
+#   ingest: contradicting source                -> [read_source, submit_extraction, match_page_tool, flag_contradiction]  (stops at HITL interrupt)
+#   lint: "Run a full wiki health check."      -> [run_health_check, write_lint_report]  (health check exactly once, FIRST)
+#   fix: "Fix the missing-frontmatter issue on <slug>" -> [add_frontmatter, regenerate_index]  (never fix_link)
+#   fix: "Fix broken links"                    -> [fix_link, regenerate_index]
+#   fix: "Fix missing-related on <slug>"       -> [append_related_section, regenerate_index]
+```
+Pin: per-task contract = expected tool names appear IN ORDER in the recorded trajectory
+(navigation reads may appear between them), forbidden tools per agent are never called
+(query: no write tools; fix: `orphan`/`empty`/`stale` get no fix tool), every called
+tool's args parse against its pydantic schema, tool-call count ≤ per-agent cap (same
+caps as `test_turn_efficiency.py`). Aggregate pass rate ≥ 0.8; failing tasks print the
+full recorded trajectory (tool names + args) for human review; test output reports
+tool-selection accuracy (correct-first-tool rate). Model = `Settings()` (env/.env),
+recursion limits from settings. Never assert model wording.
+
 ### Reused (UNCHANGED)
 - `ScriptedChatModel` / `ResponseState` from `tests/fixtures/fake_llm.py`.
 - `build_agent` from `src/agentic_rag/agents/factory.py` (incl. its middleware pipeline
@@ -157,11 +190,12 @@ the same metrics live in the same test files and ALWAYS run.
 ## Tasks summary
 1. Eval corpus + fixture modules + level conftest (+ corpus self-check tests).
 2. Level 1: schema conformance, path-guard matrix, link integrity.
-3. Level 2: tool-selection invariants (per-agent whitelists, ordering, fix kind→tool map).
-4. Level 2: argument schemas, turn efficiency, state consistency.
-5. Level 3: Context Recall@K + deterministic faithfulness proxies.
-6. Level 3: LLM-judge faithfulness/relevancy + contradiction handling end-to-end.
-7. Remove `tests/eval/`, README update, full-suite verification.
+3. Level 2 (deterministic): tool-selection invariants (per-agent whitelists, ordering, fix kind→tool map).
+4. Level 2 (deterministic): argument schemas, turn efficiency, state consistency.
+5. Level 2 (real LLM): trajectory tier + tool-selection accuracy (acceptance, skipif no key).
+6. Level 3: Context Recall@K + deterministic faithfulness proxies.
+7. Level 3: LLM-judge faithfulness/relevancy + contradiction handling end-to-end.
+8. Remove `tests/eval/`, README update, full-suite verification.
 
 ## Acceptance
 - `git diff --name-only HEAD` contains **no path under `src/`** and no change to
@@ -182,6 +216,9 @@ the same metrics live in the same test files and ALWAYS run.
   `tests/levels/` and no longer references `tests/eval/`.
 - Turn-efficiency caps pinned: query happy path ≤ 5 tool calls, lint ≤ 4, fix ≤ 8,
   ingest ≤ 15 (executor tunes to observed happy path; may tighten, never loosen).
+- With a key set, `uv run pytest tests/levels/level2/test_trajectory_real_llm.py -q`
+  runs the real agents over `TRAJECTORY_TASKS`, satisfies aggregate pass rate ≥ 0.8,
+  and prints tool-selection accuracy; without a key it skips cleanly.
 
 ## Open questions
 - none blocking. Note: no `.env` exists in the repo today, so the real-judge tier skips
