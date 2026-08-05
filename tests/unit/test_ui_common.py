@@ -156,10 +156,103 @@ class TestPureHelpers:
         # decisions only appears once a widget button writes it (resume gate).
         assert "decisions" not in pending
 
+    def test_chip_label_shows_params(self):
+        # Non-contradiction chips carry the full args (action_summary format).
+        assert (
+            ui_common._chip_label("wiki_search", {"query": "What is MLX?"})
+            == "wiki_search(query='What is MLX?')"
+        )
+        # Contradiction chips show the page slug only (full text lives in the
+        # pending card).
+        assert (
+            ui_common._chip_label(
+                "flag_contradiction",
+                {
+                    "page_slug": "entities/a",
+                    "existing_claim": "x",
+                    "new_claim": "y",
+                    "proposed_resolution": "merge",
+                },
+            )
+            == "flag_contradiction(entities/a)"
+        )
+
     def test_render_final_returns_text(self):
         assert (
             ui_common.render_final("Ingest", FinalMessage(text="Done.")) == "Done."
         )
+
+
+class _FakePlaceholder:
+    """Duck-typed st.empty(): records the last markdown written."""
+
+    def __init__(self) -> None:
+        self.value = ""
+
+    def markdown(self, text: str) -> None:
+        self.value = text
+
+
+class _FakeContainer:
+    """Duck-typed st.container(): returns a fresh placeholder per chip."""
+
+    def __init__(self) -> None:
+        self.empties: list[_FakePlaceholder] = []
+
+    def empty(self) -> _FakePlaceholder:
+        ph = _FakePlaceholder()
+        self.empties.append(ph)
+        return ph
+
+
+class TestChipTracker:
+    def test_pairs_ends_by_call_id(self):
+        """Repeated same-name calls complete in streaming order: ToolEnd(call-1)
+        closes chip 1, not the last chip with the same name."""
+        from frontend.query_driver import ToolEnd, ToolStart
+
+        container = _FakeContainer()
+        tracker = ui_common._ChipTracker(container)
+        tracker.on_start(
+            ToolStart(name="wiki_read_page", args={"slug": "a"}, call_id="call-1")
+        )
+        tracker.on_start(
+            ToolStart(name="wiki_read_page", args={"slug": "b"}, call_id="call-2")
+        )
+        tracker.on_end(ToolEnd(name="wiki_read_page", output="r1", call_id="call-1"))
+        tracker.on_end(ToolEnd(name="wiki_read_page", output="r2", call_id="call-2"))
+
+        assert container.empties[0].value.startswith("✅")
+        assert container.empties[1].value.startswith("✅")
+        assert "wiki_read_page(a)" in container.empties[0].value
+        assert "wiki_read_page(b)" in container.empties[1].value
+
+    def test_falls_back_to_name_for_paused_ends(self):
+        """Synthetic interrupt ToolEnds carry no call id; the chip still closes."""
+        from frontend.query_driver import ToolEnd, ToolStart
+
+        container = _FakeContainer()
+        tracker = ui_common._ChipTracker(container)
+        tracker.on_start(
+            ToolStart(
+                name="flag_contradiction", args={"slug": "entities/a"}, call_id="call-9"
+            )
+        )
+        tracker.on_end(ToolEnd(name="flag_contradiction", output="⏸ awaiting human approval"))
+
+        assert container.empties[0].value.startswith("✅")
+        assert "flag_contradiction(entities/a)" in container.empties[0].value
+
+    def test_unclosed_chip_stays_running(self):
+        """A ToolStart with no matching ToolEnd keeps its running state."""
+        from frontend.query_driver import ToolEnd, ToolStart
+
+        container = _FakeContainer()
+        tracker = ui_common._ChipTracker(container)
+        tracker.on_start(ToolStart(name="wiki_search", args={"query": "x"}, call_id="c"))
+        tracker.on_end(ToolEnd(name="other_tool", output="y"))
+
+        assert container.empties[0].value.startswith("🔍")
 
 
 # --- AppTest HITL flow -------------------------------------------------------

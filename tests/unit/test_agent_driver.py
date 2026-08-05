@@ -265,6 +265,90 @@ class TestStreamTurn:
             {"name": "flag_contradiction", "args": {"slug": "entities/a"}}
         ]
 
+    async def test_interrupt_after_executed_tools_shows_every_chip(self):
+        """Real ingest flow: read_source runs (own model message, index 0),
+        then flag_contradiction in a SECOND model message (index restarts at
+        0) interrupts. The index-only key would swallow the second ToolStart;
+        both tool calls must emit a chip (ToolStart) and the interrupted one
+        gets the synthetic paused ToolEnd."""
+        agent = _FakeAgent(
+            steps=[
+                (
+                    "messages",
+                    (
+                        AIMessageChunk(
+                            content="",
+                            tool_call_chunks=[
+                                {"index": 0, "id": "call-1", "name": "read_source", "args": '{"path": "raw/foo.pdf"}'}
+                            ],
+                        ),
+                        MODEL_META,
+                    ),
+                ),
+                (
+                    "messages",
+                    (
+                        ToolMessage(
+                            content="Source loaded",
+                            name="read_source",
+                            tool_call_id="call-1",
+                        ),
+                        TOOLS_META,
+                    ),
+                ),
+                (
+                    "messages",
+                    (
+                        AIMessageChunk(
+                            content="",
+                            tool_call_chunks=[
+                                {"index": 0, "id": "call-2", "name": "flag_contradiction", "args": '{"page_slug": "entities/a", "existing_claim": "x", "new_claim": "y", "proposed_resolution": "merge"}'}
+                            ],
+                        ),
+                        MODEL_META,
+                    ),
+                ),
+                (
+                    "values",
+                    {
+                        "__interrupt__": [
+                            _interrupt(
+                                {
+                                    "name": "flag_contradiction",
+                                    "args": {
+                                        "page_slug": "entities/a",
+                                        "existing_claim": "x",
+                                        "new_claim": "y",
+                                        "proposed_resolution": "merge",
+                                    },
+                                }
+                            )
+                        ],
+                        "messages": [],
+                    },
+                ),
+            ]
+        )
+
+        events = await _collect(stream_turn(agent, "ingest raw/foo.pdf", CONFIG, "ingest"))
+
+        starts = [e for e in events if isinstance(e, ToolStart)]
+        assert [e.name for e in starts] == ["read_source", "flag_contradiction"]
+        assert starts[0].args == {"path": "raw/foo.pdf"}
+        assert starts[1].args == {
+            "page_slug": "entities/a",
+            "existing_claim": "x",
+            "new_claim": "y",
+            "proposed_resolution": "merge",
+        }
+        assert starts[1].call_id == "call-2"
+        # read_source executed (real ToolEnd), flag_contradiction paused.
+        ends = [e for e in events if isinstance(e, ToolEnd)]
+        assert [e.name for e in ends] == ["read_source", "flag_contradiction"]
+        assert ends[0].call_id == "call-1"
+        assert ends[1].output == "⏸ awaiting human approval"
+        assert isinstance(events[-1], InterruptEvent)
+
     async def test_final_message_falls_back_to_free_text(self):
         """No AI message in the thread state -> FinalMessage reuses the
         streamed free text (cli.py echoes the last message content)."""
@@ -375,6 +459,7 @@ class TestResumeTurn:
         )
 
         assert [e.kind for e in events2] == [
+            "tool_start",  # resumed tool call gets its chip (no streamed chunks on resume)
             "tool_end",
             "answer_token",
             "final_message",
@@ -410,9 +495,13 @@ class TestResumeTurn:
             resume_turn(agent, [{"type": "approve"}], CONFIG, "fix")
         )
 
-        assert [e.kind for e in events] == ["tool_end", "interrupt"]
-        assert events[0].output == "⏸ awaiting human approval"
-        assert events[1].actions == [
+        assert [e.kind for e in events] == [
+            "tool_start",  # the interrupting action gets its chip
+            "tool_end",
+            "interrupt",
+        ]
+        assert events[1].output == "⏸ awaiting human approval"
+        assert events[2].actions == [
             {"name": "delete_wiki_page", "args": {"page_slug": "b"}}
         ]
 

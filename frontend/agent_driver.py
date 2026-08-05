@@ -230,6 +230,8 @@ async def _drive_turn(agent, inputs, config) -> AsyncGenerator[AgentEvent, None]
     accumulated: dict[Any, str] = {}  # key -> accumulated args JSON string
     seen_starts: set[Any] = set()
     names: dict[Any, str] = {}  # key -> known tool name (first non-empty wins)
+    last_id: dict[Any, Any] = {}  # index -> key currently owning it
+    started_names: set[str] = set()  # tool names already surfaced as ToolStart
     free_text: list[str] = []  # free-text AIMessage content (the live answer)
     interrupt_fired = False
 
@@ -240,7 +242,14 @@ async def _drive_turn(agent, inputs, config) -> AsyncGenerator[AgentEvent, None]
             msg, _metadata = chunk if isinstance(chunk, tuple) else (chunk, None)
 
             if isinstance(msg, ToolMessage):
-                yield ToolEnd(name=msg.name or "", output=str(msg.content)[:500])
+                name = msg.name or ""
+                call_id = msg.tool_call_id or ""
+                if name and name not in started_names:
+                    # Args never completed/parsed: synthesize the missing
+                    # ToolStart so the tool call still shows on screen.
+                    started_names.add(name)
+                    yield ToolStart(name=name, args={}, call_id=call_id)
+                yield ToolEnd(name=name, output=str(msg.content)[:500], call_id=call_id)
                 continue
 
             if not isinstance(msg, (AIMessage, AIMessageChunk)):
@@ -251,12 +260,13 @@ async def _drive_turn(agent, inputs, config) -> AsyncGenerator[AgentEvent, None]
             if tool_call_chunks:
                 for tc in tool_call_chunks:
                     for event in _on_tool_args_fragment(
-                        _tool_call_key(tc),
+                        _tool_call_key(tc, last_id),
                         tc.get("name") or "",
                         tc.get("args", "") or "",
                         accumulated,
                         seen_starts,
                         names,
+                        started_names,
                     ):
                         yield event
                 continue
@@ -267,12 +277,13 @@ async def _drive_turn(agent, inputs, config) -> AsyncGenerator[AgentEvent, None]
             if tool_calls:
                 for tc in tool_calls:
                     for event in _on_tool_args_fragment(
-                        tc.get("id") or _tool_call_key(tc),
+                        tc.get("id") or f"raw-{id(tc)}",
                         tc.get("name") or "",
                         json.dumps(tc.get("args", {})),
                         accumulated,
                         seen_starts,
                         names,
+                        started_names,
                     ):
                         yield event
                 continue
@@ -288,7 +299,14 @@ async def _drive_turn(agent, inputs, config) -> AsyncGenerator[AgentEvent, None]
             interrupt_fired = True
             actions = extract_interrupts(chunk)
             for action in actions:
-                yield ToolEnd(name=action.get("name", ""), output=PAUSED_TOOL_OUTPUT)
+                action_name = action.get("name", "")
+                if action_name and action_name not in started_names:
+                    # The interrupted call never surfaced a ToolStart (e.g. its
+                    # args never parsed): emit one from the pending action so
+                    # the chip renders, carrying the full action args.
+                    started_names.add(action_name)
+                    yield ToolStart(name=action_name, args=action.get("args", {}))
+                yield ToolEnd(name=action_name, output=PAUSED_TOOL_OUTPUT)
             yield InterruptEvent(actions=actions)
 
     if interrupt_fired:

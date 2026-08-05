@@ -23,13 +23,15 @@ logger = logging.getLogger(__name__)
 class ToolStart(BaseModel):
     kind: Literal["tool_start"] = "tool_start"
     name: str
-    args: dict  # best-effort parsed args; {} if not parseable yet
+    args: dict  # full parsed args; {} when they never parsed (fallback path)
+    call_id: str = ""  # stable streaming key (tool_call id when known)
 
 
 class ToolEnd(BaseModel):
     kind: Literal["tool_end"] = "tool_end"
     name: str
     output: str  # tool result string (truncated to ~500 chars for display)
+    call_id: str = ""  # tool_call_id of the completed call, when known
 
 
 class AnswerToken(BaseModel):
@@ -45,20 +47,27 @@ class FinalAnswer(BaseModel):
 StreamEvent = ToolStart | ToolEnd | AnswerToken | FinalAnswer
 
 
-def _best_effort_args(raw: Any) -> dict:
-    """Parse accumulated tool-call args (string fragments or a full dict)."""
+def _best_effort_args(raw: Any) -> dict | None:
+    """Parse accumulated tool-call args; ``None`` while still incomplete.
+
+    Returns a dict once the accumulated text parses into a complete JSON
+    object, and ``None`` for partial JSON (mid-stream), non-dict payloads, or
+    empty text. The streaming drivers defer ``ToolStart`` until args are
+    complete so chips always show the full parameters instead of a partial
+    first-chunk dict.
+    """
     if isinstance(raw, dict):
         return raw
     if not isinstance(raw, str):
-        return {}
+        return None
     text = raw.strip()
     if not text:
-        return {}
+        return None
     try:
         parsed = json.loads(text)
-        return parsed if isinstance(parsed, dict) else {}
+        return parsed if isinstance(parsed, dict) else None
     except (ValueError, TypeError):
-        return {}
+        return None
 
 
 def _on_tool_args_fragment(
@@ -68,6 +77,7 @@ def _on_tool_args_fragment(
     accumulated: dict[Any, str],
     seen_starts: set[Any],
     names: dict[Any, str],
+    started_names: set[str],
 ) -> list[StreamEvent]:
     """Accumulate one args fragment for a tool call and produce events.
 
@@ -76,8 +86,10 @@ def _on_tool_args_fragment(
 
     ``name`` may be None on continuation fragments (real streaming only sends
     the tool name on the first chunk of a call). We track the known name per
-    key in ``names`` and defer ``ToolStart`` until the name is known, so a
-    nameless fragment never creates an invalid event.
+    key in ``names`` and defer ``ToolStart`` until the name is known AND the
+    accumulated args parse into a complete JSON object — the chip then shows
+    the FULL parameters. Calls whose args never parse are surfaced by the
+    caller's ToolMessage/interrupt fallback, so no tool call is ever missed.
     """
     events: list[StreamEvent] = []
     if name:  # non-empty string -> remember it for this call
@@ -86,24 +98,42 @@ def _on_tool_args_fragment(
 
     effective_name = names.get(key, "")
     if key not in seen_starts and effective_name:
-        seen_starts.add(key)
-        events.append(ToolStart(name=effective_name, args=_best_effort_args(accumulated[key])))
+        args = _best_effort_args(accumulated[key])
+        if args is not None:  # complete, parseable JSON object
+            seen_starts.add(key)
+            started_names.add(effective_name)
+            events.append(
+                ToolStart(name=effective_name, args=args, call_id=str(key))
+            )
     return events
 
 
-def _tool_call_key(tc: dict) -> Any:
+def _tool_call_key(tc: dict, last_id: dict | None = None) -> Any:
     """A stable per-call identity for streaming fragments.
 
-    Prefer ``index`` over ``id``: in real token streaming the ``id`` appears
-    only on the FIRST chunk of a tool call while continuation fragments carry
-    ``id=None`` but keep the same ``index``. Keying on ``id`` would split one
-    call into two keys and treat the nameless continuation as a new call.
+    A call's first chunk carries ``index`` + ``id`` + ``name``; continuation
+    chunks repeat the same ``index`` with ``id=None``. Sequential calls in
+    LATER model messages restart ``index`` at 0, so keying on ``index`` alone
+    would merge the second call into the first and swallow its ``ToolStart``
+    — chips would silently miss tool calls. Key on ``id`` when present; for
+    id-less continuations fall back to the key last seen on that ``index``
+    (``last_id`` is updated BEFORE the key is computed, so a fresh id on a
+    reused index starts a new call). Providers with no ids at all fall back to
+    an index placeholder — safe for single-fragment calls, the same limit the
+    old index-only key had.
     """
-    key = tc.get("index")
-    if key is None:
-        key = tc.get("id")
-    if key is None:
+    call_id = tc.get("id")
+    index = tc.get("index")
+    if call_id:
+        key = call_id
+    elif index is not None and last_id is not None and index in last_id:
+        key = last_id[index]
+    elif index is not None:
+        key = ("index", index)
+    else:
         key = f"tc-{id(tc)}"
+    if index is not None and last_id is not None:
+        last_id[index] = key
     return key
 
 
@@ -130,6 +160,8 @@ async def stream_query(
     accumulated: dict[Any, str] = {}  # key -> accumulated args JSON string
     seen_starts: set[Any] = set()
     names: dict[Any, str] = {}  # key -> known tool name (first non-empty wins)
+    last_id: dict[Any, Any] = {}  # index -> key currently owning it
+    started_names: set[str] = set()  # tool names already surfaced as ToolStart
     free_text: list[str] = []  # free-text AIMessage content (the live answer)
 
     async for chunk, _metadata in agent.astream(
@@ -138,7 +170,14 @@ async def stream_query(
         stream_mode="messages",
     ):
         if isinstance(chunk, ToolMessage):
-            yield ToolEnd(name=chunk.name or "", output=str(chunk.content)[:500])
+            name = chunk.name or ""
+            call_id = chunk.tool_call_id or ""
+            if name and name not in started_names:
+                # The call's args never completed/parsed: synthesize the
+                # missing ToolStart so the tool call still shows on screen.
+                started_names.add(name)
+                yield ToolStart(name=name, args={}, call_id=call_id)
+            yield ToolEnd(name=name, output=str(chunk.content)[:500], call_id=call_id)
             continue
 
         if not isinstance(chunk, (AIMessage, AIMessageChunk)):
@@ -149,12 +188,13 @@ async def stream_query(
         if tool_call_chunks:
             for tc in tool_call_chunks:
                 for event in _on_tool_args_fragment(
-                    _tool_call_key(tc),
+                    _tool_call_key(tc, last_id),
                     tc.get("name") or "",
                     tc.get("args", "") or "",
                     accumulated,
                     seen_starts,
                     names,
+                    started_names,
                 ):
                     yield event
             continue
@@ -165,12 +205,13 @@ async def stream_query(
         if tool_calls:
             for tc in tool_calls:
                 for event in _on_tool_args_fragment(
-                    tc.get("id") or _tool_call_key(tc),
+                    tc.get("id") or f"raw-{id(tc)}",
                     tc.get("name") or "",
                     json.dumps(tc.get("args", {})),
                     accumulated,
                     seen_starts,
                     names,
+                    started_names,
                 ):
                     yield event
             continue

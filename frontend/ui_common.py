@@ -286,14 +286,35 @@ class _ChipTracker:
         label = _chip_label(event.name, event.args)
         ph = self._container.empty()
         ph.markdown(f"🔍 {label}…")
-        self._running.append({"name": event.name, "label": label, "ph": ph, "done": False})
+        self._running.append(
+            {
+                "name": event.name,
+                "call_id": event.call_id,
+                "label": label,
+                "ph": ph,
+                "done": False,
+            }
+        )
 
     def on_end(self, event: ToolEnd) -> None:
+        # Exact pairing via the streaming call id: repeated same-name calls
+        # (e.g. wiki_read_page twice) complete in order instead of the last
+        # chip winning by name.
         for chip in reversed(self._running):
-            if chip["name"] == event.name and not chip["done"]:
-                chip["ph"].markdown(f"✅ {chip['label']}")
-                chip["done"] = True
-                break
+            if not chip["done"] and event.call_id and chip["call_id"] == event.call_id:
+                self._finish(chip)
+                return
+        # No call-id match (synthetic paused ends and legacy ToolEnds carry no
+        # call id): fall back to name matching so the chip still closes.
+        for chip in reversed(self._running):
+            if not chip["done"] and chip["name"] == event.name:
+                self._finish(chip)
+                return
+
+    @staticmethod
+    def _finish(chip: dict) -> None:
+        chip["ph"].markdown(f"✅ {chip['label']}")
+        chip["done"] = True
 
 
 def _sync_events(agen: AsyncGenerator[Any, None]):

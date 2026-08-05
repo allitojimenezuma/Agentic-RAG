@@ -235,6 +235,118 @@ class TestStreamQueryMultiChunk:
         assert final.answer.citations == []
         assert final.answer.confidence == "low"
 
+    async def test_sequential_tool_calls_both_emit_tool_start(self):
+        """Real streaming: sequential tool calls arrive in SEPARATE model
+        messages and each restarts ``index`` at 0. An index-only key would
+        collide and swallow the second call's ToolStart (its chip never
+        renders); each call must emit its own ToolStart with full args."""
+        fake = _FakeAgent(
+            chunks=[
+                AIMessageChunk(
+                    content="",
+                    tool_call_chunks=[
+                        {"index": 0, "id": "call-1", "name": "wiki_search", "args": '{"query": "mlx"}'}
+                    ],
+                ),
+                ToolMessage(
+                    content="Found: entities/mlx", name="wiki_search", tool_call_id="call-1"
+                ),
+                AIMessageChunk(
+                    content="",
+                    tool_call_chunks=[
+                        {"index": 0, "id": "call-2", "name": "wiki_read_page", "args": '{"slug": "entities/mlx"}'}
+                    ],
+                ),
+                ToolMessage(
+                    content="MLX page…", name="wiki_read_page", tool_call_id="call-2"
+                ),
+                AIMessage(content="Done ([[entities/mlx]])."),
+            ],
+            final_messages=[AIMessage(content="Done ([[entities/mlx]]).")],
+        )
+
+        events = [event async for event in stream_query(fake, "q", "t-seq", 30)]
+
+        starts = [e for e in events if e.kind == "tool_start"]
+        assert [e.name for e in starts] == ["wiki_search", "wiki_read_page"]
+        assert [e.args for e in starts] == [
+            {"query": "mlx"},
+            {"slug": "entities/mlx"},
+        ]
+        # ToolEnd pairs with the right ToolStart via the streaming call id.
+        ends = [e for e in events if e.kind == "tool_end"]
+        assert [e.call_id for e in ends] == ["call-1", "call-2"]
+
+    async def test_multi_chunk_args_tool_start_carries_full_args(self):
+        """ToolStart is deferred until the streamed args parse into a complete
+        JSON object, so the chip shows the FULL parameters (the first chunk
+        alone is partial JSON)."""
+        fake = _FakeAgent(
+            chunks=[
+                AIMessageChunk(
+                    content="",
+                    tool_call_chunks=[
+                        {"index": 0, "id": "call-1", "name": "wiki_search", "args": '{"query": "Mál'}
+                    ],
+                ),
+                AIMessageChunk(
+                    content="",
+                    tool_call_chunks=[
+                        {"index": 0, "id": None, "name": None, "args": 'aga"}'}
+                    ],
+                ),
+                ToolMessage(
+                    content="Found", name="wiki_search", tool_call_id="call-1"
+                ),
+                AIMessage(content="Answer ([[entities/mlx]])."),
+            ],
+            final_messages=[AIMessage(content="Answer ([[entities/mlx]]).")],
+        )
+
+        events = [event async for event in stream_query(fake, "q", "t-multi", 30)]
+
+        starts = [e for e in events if e.kind == "tool_start"]
+        assert [e.name for e in starts] == ["wiki_search"]
+        assert starts[0].args == {"query": "Málaga"}
+        assert starts[0].call_id == "call-1"
+        assert [e.kind for e in events] == [
+            "tool_start",
+            "tool_end",
+            "answer_token",
+            "final",
+        ]
+
+    async def test_unparseable_args_fall_back_to_tool_message(self):
+        """Args that never parse (malformed JSON) still produce a ToolStart:
+        the ToolMessage branch synthesizes one so no tool call is missed."""
+        fake = _FakeAgent(
+            chunks=[
+                AIMessageChunk(
+                    content="",
+                    tool_call_chunks=[
+                        {"index": 0, "id": "call-1", "name": "wiki_search", "args": "not json"}
+                    ],
+                ),
+                ToolMessage(
+                    content="Found", name="wiki_search", tool_call_id="call-1"
+                ),
+                AIMessage(content="Answer."),
+            ],
+            final_messages=[AIMessage(content="Answer.")],
+        )
+
+        events = [event async for event in stream_query(fake, "q", "t-bad", 30)]
+
+        assert [e.kind for e in events] == [
+            "tool_start",
+            "tool_end",
+            "answer_token",
+            "final",
+        ]
+        start = next(e for e in events if e.kind == "tool_start")
+        assert start.name == "wiki_search"
+        assert start.args == {}
+
     async def test_free_text_after_tool_calls_streams_as_answer(self):
         """The model's free text AFTER navigation is the answer (no finalization
         tool): it streams live and the FinalAnswer reflects it."""
