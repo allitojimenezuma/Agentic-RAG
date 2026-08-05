@@ -1,4 +1,4 @@
-"""Tests for io/index_manager.py — index.md read/write/update."""
+"""Tests for io/index.py — index.md read/write/update."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from agentic_rag.io.index_manager import read_index, write_index
+from agentic_rag.io.index import read_index, write_index
 from agentic_rag.schemas.wiki import Index, IndexEntry
 
 

@@ -3,7 +3,7 @@
 Session-state init (one namespace per agent), the sidebar thread manager over
 :class:`~frontend.history_store.HistoryStore`, the HITL action renderer +
 decision widgets, and :func:`run_turn` — the single turn/HITL-rerun loop shared
-by every page (query uses ``chat_driver.stream_query`` via its own page).
+by every page (query uses ``query_driver.stream_query`` via its own page).
 
 Streamlit-dependent by design (verified via AppTest, not unit tests). The pure
 helpers (:func:`render_final`, :func:`action_summary`, :func:`make_pending`)
@@ -19,7 +19,7 @@ from uuid import uuid4
 
 import streamlit as st
 
-from frontend import agents as _agents
+from frontend import builders as _builders
 from frontend.agent_driver import (
     build_decisions,
     FinalMessage,
@@ -27,7 +27,7 @@ from frontend.agent_driver import (
     resume_turn,
     stream_turn,
 )
-from frontend.chat_driver import AnswerToken, ToolEnd, ToolStart
+from frontend.query_driver import AnswerToken, ToolEnd, ToolStart
 from frontend.history_store import HistoryStore
 
 logger = logging.getLogger(__name__)
@@ -206,14 +206,14 @@ def _decision_widgets(agent: str, actions: list[dict]) -> None:
 def _get_agent(agent: str) -> object:
     """Compiled agent for a page key.
 
-    Indirection through the ``frontend.agents`` module keeps AppTest stubs able
+    Indirection through the ``frontend.builders`` module keeps AppTest stubs able
     to monkeypatch the builder (``agents.get_ingest_agent = lambda: fake``).
     """
     builders = {
-        "query": _agents.get_query_agent,
-        "ingest": _agents.get_ingest_agent,
-        "lint": _agents.get_lint_agent,
-        "fix": _agents.get_fix_agent,
+        "query": _builders.get_query_agent,
+        "ingest": _builders.get_ingest_agent,
+        "lint": _builders.get_lint_agent,
+        "fix": _builders.get_fix_agent,
     }
     return builders[agent]()
 
@@ -328,7 +328,7 @@ def run_turn(agent: str, agent_name: str, message: str, store: HistoryStore) -> 
     tid = st.session_state[f"{agent}_thread_id"]
     messages = st.session_state[f"{agent}_messages"]
     pending = st.session_state.get(pending_key)
-    config = _agents.agent_config(agent, tid)
+    config = _builders.agent_config(agent, tid)
     agent_obj = _get_agent(agent)
 
     if pending is not None:

@@ -1,4 +1,4 @@
-"""Unit tests for frontend/ui_common + frontend/agents.
+"""Unit tests for frontend/ui_common + frontend/builders.
 
 Two layers, mirroring the spec's acceptance for ``test_ui_common.py``:
 
@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from frontend import agents
+from frontend import builders
 from frontend import ui_common
 from frontend.agent_driver import FinalMessage
 from frontend.history_store import HistoryStore
@@ -45,32 +45,32 @@ class _FakeSettings:
 class TestAgentConfig:
     def test_agent_config_mirrors_cli(self, monkeypatch):
         """Acceptance: exact cli.py shapes per agent."""
-        monkeypatch.setattr(agents, "get_settings", lambda: _FakeSettings())
-        assert agents.agent_config("query", "t-1") == {
+        monkeypatch.setattr(builders, "get_settings", lambda: _FakeSettings())
+        assert builders.agent_config("query", "t-1") == {
             "configurable": {"thread_id": "t-1"},
             "recursion_limit": 30,
         }
-        assert agents.agent_config("ingest", "t-1") == {
+        assert builders.agent_config("ingest", "t-1") == {
             "configurable": {"thread_id": "t-1"},
             "recursion_limit": 200,
         }
-        assert agents.agent_config("lint", "t-1") == {
+        assert builders.agent_config("lint", "t-1") == {
             "configurable": {"thread_id": "t-1"}
         }
-        assert agents.agent_config("fix", "t-1") == {
+        assert builders.agent_config("fix", "t-1") == {
             "configurable": {"thread_id": "t-1"}
         }
 
     def test_lint_and_fix_omit_recursion_limit(self, monkeypatch):
         """CLI omits recursion_limit for lint/fix — the key must not appear."""
-        monkeypatch.setattr(agents, "get_settings", lambda: _FakeSettings())
+        monkeypatch.setattr(builders, "get_settings", lambda: _FakeSettings())
         for key in ("lint", "fix"):
-            assert "recursion_limit" not in agents.agent_config(key, "t-1")
+            assert "recursion_limit" not in builders.agent_config(key, "t-1")
 
     def test_unknown_agent_raises(self, monkeypatch):
-        monkeypatch.setattr(agents, "get_settings", lambda: _FakeSettings())
+        monkeypatch.setattr(builders, "get_settings", lambda: _FakeSettings())
         with pytest.raises(ValueError):
-            agents.agent_config("nope", "t-1")
+            builders.agent_config("nope", "t-1")
 
 
 class TestPureHelpers:
@@ -146,7 +146,7 @@ import streamlit as st
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolCall
 from langgraph.types import Command
 
-import frontend.agents as agents_mod
+import frontend.builders as agents_mod
 from frontend import ui_common
 from frontend.history_store import HistoryStore
 from tests.fixtures.fake_llm import ScriptedChatModel

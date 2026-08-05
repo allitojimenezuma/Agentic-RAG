@@ -3,7 +3,7 @@
 Pure Python: no Streamlit import here, so this module is unit-testable.
 
 Mirrors the CLI's HITL loop (``src/agentic_rag/cli.py``): the same event
-translation as ``chat_driver.stream_query`` for ``stream_mode="messages"``
+translation as ``query_driver.stream_query`` for ``stream_mode="messages"``
 (reusing its ToolStart/ToolEnd/AnswerToken event types), plus interrupt
 detection from ``stream_mode="values"`` snapshots (the ``__interrupt__`` key),
 synthetic ``ToolEnd("⏸ awaiting human approval")`` events so every ToolStart
@@ -28,7 +28,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from langgraph.types import Command
 from pydantic import BaseModel
 
-from frontend.chat_driver import (
+from frontend.query_driver import (
     _on_tool_args_fragment,
     _tool_call_key,
     AnswerToken,
@@ -151,7 +151,7 @@ def build_fix_message(issue: str, wiki_path: Path) -> str:
     "no issues" note when the wiki is clean). Pure (no Streamlit import);
     ``health_check`` exceptions propagate (the Streamlit shell surfaces them).
     """
-    from agentic_rag.lint.health import health_check
+    from agentic_rag.wiki.health import health_check
 
     report = health_check(wiki_path)
     issues = report.issues
@@ -220,13 +220,13 @@ async def _drive_turn(agent, inputs, config) -> AsyncGenerator[AgentEvent, None]
     """Shared streaming loop for :func:`stream_turn` / :func:`resume_turn`.
 
     Watches ``stream_mode=["messages", "values"]``: ``messages`` is translated
-    exactly like ``chat_driver.stream_query`` (ToolMessage -> ToolEnd,
+    exactly like ``query_driver.stream_query`` (ToolMessage -> ToolEnd,
     tool_call_chunks/tool_calls -> ToolStart, plain content -> AnswerToken);
     ``values`` is ignored except for the ``__interrupt__`` key, which emits one
     synthetic ``ToolEnd("⏸ awaiting human approval")`` per pending action plus
     ONE :class:`InterruptEvent` and suppresses the FinalMessage.
     """
-    # Per-tool-call accumulation state for this turn (see chat_driver.py).
+    # Per-tool-call accumulation state for this turn (see query_driver.py).
     accumulated: dict[Any, str] = {}  # key -> accumulated args JSON string
     seen_starts: set[Any] = set()
     names: dict[Any, str] = {}  # key -> known tool name (first non-empty wins)

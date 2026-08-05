@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 
-from agentic_rag.io.index_manager import read_index
+from agentic_rag.io.index import read_index
 from agentic_rag.io.markdown_parser import extract_links, slugify
 from agentic_rag.schemas.lint import Issue, LintReport
 from agentic_rag.wiki.model import _resolve_link, load_wiki

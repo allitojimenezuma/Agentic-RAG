@@ -7,7 +7,7 @@ from datetime import date
 
 from langchain_core.tools import tool
 
-from agentic_rag.lint.health import _render_report_markdown, health_check
+from agentic_rag.wiki.health import _render_report_markdown, health_check
 from agentic_rag.schemas.lint import LintReport
 from agentic_rag.tools.shared import get_wiki_path
 

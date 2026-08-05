@@ -345,7 +345,7 @@ class TestFixCliCommand:
                 self._capture_fake_build(captured, final="Nothing to do."),
             ),
             patch(
-                "agentic_rag.lint.health.health_check",
+                "agentic_rag.wiki.health.health_check",
                 side_effect=RuntimeError("empty wiki"),
             ),
         ):

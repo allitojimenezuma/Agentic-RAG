@@ -1,4 +1,4 @@
-"""Tests for io/log_manager.py — append-only log.md operations."""
+"""Tests for io/log.py — append-only log.md operations."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from agentic_rag.io.log_manager import append_log, tail_log
+from agentic_rag.io.log import append_log, tail_log
 from agentic_rag.schemas.wiki import LogEntry
 
 

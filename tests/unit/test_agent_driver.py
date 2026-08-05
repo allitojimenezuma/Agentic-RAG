@@ -3,7 +3,7 @@ resume cycles, decision-building, and tolerant interrupt parsing.
 
 Uses duck-typed fake agents (no real langgraph) that mirror the
 ``astream(..., stream_mode=["messages", "values"])`` contract — same approach
-as test_chat_driver's fake agent — so the event translation, interrupt capture
+as test_query_driver's fake agent — so the event translation, interrupt capture
 from values snapshots, and resume semantics are exercised deterministically.
 """
 
@@ -26,7 +26,7 @@ from frontend.agent_driver import (
     resume_turn,
     stream_turn,
 )
-from frontend.chat_driver import ToolEnd, ToolStart
+from frontend.query_driver import ToolEnd, ToolStart
 
 CONFIG = {"configurable": {"thread_id": "tid"}}
 MODEL_META = {"langgraph_node": "model"}
@@ -554,7 +554,7 @@ class TestBuildFixMessage:
 
     @staticmethod
     def _patch_report(monkeypatch, issues):
-        import agentic_rag.lint.health as health_mod
+        import agentic_rag.wiki.health as health_mod
 
         report = SimpleNamespace(issues=issues)
         monkeypatch.setattr(health_mod, "health_check", lambda _path: report)
@@ -635,7 +635,7 @@ class TestBuildFixMessage:
         )
 
     def test_health_check_receives_wiki_path(self, monkeypatch):
-        import agentic_rag.lint.health as health_mod
+        import agentic_rag.wiki.health as health_mod
 
         captured = {}
 

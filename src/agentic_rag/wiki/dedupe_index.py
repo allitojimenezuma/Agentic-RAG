@@ -2,7 +2,7 @@
 
 ``index.md`` is a *derived view*: the filesystem + frontmatter are the source
 of truth. This module rebuilds it deterministically from ``wiki.model.load_wiki``
-using the exact entry format from ``io.index_manager._format_entry``. Page
+using the exact entry format from ``io.index._format_entry``. Page
 summaries come from the first section's body text (never a raw ``# H1``
 heading, which was the previous hand-maintained corruption).
 """
@@ -13,7 +13,7 @@ import logging
 import re
 from pathlib import Path
 
-from agentic_rag.io.index_manager import _category_for_type, write_index
+from agentic_rag.io.index import _category_for_type, write_index
 from agentic_rag.schemas.wiki import Index, IndexEntry
 from agentic_rag.wiki.model import Page, Wiki, load_wiki
 

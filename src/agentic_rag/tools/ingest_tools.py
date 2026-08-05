@@ -7,7 +7,7 @@ from datetime import date, datetime
 
 from langchain_core.tools import tool
 
-from agentic_rag.io.log_manager import append_log as _append_log
+from agentic_rag.io.log import append_log as _append_log
 from agentic_rag.io.source_loader import SourceLoader
 from agentic_rag.io.wiki_io import (
     _resolve_page_path,

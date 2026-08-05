@@ -269,7 +269,7 @@ def fix(
     logger.info(f"FIX command invoked: issue={issue}")
 
     from agentic_rag.agents.fix import build_fix_agent
-    from agentic_rag.lint.health import health_check
+    from agentic_rag.wiki.health import health_check
 
     # Run the deterministic health check -> structured LintReport.
     try:
@@ -401,8 +401,8 @@ def status():
 
     logger.info("STATUS command invoked")
 
-    from agentic_rag.io.index_manager import read_index
-    from agentic_rag.io.log_manager import tail_log
+    from agentic_rag.io.index import read_index
+    from agentic_rag.io.log import tail_log
     from agentic_rag.io.wiki_io import list_pages
 
     pages = list_pages(settings.wiki_path)
@@ -432,7 +432,7 @@ def log_cmd(
 
     logger.info(f"LOG command invoked: tail={tail}")
 
-    from agentic_rag.io.log_manager import tail_log
+    from agentic_rag.io.log import tail_log
 
     entries = tail_log(settings.wiki_path, tail)
     for entry in entries:

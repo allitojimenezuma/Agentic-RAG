@@ -7,7 +7,7 @@ import logging
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 
 from agentic_rag.agents.factory import build_agent
-from agentic_rag.agents.model import get_model
+from agentic_rag.agents.llm import get_model
 from agentic_rag.agents.prompts import build_fix_prompt
 from agentic_rag.schemas.agents_md import load_agents_md
 from agentic_rag.tools.fix_tools import (

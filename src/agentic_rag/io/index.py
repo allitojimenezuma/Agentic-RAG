@@ -1,4 +1,4 @@
-"""Index manager: read, update, parse wiki/index.md."""
+"""Index codec — parse, format, and atomically write wiki/index.md."""
 
 from __future__ import annotations
 

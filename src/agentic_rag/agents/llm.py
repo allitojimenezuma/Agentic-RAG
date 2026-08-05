@@ -1,4 +1,4 @@
-"""Model helper — creates ChatOpenAI with explicit base_url/api_key."""
+"""LLM helper — creates ChatOpenAI with explicit base_url/api_key."""
 
 from __future__ import annotations
 

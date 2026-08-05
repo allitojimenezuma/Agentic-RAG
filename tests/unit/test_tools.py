@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from agentic_rag.io.index_manager import write_index
-from agentic_rag.io.log_manager import append_log
+from agentic_rag.io.index import write_index
+from agentic_rag.io.log import append_log
 from agentic_rag.io.markdown_parser import serialize_frontmatter
 from agentic_rag.io.wiki_io import write_page
 from agentic_rag.schemas.wiki import Frontmatter, Index, IndexEntry, LogEntry
