@@ -214,7 +214,7 @@ uv run pytest tests/acceptance/    # Acceptance tests (real LLM, requires OPENAI
 uv run pytest --cov=agentic_rag --cov-report=html
 ```
 
-Current state: **261 passed / 2 skipped** (the 2 skipped are acceptance tests that need a live `OPENAI_API_KEY`).
+Current state: **288 passed / 2 skipped** (the 2 skipped are acceptance tests that need a live `OPENAI_API_KEY`).
 
 ### Test Structure
 
@@ -261,7 +261,6 @@ tests/
 agentic_rag/
 ├── src/agentic_rag/        # Main package
 │   ├── config.py           # Settings (pydantic-settings)
-│   ├── paths.py            # Path helpers
 │   ├── cli.py              # Typer CLI (ingest/query/lint/fix/status/log)
 │   ├── main.py             # Entry point
 │   ├── logging_config.py   # Logging setup
@@ -275,14 +274,13 @@ agentic_rag/
 │   │   ├── model.py        # Model factory
 │   │   └── prompts.py      # System prompt builders
 │   ├── tools/              # LangChain tools
-│   │   ├── shared.py       # Shared init + common tools
+│   │   ├── shared.py       # Shared init + index summary
 │   │   ├── nav.py          # wiki_search, wiki_read_page, wiki_summary, wiki_scan, wiki_link_graph
 │   │   ├── grounding.py    # build_final_answer + validate_citations (NavCapture, cite-or-die)
 │   │   ├── ingest_grounding.py  # Ingest-side grounding helpers
 │   │   ├── ingest_tools.py # Ingest-specific tools
 │   │   ├── fix_tools.py    # Fix-specific tools
-│   │   ├── lint_tools.py   # Lint-specific tools
-│   │   └── query_tools.py  # Query-specific tools
+│   │   └── lint_tools.py   # Lint-specific tools
 │   ├── wiki/               # Deterministic wiki engine (0 LLM)
 │   │   ├── model.py        # load_wiki → Wiki/Page (synthesized frontmatter)
 │   │   ├── search.py       # BM25 search + bounded link expansion
@@ -301,16 +299,14 @@ agentic_rag/
 │   │   ├── source_loader.py    # MarkItDown wrapper
 │   │   ├── index_manager.py    # Index helpers
 │   │   ├── log_manager.py      # Append to log.md
-│   │   ├── markdown_parser.py  # Parse [[links]], headings, frontmatter
-│   │   └── chunker.py      # Text chunking
+│   │   └── markdown_parser.py  # Parse [[links]], headings, frontmatter
 │   └── middleware/
 │       ├── logging.py      # audit_logging + token_capture middleware
 │       └── guardrails.py   # path_guard (write_tools set)
-├── wiki/                   # LLM-owned wiki (persistent; gitignored runtime data)
 ├── raw/                    # Raw sources (immutable)
 ├── tests/                  # unit, integration, eval, acceptance, fixtures
 ├── AGENTS.md               # Wiki schema conventions
-└── config/                 # Configuration examples
+└── docs/                   # Spec + cleanup plan
 ```
 
 ## Key Concepts

@@ -7,13 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from agentic_rag.io.index_manager import (
-    find_in_index,
-    read_index,
-    remove_entry,
-    upsert_entry,
-    write_index,
-)
+from agentic_rag.io.index_manager import read_index, write_index
 from agentic_rag.schemas.wiki import Index, IndexEntry
 
 
@@ -96,59 +90,3 @@ class TestWriteIndex:
         read_back = read_index(wiki)
         assert len(read_back.categories["entities"]) == 1
         assert read_back.categories["entities"][0].slug == "python"
-
-
-class TestUpsertEntry:
-    def test_adds_new_entry(self, wiki: Path) -> None:
-        entry = IndexEntry(
-            slug="new-thing",
-            summary="A new thing",
-            type="entity",
-            sources=["test.md"],
-            updated=date(2025, 6, 1),
-        )
-        upsert_entry(wiki, entry)
-
-        index = read_index(wiki)
-        slugs = [e.slug for e in index.categories["entities"]]
-        assert "new-thing" in slugs
-
-    def test_updates_existing_entry(self, wiki: Path) -> None:
-        entry = IndexEntry(
-            slug="python",
-            summary="Updated summary",
-            type="entity",
-            sources=["new-src.md"],
-            updated=date(2025, 12, 25),
-        )
-        upsert_entry(wiki, entry)
-
-        index = read_index(wiki)
-        python_entry = next(e for e in index.categories["entities"] if e.slug == "python")
-        assert python_entry.summary == "Updated summary"
-        assert python_entry.updated == date(2025, 12, 25)
-
-
-class TestRemoveEntry:
-    def test_removes_by_slug(self, wiki: Path) -> None:
-        remove_entry(wiki, "python")
-
-        index = read_index(wiki)
-        slugs = [e.slug for e in index.categories.get("entities", [])]
-        assert "python" not in slugs
-        assert "mlx" in slugs  # other entry remains
-
-
-class TestFindInIndex:
-    def test_keyword_match(self, wiki: Path) -> None:
-        results = find_in_index(wiki, "programming")
-        assert len(results) >= 1
-        assert any(e.slug == "python" for e in results)
-
-    def test_no_match(self, wiki: Path) -> None:
-        results = find_in_index(wiki, "quantum-computing")
-        assert results == []
-
-    def test_case_insensitive(self, wiki: Path) -> None:
-        results = find_in_index(wiki, "MACHINE")
-        assert len(results) >= 1

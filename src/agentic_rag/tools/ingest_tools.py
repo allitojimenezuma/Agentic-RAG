@@ -7,7 +7,6 @@ from datetime import date, datetime
 
 from langchain_core.tools import tool
 
-from agentic_rag.io.index_manager import upsert_entry as _upsert_entry
 from agentic_rag.io.log_manager import append_log as _append_log
 from agentic_rag.io.source_loader import SourceLoader
 from agentic_rag.io.wiki_io import (
@@ -17,7 +16,7 @@ from agentic_rag.io.wiki_io import (
     read_page_with_frontmatter as _read_page_with_frontmatter,
     write_page as _write_page,
 )
-from agentic_rag.schemas.wiki import Frontmatter, IndexEntry, LogEntry
+from agentic_rag.schemas.wiki import Frontmatter, LogEntry
 from agentic_rag.tools.shared import get_wiki_path
 
 logger = logging.getLogger(__name__)
@@ -139,26 +138,6 @@ def delete_wiki_page(slug: str) -> str:
         return f"Error: Wiki page not found: {slug}"
     _delete_page(get_wiki_path(), slug)
     return f"Deleted page: {slug}"
-
-
-@tool
-def update_index(
-    slug: str,
-    page_type: str,
-    summary: str,
-    sources: list[str] | None = None,
-) -> str:
-    """Update the wiki index with a new or modified entry. Call this after creating or updating a page."""
-    logger.debug("Updating index entry: %s", slug)
-    entry = IndexEntry(
-        slug=slug,
-        summary=summary,
-        type=page_type,
-        sources=sources or [],
-        updated=date.today(),
-    )
-    _upsert_entry(get_wiki_path(), entry)
-    return f"Index updated for: {slug}"
 
 
 @tool

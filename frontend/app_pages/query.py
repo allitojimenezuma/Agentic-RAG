@@ -12,7 +12,6 @@ reset lives inside ``stream_query``, so every turn starts with a fresh capture
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -38,6 +37,8 @@ from frontend.chat_driver import (  # noqa: E402
 )
 from frontend.history_store import DEFAULT_ROOT, HistoryStore  # noqa: E402
 from frontend.ui_common import (  # noqa: E402
+    _ChipTracker,
+    _sync_events,
     init_page,
     render_history,
     sidebar,
@@ -67,16 +68,6 @@ sidebar("query", store)
 
 
 # --- Rendering helpers (mirror cli.py's query command render). --------------
-def _tool_start_label(event: ToolStart) -> str:
-    """Chip label: include the query/slug for the navigation tools."""
-    args = event.args or {}
-    if event.name == "wiki_search" and args.get("query"):
-        return f"wiki_search(query={args['query']!r})"
-    if event.name == "wiki_read_page" and args.get("slug"):
-        return f"wiki_read_page(slug={args['slug']!r})"
-    return event.name
-
-
 def _render_query_answer(answer) -> str:
     """Structured markdown mirroring cli.py: answer + Confidence + Citations
     (``- {slug} - {title}{ (section: {section})}``) + Suggestion if non-empty."""
@@ -98,52 +89,23 @@ def _render_query_answer(answer) -> str:
 
 
 # --- Streaming bridge --------------------------------------------------------
-def _sync_events(agent, message: str, thread_id: str, recursion_limit: int):
-    """Iterate stream_query's async generator synchronously.
-
-    Streamlit scripts have no event loop, so drive the async generator with a
-    dedicated loop. st.* calls stay on the script thread (no threads involved).
-    The generator is explicitly aclosed on exit so a mid-stream exception does
-    not leave pending asyncio tasks ("Task was destroyed but it is pending").
-    """
-    loop = asyncio.new_event_loop()
-    agen = stream_query(agent, message, thread_id, recursion_limit)
-    try:
-        while True:
-            try:
-                yield loop.run_until_complete(agen.__anext__())
-            except StopAsyncIteration:
-                return
-    finally:
-        try:
-            loop.run_until_complete(agen.aclose())
-        except Exception:
-            pass
-        loop.close()
-
-
 def stream_turn(agent, message: str, thread_id: str, recursion_limit: int, chips, answer_ph):
     """Run one turn, updating live tool chips + the streaming answer bubble.
 
     Returns the final rendered text (structured QueryAnswer block) for the
-    session-state chat log. Raises if ``stream_query`` raises.
+    session-state chat log. Raises if ``stream_query`` raises. Reuses the
+    shared async-generator bridge and chip tracker from ``ui_common``.
     """
-    running_chips: list[dict] = []  # {"name", "label", "ph", "done"}
+    tracker = _ChipTracker(chips)
     streamed_answer = ""
     final_text = ""
+    agen = stream_query(agent, message, thread_id, recursion_limit)
 
-    for event in _sync_events(agent, message, thread_id, recursion_limit):
+    for event in _sync_events(agen):
         if isinstance(event, ToolStart):
-            label = _tool_start_label(event)
-            ph = chips.empty()
-            ph.markdown(f"🔍 {label}…")
-            running_chips.append({"name": event.name, "label": label, "ph": ph, "done": False})
+            tracker.on_start(event)
         elif isinstance(event, ToolEnd):
-            for chip in reversed(running_chips):
-                if chip["name"] == event.name and not chip["done"]:
-                    chip["ph"].markdown(f"✅ {chip['label']}")
-                    chip["done"] = True
-                    break
+            tracker.on_end(event)
         elif isinstance(event, AnswerToken):
             streamed_answer += event.text
             answer_ph.markdown(streamed_answer)
