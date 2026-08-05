@@ -4,12 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agentic RAG — A Wiki That Compounds</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #0b1220;
     --surface: #111a2c;
     --ink: #e2e8f0;
-    --muted: #8fa3bd;
+    --muted: #94a3b8;
     --accent: #60a5fa;
     --accent-ink: #0b1220;
     --accent-soft: #1a2b4a;
@@ -26,7 +29,7 @@
   html { scroll-behavior: smooth; }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg);
     color: var(--ink);
     line-height: 1.6;
@@ -34,24 +37,69 @@
   }
   .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 20px 80px; }
   header.hero {
-    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #38bdf8 100%);
-    color: #fff;
+    background:
+      radial-gradient(ellipse 80% 60% at 15% 0%, rgba(96, 165, 250, .14), transparent 60%),
+      radial-gradient(ellipse 70% 55% at 95% 100%, rgba(45, 212, 191, .07), transparent 55%),
+      var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 40px 36px;
     margin-bottom: 28px;
     box-shadow: var(--shadow);
   }
   header.hero h1 { margin: 0 0 10px; font-size: 2rem; letter-spacing: -.02em; }
-  header.hero .tagline { font-size: 1.05rem; opacity: .92; max-width: 720px; }
+  header.hero .tagline { font-size: 1.05rem; color: var(--muted); max-width: 720px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
   .chip {
-    background: rgba(255,255,255,.16);
-    border: 1px solid rgba(255,255,255,.35);
-    border-radius: 999px;
-    padding: 4px 12px;
-    font-size: .8rem;
-    font-weight: 600;
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: .78rem;
+    font-weight: 500;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #c7d8f2;
   }
+  /* Executive summary callout */
+  .exec-summary {
+    background:
+      linear-gradient(180deg, rgba(96, 165, 250, .08), rgba(96, 165, 250, 0) 55%),
+      var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .exec-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .exec-summary h2 { margin: 0; padding: 0; border: none; font-size: 1.05rem; }
+  .exec-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: .88rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { background: #7db3fb; }
+  .btn-secondary { background: transparent; color: var(--ink); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .exec-points { margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  .exec-points li { position: relative; padding-left: 26px; font-size: .92rem; }
+  .exec-points li::before {
+    content: "✓";
+    position: absolute;
+    left: 2px;
+    top: 1px;
+    color: var(--good);
+    font-weight: 700;
+  }
+  .exec-points strong { color: #dbe7ff; }
   .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
   nav.toc {
     position: sticky;
@@ -60,12 +108,12 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 14px 12px;
-    font-size: .85rem;
+    font-size: .88rem;
     box-shadow: var(--shadow);
     max-height: calc(100vh - 32px);
     overflow-y: auto;
   }
-  nav.toc h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+  nav.toc h2 { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
   nav.toc ol { margin: 0; padding-left: 18px; }
   nav.toc li { margin: 3px 0; }
   nav.toc a { color: var(--ink); text-decoration: none; }
@@ -89,21 +137,32 @@
     color: var(--code-ink);
     border-radius: 5px;
     padding: 1.5px 6px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: .86em;
   }
   pre {
-    background: var(--code-bg);
+    background: #0a121e;
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 16px;
     overflow-x: auto;
     font-size: .85rem;
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, .35);
   }
   pre code { background: none; padding: 0; }
-  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: .9rem; }
-  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
-  th { background: var(--accent-soft); color: #dbe7ff; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: .88rem; }
+  th, td { border: none; padding: 9px 10px; text-align: left; vertical-align: top; }
+  th {
+    background: var(--accent-soft);
+    color: #dbe7ff;
+    font-weight: 600;
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    border-bottom: 2px solid var(--border);
+  }
+  td { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child td { border-bottom: none; }
   tr:nth-child(even) td { background: #0e1728; }
   ul, ol { padding-left: 22px; }
   li { margin: 4px 0; }
@@ -176,6 +235,22 @@
       <span class="chip">recursion_limit = 30</span>
     </div>
   </header>
+
+  <!-- ============ Executive summary (recruiters) ============ -->
+  <section class="exec-summary" aria-label="Executive summary and key highlights">
+    <div class="exec-head">
+      <h2>Executive Summary / Key Highlights</h2>
+      <div class="exec-actions">
+        <a class="btn btn-primary" href="https://github.com/allitojimenezuma/Agentic-RAG" target="_blank" rel="noopener noreferrer">View GitHub Repository ↗</a>
+        <a class="btn btn-secondary" href="https://github.com/allitojimenezuma/Agentic-RAG/tree/main/frontend" target="_blank" rel="noopener noreferrer">Live Demo (Streamlit UI) ↗</a>
+      </div>
+    </div>
+    <ul class="exec-points">
+      <li><strong>Zero-hallucination grounding gate.</strong> Every answer is built from pages the agent actually navigated — any citation the agent never visited is dropped before it reaches the user ("cite-or-die"), so output stays verifiable.</li>
+      <li><strong>Offline deterministic testing.</strong> <strong>261 tests passing</strong>, 2 skipped (live-API only). The wiki engine — search, page matching, health checks, index rebuild — is pure, 0-LLM Python, fully testable without a network or model calls.</li>
+      <li><strong>Cost reduction via compounding wiki search.</strong> Each source is compiled once into an interlinked wiki; later queries run small BM25 searches over curated pages instead of re-retrieving raw chunks — per-query cost and latency shrink as knowledge accumulates.</li>
+    </ul>
+  </section>
 
   <div class="layout">
     <nav class="toc">
@@ -768,18 +843,18 @@ agentic-rag log --tail 5</code></pre>
       noteBkgColor: '#24344f',
       noteBorderColor: '#3b82f6',
       noteTextColor: '#e2e8f0',
-      loopTextColor: '#8fa3bd',
+      loopTextColor: '#94a3b8',
       activationBkgColor: '#24344f',
       activationBorderColor: '#3b82f6',
       sequenceNumberColor: '#e2e8f0',
       fontSize: '14px',
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+      fontFamily: 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
     },
     securityLevel: 'loose'
   });
 </script>
 <noscript>
-  <p style="text-align:center;color:#8fa3bd;">JavaScript is disabled — Mermaid diagrams won't render, but all text content is readable.</p>
+  <p style="text-align:center;color:#94a3b8;">JavaScript is disabled — Mermaid diagrams won't render, but all text content is readable.</p>
 </noscript>
 </body>
 </html>
