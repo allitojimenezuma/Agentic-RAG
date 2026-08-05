@@ -207,14 +207,22 @@ uv run pytest -v
 # Run specific test types
 uv run pytest tests/unit/          # Unit tests (no network)
 uv run pytest tests/integration/   # Scripted fake-model agent flows
-uv run pytest tests/eval/          # Eval: recall@8 + hallucination gate (no LLM)
-uv run pytest tests/acceptance/    # Acceptance tests (real LLM, requires OPENAI_API_KEY)
+uv run pytest tests/levels/level1 -q   # Level 1: wiki schema, path guard, link integrity
+uv run pytest tests/levels/level2 -q   # Level 2: tool selection, schemas, efficiency, state + DAG trajectory
+uv run pytest tests/levels/level3 -q   # Level 3: recall@8 + calibrated faithfulness/relevancy judges, contradictions
+uv run pytest tests/levels/ -q    # Full levels suite (deterministic tiers; real-LLM tiers auto-skip)
+uv run pytest tests/acceptance/   # Acceptance tests (real LLM, requires OPENAI_API_KEY)
 
 # Run with coverage
 uv run pytest --cov=agentic_rag --cov-report=html
 ```
 
-Current state: **261 passed / 2 skipped** (the 2 skipped are acceptance tests that need a live `OPENAI_API_KEY`).
+The real-LLM tiers (level2 trajectory acceptance + level3 judge calibration) auto-skip
+when `OPENAI_API_KEY` is unset; `tests/levels/conftest.py` loads the repo `.env` into the
+environment, so with your key in `.env` they run as part of the suite.
+
+Current state: **524 passed / 2 skipped** (the 2 skipped are acceptance tests that need a
+live `OPENAI_API_KEY`; the levels real-LLM tiers ran because the key is in `.env`).
 
 ### Test Structure
 
@@ -230,8 +238,15 @@ tests/
 │   ├── test_fix_scripted.py
 │   ├── test_query_grounded.py
 │   └── test_cli.py
-├── eval/                  # recall@8 = 1.00 on 15 curated live-wiki queries;
-│                         # hallucination gate on validate_citations (no LLM)
+├── levels/                # Layered agent-behavior suite (deterministic tiers; real-LLM tiers auto-skip)
+│   ├── level1/            # Wiki schema conformance, path-guard matrix, link integrity
+│   ├── level2/            # Tool selection, argument schemas, turn efficiency, state consistency,
+│   │                      #   DAG trajectory contract + real-LLM trajectory acceptance tier
+│   ├── level3/            # Recall@8 on curated/hard queries, calibrated faithfulness/relevancy
+│   │                      #   judges (real-LLM tier), contradiction handling
+│   ├── conftest.py        # Loads .env into os.environ so real-LLM tiers run with OPENAI_API_KEY
+│   ├── test_corpus_selfcheck.py
+│   └── test_eval_hitl.py
 ├── acceptance/            # Real LLM tests (requires API key; skipped by default)
 │   ├── test_wiki_health.py
 │   └── test_ingest_real_source.py
@@ -308,7 +323,7 @@ agentic_rag/
 │       └── guardrails.py   # path_guard (write_tools set)
 ├── wiki/                   # LLM-owned wiki (persistent; gitignored runtime data)
 ├── raw/                    # Raw sources (immutable)
-├── tests/                  # unit, integration, eval, acceptance, fixtures
+├── tests/                  # unit, integration, levels, acceptance, fixtures
 ├── AGENTS.md               # Wiki schema conventions
 └── config/                 # Configuration examples
 ```
