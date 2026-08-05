@@ -30,11 +30,11 @@ from langchain_core.messages import AIMessage, ToolCall
 
 from agentic_rag.agents.factory import build_agent
 from agentic_rag.agents.prompts import build_ingest_prompt
-from agentic_rag.io.index_manager import read_index
-from agentic_rag.io.log_manager import tail_log
+from agentic_rag.io.index import read_index
+from agentic_rag.io.log import tail_log
 from agentic_rag.io.wiki_io import read_page_with_frontmatter
-from agentic_rag.lint.health import health_check
-from agentic_rag.tools.ingest_grounding import submit_extraction
+from agentic_rag.wiki.health import health_check
+from agentic_rag.tools.extraction import submit_extraction
 from agentic_rag.tools.ingest_tools import (
     append_log,
     create_page,

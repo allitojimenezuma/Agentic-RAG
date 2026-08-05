@@ -44,7 +44,7 @@ from agentic_rag.tools.fix_tools import (
     edit_wiki_page,
     fix_link,
 )
-from agentic_rag.tools.ingest_grounding import submit_extraction
+from agentic_rag.tools.extraction import submit_extraction
 from agentic_rag.tools.ingest_tools import (
     append_log,
     create_page,

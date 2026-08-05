@@ -33,7 +33,7 @@ from langchain_core.messages import AIMessage, ToolCall, ToolMessage
 
 from agentic_rag.agents.factory import build_agent
 from agentic_rag.agents.prompts import build_ingest_prompt
-from agentic_rag.tools.ingest_grounding import submit_extraction
+from agentic_rag.tools.extraction import submit_extraction
 from agentic_rag.tools.ingest_tools import (
     append_log,
     create_page,

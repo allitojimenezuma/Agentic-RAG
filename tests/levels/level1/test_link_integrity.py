@@ -23,7 +23,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from agentic_rag.io.markdown_parser import extract_links
-from agentic_rag.lint.health import health_check
+from agentic_rag.wiki.health import health_check
 from agentic_rag.wiki.model import _resolve_link, load_wiki
 
 

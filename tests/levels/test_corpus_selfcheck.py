@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from agentic_rag.lint.health import health_check
+from agentic_rag.wiki.health import health_check
 from agentic_rag.wiki.model import load_wiki
 from agentic_rag.wiki.search import search
 from tests.fixtures.eval_corpus import (
