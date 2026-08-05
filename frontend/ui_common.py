@@ -79,9 +79,24 @@ def sidebar(agent: str, store: HistoryStore) -> None:
 
     Selecting a saved thread swaps ``thread_id``/``messages`` in session state
     and drops any pending HITL marker (a decision belongs to the prior thread).
+
+    The New chat button must render BEFORE the Thread selectbox: clicking it
+    writes the fresh id into the selector's keyed widget state, which Streamlit
+    only allows before the widget is instantiated in the same run. Without the
+    reset the selectbox restores the previous thread on the next run and
+    instantly reverts the new chat to the old transcript.
     """
     with st.sidebar:
         st.header(f":material/{AGENT_ICONS[agent]}: {AGENTS[agent]}")
+        if st.button("🧹 New chat", key=f"{agent}_new_chat"):
+            fresh = str(uuid4())
+            st.session_state[f"{agent}_thread_id"] = fresh
+            st.session_state[f"{agent}_messages"] = []
+            st.session_state.pop(f"{agent}_pending", None)
+            # Reset the selector's keyed state (not yet instantiated this run)
+            # so it can't restore the old thread and hijack the fresh chat.
+            st.session_state[f"{agent}_thread_select"] = fresh
+            st.rerun()
         current = st.session_state[f"{agent}_thread_id"]
         threads = store.list_threads(agent)
         if threads:
@@ -99,11 +114,6 @@ def sidebar(agent: str, store: HistoryStore) -> None:
                 st.rerun()
         else:
             st.caption("No saved threads yet.")
-        if st.button("🧹 New chat", key=f"{agent}_new_chat"):
-            st.session_state[f"{agent}_thread_id"] = str(uuid4())
-            st.session_state[f"{agent}_messages"] = []
-            st.session_state.pop(f"{agent}_pending", None)
-            st.rerun()
         if threads:
             if st.button("Delete selected", key=f"{agent}_delete_thread"):
                 store.delete(agent, chosen)

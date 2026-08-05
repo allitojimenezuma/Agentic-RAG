@@ -139,6 +139,41 @@ class TestHealthCheck:
         report = _run(tmp_path)
         assert all(not i.slug.startswith("lint-report-") for i in report.issues)
 
+    def test_parenthetical_and_accented_titles_register_in_index(self, tmp_path):
+        """Regression for the 2026-08-05 report H2: pages whose display titles
+        contain parentheses or accents were flagged missing-index although they
+        ARE listed — read_index derived entry slugs without the canonical
+        slugify normalization. Titles like 'CSAR (Cloud System Architecture for
+        Robotics)' and 'Javier González Jiménez' must register."""
+        wiki = tmp_path / "wiki"
+        (wiki / "entities").mkdir(parents=True)
+        pages = [
+            ("entities/python", "Python", "- [[entities/csar-cloud-system-architecture-for-robotics]]\n- [[entities/javier-gonzalez-jimenez]]\n- [[entities/jose-raul-ruiz-sarmiento]]\n"),
+            ("entities/csar-cloud-system-architecture-for-robotics", "CSAR (Cloud System Architecture for Robotics)", "- [[entities/python]]\n"),
+            ("entities/javier-gonzalez-jimenez", "Javier González Jiménez", "- [[entities/python]]\n"),
+            ("entities/jose-raul-ruiz-sarmiento", "José Raúl Ruiz Sarmiento", "- [[entities/python]]\n"),
+        ]
+        for slug, title, related in pages:
+            fm = Frontmatter(slug=slug, type="entity", title=title, sources=[],
+                             updated=REF_DATE, tags=[])
+            body = _content(title, related=related)
+            path = wiki / f"{slug}.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(serialize_frontmatter(fm) + body, encoding="utf-8")
+        # Index entries exactly as regenerate_index would write them: [[Title]].
+        (wiki / "index.md").write_text(
+            "# Wiki Index\n\n## Entities\n"
+            "- [[Python]] - hub | Sources: manual | Updated: 2026-07-01\n"
+            "- [[CSAR (Cloud System Architecture for Robotics)]] - Cloud infra | Sources: manual | Updated: 2026-07-01\n"
+            "- [[Javier González Jiménez]] - Researcher | Sources: manual | Updated: 2026-07-01\n"
+            "- [[José Raúl Ruiz Sarmiento]] - Researcher | Sources: manual | Updated: 2026-07-01\n",
+            encoding="utf-8",
+        )
+        report = health_check(wiki)
+        kinds = {i.slug: i.kind for i in report.issues}
+        assert "missing-index" not in kinds.values()
+        assert all(slug not in kinds for slug, _, _ in pages)
+
     def test_broken_link_detected_from_raw_target(self, tmp_path):
         report = _run(tmp_path)
         bi = next(i for i in report.issues if i.kind == "broken-link")

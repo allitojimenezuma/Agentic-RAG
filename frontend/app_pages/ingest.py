@@ -1,11 +1,13 @@
 """Streamlit page: raw-source ingest with full HITL (approve/reject/edit).
 
 Natural-language chat input (passed through as-is) plus a raw-source picker:
-``st.selectbox("Source in raw/", …)`` lists relative paths of files under
-``settings.raw_sources_path`` (recursive); "Run" submits ``Ingest <relpath>`` —
-exactly the message the CLI's ``ingest`` command builds for a file path. The
-picker reads ONLY: the UI never writes to ``raw/`` (users drop raw documents
-there themselves). Everything turn-related — streaming chips, the HITL decision
+``st.selectbox("Source in raw/", …)`` lists paths of files under
+``settings.raw_sources_path`` (recursive) relative to that dir; "Run" submits
+``Ingest <raw-path>/<relpath>`` (e.g. ``Ingest raw/foo.pdf``) — exactly the
+message the CLI's ``ingest`` command builds when the user types the file path
+from the repo root, which is how ``read_source`` resolves paths. The picker
+reads ONLY: the UI never writes to ``raw/`` (users drop raw documents there
+themselves). Everything turn-related — streaming chips, the HITL decision
 widgets (Approve all / Reject all + feedback / Edit resolution for
 flag_contradiction), durable history — comes from the shared
 ``ui_common.run_turn("ingest", …)`` shell; this page only wires the inputs.
@@ -71,7 +73,8 @@ st.caption("Chat with the ingest agent or pick a raw/ source")
 
 # --- Raw-source picker (reads raw/ ONLY; users upload files there themselves).
 run_clicked = False
-raw_sources = list_raw_sources(_builders.get_settings().raw_sources_path)
+raw_path = _builders.get_settings().raw_sources_path
+raw_sources = list_raw_sources(raw_path)
 if raw_sources:
     with st.container(border=True):
         selected = st.selectbox("Source in raw/", raw_sources)
@@ -88,6 +91,8 @@ if st.session_state.get("ingest_pending") is not None:
     # for a stale marker). The message arg is unused on the resume path.
     run_turn(AGENT, AGENT_NAME, "", store)
 elif run_clicked:
-    run_turn(AGENT, AGENT_NAME, f"Ingest {selected}", store)
+    # The picker yields paths relative to raw/, but read_source resolves against
+    # the process CWD (repo root). Submit `Ingest raw/<relpath>` like the CLI.
+    run_turn(AGENT, AGENT_NAME, f"Ingest {(raw_path / selected).as_posix()}", store)
 elif prompt := st.chat_input("Ask the ingest agent…"):
     run_turn(AGENT, AGENT_NAME, prompt, store)

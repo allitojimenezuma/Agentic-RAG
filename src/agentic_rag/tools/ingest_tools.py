@@ -8,6 +8,7 @@ from datetime import date, datetime
 from langchain_core.tools import tool
 
 from agentic_rag.io.log import append_log as _append_log
+from agentic_rag.io.markdown_parser import slugify
 from agentic_rag.io.source_loader import SourceLoader
 from agentic_rag.io.wiki_io import (
     _resolve_page_path,
@@ -20,6 +21,26 @@ from agentic_rag.schemas.wiki import Frontmatter, LogEntry
 from agentic_rag.tools.shared import get_wiki_path
 
 logger = logging.getLogger(__name__)
+
+# Allowed page types per the wiki schema (AGENTS.md).
+_ALLOWED_TYPES = {"entity", "concept", "source", "comparison", "overview"}
+
+# First path segment -> expected page type. Kept in sync with wiki.model.DIR_TO_TYPE.
+_DIR_TO_TYPE = {
+    "entities": "entity",
+    "concepts": "concept",
+    "sources": "source",
+    "comparisons": "comparison",
+}
+
+# Auto-prefix directory from page_type when the slug has no path separator.
+# Overview pages live at the wiki root; everything else gets a subdirectory.
+_TYPE_DIR = {
+    "entity": "entities",
+    "concept": "concepts",
+    "source": "sources",
+    "comparison": "comparisons",
+}
 
 
 def _strip_embedded_frontmatter(content: str) -> str:
@@ -57,22 +78,77 @@ def create_page(
     sources: list[str] | None = None,
     tags: list[str] | None = None,
 ) -> str:
-    """Create a new wiki page. Fails if the page already exists. Use update_page for existing pages."""
+    """Create a new wiki page. Fails if the page already exists. Use update_page for existing pages.
+
+    Validates the page before writing: page_type must be known, the slug is
+    normalized (ASCII, lowercase, hyphens — never accents or spaces), the slug
+    directory must match the page type (entities/ -> entity, ...), and the title
+    must slugify to the slug basename so that [[title]] links always resolve.
+    """
     logger.debug("Creating page: %s (type=%s)", slug, page_type)
+
+    # 1. Known page type.
+    if page_type not in _ALLOWED_TYPES:
+        return (
+            f"Error: Unknown page_type '{page_type}'. Must be one of: "
+            f"{', '.join(sorted(_ALLOWED_TYPES))}. People, organizations, software "
+            f"and companies are 'entity'; abstract ideas and techniques are 'concept'."
+        )
+
+    # 2. Normalize the slug per-segment (slugify strips accents and special
+    #    characters) so filenames are always ASCII/lowercase/hyphenated.
+    raw_slug = slug
+    normalized = [seg for seg in (slugify(seg) for seg in slug.split("/")) if seg]
+    slug = "/".join(normalized).strip("/")
+    if not slug:
+        return (
+            f"Error: Invalid slug '{raw_slug}': it normalizes to an empty slug. "
+            "Use a name containing letters or digits."
+        )
+
+    # 3. Auto-prefix directory from page_type when the slug has no path separator.
+    if "/" not in slug and page_type in _TYPE_DIR:
+        slug = f"{_TYPE_DIR[page_type]}/{slug}"
+
+    # 4. Type <-> directory consistency (entities/ -> entity, ...). Prevents e.g.
+    #    a person page under entities/ being typed 'concept'.
+    directory = slug.split("/", 1)[0]
+    expected_type = _DIR_TO_TYPE.get(directory)
+    if expected_type is not None and expected_type != page_type:
+        return (
+            f"Error: slug '{slug}' lives under '{directory}/' but page_type is "
+            f"'{page_type}'. Pages under {directory}/ must use page_type "
+            f"'{expected_type}'. People, organizations, software and companies "
+            "are type 'entity'."
+        )
+
+    # 5. Title must slugify to the slug basename so [[title]] links resolve.
+    #    This is the root cause of the Vision-Language Models (VLM) breakage:
+    #    the title slugified to 'vision-language-models-vlm' but the slug was
+    #    'vision-language-models', so every [[title]] link dangled.
+    basename = slug.rsplit("/", 1)[-1]
+    title_slug = slugify(title)
+    if title_slug != basename:
+        return (
+            f"Error: title '{title}' slugifies to '{title_slug}', which does not "
+            f"match the page slug basename '{basename}'. Links use the title as "
+            "[[text]] and resolve by slugifying it, so the title must slugify to "
+            "the slug — drop special characters or parentheticals from the title "
+            f"(e.g. '{basename}' or a human-readable variant of it)."
+        )
+
+    # 6. Soft warning: the title is the raw slug, not a display title.
+    warning = ""
+    if title == basename:
+        warning = (
+            f" Note: title '{title}' is the raw slug, not a display title — prefer "
+            f"a human-readable title (e.g. 'Álvaro Jiménez Martínez' for slug "
+            "'alvaro-jimenez-martinez')."
+        )
+
     if page_exists(get_wiki_path(), slug):
         logger.debug("Page already exists: %s", slug)
         return f"Error: Page '{slug}' already exists. Use update_page to modify it."
-
-    # Auto-prefix directory from page_type when the slug has no path separator.
-    # Overview pages live at the wiki root; everything else gets a subdirectory.
-    _TYPE_DIR = {
-        "entity": "entities",
-        "concept": "concepts",
-        "source": "sources",
-        "comparison": "comparisons",
-    }
-    if "/" not in slug and page_type in _TYPE_DIR:
-        slug = f"{_TYPE_DIR[page_type]}/{slug}"
 
     # Ensure parent directory exists (e.g. entities/ for slug 'entities/foo')
     target = get_wiki_path() / f"{slug}.md"
@@ -89,7 +165,7 @@ def create_page(
     content = _strip_embedded_frontmatter(content)
     _write_page(get_wiki_path(), slug, content, frontmatter=fm)
     logger.debug("Page written: %s", slug)
-    return f"Created page: {slug} (type={page_type}, title={title})"
+    return f"Created page: {slug} (type={page_type}, title={title}){warning}"
 
 
 @tool

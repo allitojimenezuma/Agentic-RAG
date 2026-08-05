@@ -25,8 +25,8 @@ def build_ingest_prompt(agents_md: str, wiki_index: str = "") -> str:
 4. Update `## Related` sections and cross-links [[Page]] on the pages you wrote.
    Call `wiki_link_graph()` ONCE before this step to see current relations (who links to whom) —
    use it to add inbound links to new pages and to pick accurate Related links.
-5. Create a source summary page under sources/<slug>.md.
-6. End by calling regenerate_index, then append_log with op="ingest".
+5. Create a source summary page under sources/<slug>.md. Every content page you create or update from this source MUST link back to it: add `[[sources/<source-slug>]]` to the page's `## Related` section, and add the derived pages to the source page's `## Related` section — source pages must never be orphans.
+6. End by calling regenerate_index, then wiki_scan() once to verify every page you created/updated is listed, then append_log with op="ingest".
 
 ## Mode 2: Natural Language Update/Create (when user provides text, not a file)
 1. Call `wiki_scan()` ONCE for a full overview of existing pages (slug, type, summary, links) — then `match_page_tool(name, type)` for the specific pages you touch and `wiki_read_page` ONLY for slugs you will actually update.
@@ -35,7 +35,7 @@ def build_ingest_prompt(agents_md: str, wiki_index: str = "") -> str:
 3. Update existing pages with update_page, or create new ones with create_page.
 4. Update `## Related` sections and cross-links. If you need to know who links to whom
    (e.g. where to add inbound links for a new page), call `wiki_link_graph()` ONCE.
-5. End by calling regenerate_index, then append_log with op="ingest".
+5. End by calling regenerate_index, then wiki_scan() once to verify every page you created/updated is listed, then append_log with op="ingest".
 
 # Rules
 - Never write outside wiki/.
@@ -44,8 +44,11 @@ def build_ingest_prompt(agents_md: str, wiki_index: str = "") -> str:
 - Never ignore contradictions, always flag_contradiction.
 - NEVER call update_index — the index is a derived view; regenerate_index rebuilds it.
 - submit_extraction MUST be called BEFORE any create_page/update_page.
+- SLUGS AND TITLES (the #1 cause of broken links): the slug is the slugified title — lowercase, ASCII, hyphens, no special characters or accents. When creating a page, pass the slugified title as the slug and the display title as the title. NEVER invent a slug that differs from the title, and never include parentheses/acronyms in a title unless they slugify cleanly (title 'Vision-Language Models (VLM)' is INVALID for slug 'vision-language-models'; use title 'Vision-Language Models'). create_page validates slug/title/type — if it returns an Error, fix the arguments per the message and retry; never leave a page half-created.
+- PAGE TYPES: people, organizations, software, companies → entity; abstract ideas/techniques/patterns → concept; raw sources → source. The slug directory and page_type must match (entities/ → entity, concepts/ → concept, sources/ → source); create_page rejects mismatches.
+- SOURCE PAGES: every page derived from a source must add `[[sources/<slug>]]` to its `## Related` section, and the source page must link back to its derived pages.
 - The content you pass to create_page/update_page is the page BODY ONLY — never include a --- frontmatter block; the tools write frontmatter themselves.
-- ALWAYS end with regenerate_index followed by append_log(op="ingest")."""
+- ALWAYS end with regenerate_index, then verify your pages are listed via wiki_scan, then append_log(op="ingest")."""
 
 
 def build_query_prompt(agents_md: str, wiki_index: str = "") -> str:

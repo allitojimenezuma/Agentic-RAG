@@ -142,6 +142,102 @@ class TestCreatePageFrontmatterStrip:
             init_shared_tools(DEFAULT_WIKI_PATH)
 
 
+class TestCreatePageValidation:
+    """create_page guards against the slug/title/type mistakes seen in the
+    2026-08-05 ingest run (broken links, wrong type, non-ASCII slugs)."""
+
+    def test_normalizes_non_ascii_slug(self, wiki_path: Path) -> None:
+        try:
+            init_shared_tools(wiki_path)
+            result = create_page.invoke({
+                "slug": "entities/málaga",
+                "page_type": "entity",
+                "title": "Málaga",
+                "content": "# Málaga\n\nA city in southern Spain.",
+            })
+            assert "Created page: entities/malaga" in result
+            assert (wiki_path / "entities/malaga.md").is_file()
+            assert not (wiki_path / "entities/málaga.md").exists()
+        finally:
+            init_shared_tools(DEFAULT_WIKI_PATH)
+
+    def test_rejects_unknown_page_type(self, wiki_path: Path) -> None:
+        try:
+            init_shared_tools(wiki_path)
+            result = create_page.invoke({
+                "slug": "entities/alvaro",
+                "page_type": "person",
+                "title": "Álvaro Jiménez",
+                "content": "# Álvaro Jiménez",
+            })
+            assert "Error" in result
+            assert "Unknown page_type" in result
+            assert "entity" in result  # suggests the correct types
+        finally:
+            init_shared_tools(DEFAULT_WIKI_PATH)
+
+    def test_rejects_type_directory_mismatch(self, wiki_path: Path) -> None:
+        try:
+            init_shared_tools(wiki_path)
+            result = create_page.invoke({
+                "slug": "entities/alvaro-jimenez-martinez",
+                "page_type": "concept",
+                "title": "Álvaro Jiménez Martínez",
+                "content": "# Álvaro Jiménez Martínez",
+            })
+            assert "Error" in result
+            assert "must use page_type 'entity'" in result
+            assert not (wiki_path / "entities/alvaro-jimenez-martinez.md").exists()
+        finally:
+            init_shared_tools(DEFAULT_WIKI_PATH)
+
+    def test_rejects_title_that_does_not_slugify_to_slug(self, wiki_path: Path) -> None:
+        """The exact root cause of the broken-link lint issue: title with a
+        parenthetical slugifies to 'vision-language-models-vlm', not the slug."""
+        try:
+            init_shared_tools(wiki_path)
+            result = create_page.invoke({
+                "slug": "concepts/vision-language-models",
+                "page_type": "concept",
+                "title": "Vision-Language Models (VLM)",
+                "content": "# Vision-Language Models",
+            })
+            assert "Error" in result
+            assert "vision-language-models" in result
+            assert not (wiki_path / "concepts/vision-language-models.md").exists()
+        finally:
+            init_shared_tools(DEFAULT_WIKI_PATH)
+
+    def test_warns_when_title_is_raw_slug(self, wiki_path: Path) -> None:
+        """M1 regression: a raw slug is not a display title (soft warning only)."""
+        try:
+            init_shared_tools(wiki_path)
+            result = create_page.invoke({
+                "slug": "entities/alvaro-jimenez-martinez",
+                "page_type": "entity",
+                "title": "alvaro-jimenez-martinez",
+                "content": "# Álvaro Jiménez Martínez\n\nBackend engineer.",
+            })
+            assert "Created page: entities/alvaro-jimenez-martinez" in result
+            assert "Note: title" in result
+        finally:
+            init_shared_tools(DEFAULT_WIKI_PATH)
+
+    def test_auto_prefixes_directory_and_reports_normalized_slug(self, wiki_path: Path) -> None:
+        try:
+            init_shared_tools(wiki_path)
+            result = create_page.invoke({
+                "slug": "Málaga",  # no directory, non-ASCII
+                "page_type": "entity",
+                "title": "Málaga",
+                "content": "# Málaga\n\nA city.",
+            })
+            assert "Created page: entities/malaga" in result
+            assert (wiki_path / "entities/malaga.md").is_file()
+        finally:
+            init_shared_tools(DEFAULT_WIKI_PATH)
+
+
 class TestUpdatePageFrontmatterStrip:
     def test_strips_embedded_frontmatter_preserves_existing_fm(self, wiki_path: Path) -> None:
         try:

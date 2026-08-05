@@ -55,7 +55,7 @@ def build_fix_agent(settings) -> object:
     ]
 
     return build_agent(
-        model=get_model(settings),
+        model=get_model(settings, cache_key="wiki-fix"),
         tools=tools,
         system_prompt=build_fix_prompt(agents_md, wiki_index=wiki_index),
         middleware=middleware,

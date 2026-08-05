@@ -89,6 +89,26 @@ cp .env.example .env
 | `RECURSION_LIMIT` | `30` | Max agent loop turns |
 | `HITL_ENABLED` | `true` | Enable human-in-the-loop |
 
+### OpenCode Go prompt caching
+
+When `OPENAI_BASE_URL` points at the OpenCode Go gateway
+(`https://opencode.ai/zen/go/v1`), every request is automatically instrumented
+with prompt-cache fields: a stable per-agent `prompt_cache_key`
+(`wiki-query`, `wiki-lint`, `wiki-fix`, `wiki-ingest`),
+`prompt_cache_retention: "24h"`, `cache_control` breakpoints on the system
+prompt, the last two messages, and the last tool — plus an
+`x-opencode-session` header with the same session id, which is how the
+[OpenCode Zen](https://opencode.ai) usage dashboard groups requests into
+sessions and how the gateway pins requests to the same upstream provider
+(`x-session-affinity`), keeping the upstream prompt cache warm. Cache reads
+are 5–120× cheaper than input tokens on opencode-go models; the gateway
+default is only ~5 minutes with no session key. Verified live:
+`cache_read` went from 0 → 384/503 tokens on the second identical call.
+
+Set `OPENCODE_GO_CACHE=0` in the environment to disable the instrumentation.
+Models whose downstream API rejects `cache_control` markers (glm/zhipu) are
+skipped automatically.
+
 ## CLI Usage
 
 ### Ingest a Source

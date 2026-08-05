@@ -10,6 +10,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+from agentic_rag.io.markdown_parser import slugify
 from agentic_rag.schemas.wiki import Index, IndexEntry
 
 _SECTION_TO_TYPE = {
@@ -73,11 +74,19 @@ def read_index(wiki_path: Path) -> Index:
 
         # Parse [[link]] entries
         for m in _ENTRY_RE.finditer(section_content):
-            title = m.group(1).strip()
+            raw_title = m.group(1).strip()
+            # Strip any |alias suffix; the link target is what resolves to a slug.
+            target, _, alias = raw_title.partition("|")
+            target = target.strip()
             summary = m.group(2).strip()
             source_raw = m.group(3)
             updated_str = m.group(4).strip()
-            slug = title.lower().replace(" ", "-")
+            # Canonical slug derivation (mirrors markdown_parser.slugify used by
+            # match/link resolution) — naive lower+replace kept parentheses and
+            # accents, so entries like [[CSAR (Cloud System Architecture for
+            # Robotics)]] or [[Javier González Jiménez]] never registered as
+            # matching their page slugs.
+            slug = slugify(target)
             sources = _parse_source_field(source_raw)
             page_type = _SECTION_TO_TYPE.get(section_name, section_name.rstrip("s"))
             entries.append(
@@ -87,7 +96,7 @@ def read_index(wiki_path: Path) -> Index:
                     type=page_type,
                     sources=sources,
                     updated=date.fromisoformat(updated_str),
-                    display_name=title,
+                    display_name=alias.strip() if alias else target,
                 )
             )
 
@@ -125,6 +134,16 @@ def _format_entry(entry: IndexEntry) -> str:
         sources_str = ", ".join(entry.sources) if entry.sources else "manual"
         # Preserve original casing if available, otherwise derive from slug
         display_name = entry.display_name or entry.slug.replace("-", " ").title()
+        # Links resolve by slugifying their text, so an index entry whose display
+        # title does not slugify to the page slug (e.g. 'pi (pi-subagents)') would
+        # be a dangling link. Fall back to [[slug|title]] so the entry always
+        # resolves to the page while keeping the human-readable display text.
+        basename = entry.slug.rsplit("/", 1)[-1]
+        if slugify(display_name) != basename:
+            return (
+                f"- [[{basename}|{display_name}]] - {entry.summary} "
+                f"| Sources: {sources_str} | Updated: {updated_str}"
+            )
         return (
             f"- [[{display_name}]] - {entry.summary} "
             f"| Sources: {sources_str} | Updated: {updated_str}"

@@ -144,7 +144,7 @@ class TestCreatePage:
         result = create_page.invoke({
             "slug": "concepts/ai",
             "page_type": "concept",
-            "title": "Artificial Intelligence",
+            "title": "AI",
             "content": "# AI\n\nMachine intelligence.",
             "sources": ["test.pdf"],
             "tags": ["ml"],
