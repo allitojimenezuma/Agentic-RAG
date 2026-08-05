@@ -17,6 +17,7 @@ import logging
 import os
 from typing import Any
 
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,50 @@ def _unsupported_for_cache(model: str) -> bool:
     """Models that reject cache instrumentation outright."""
     model = model.lower()
     return any(p in model for p in _UNSUPPORTED_CACHE_MODEL_PATTERNS)
+
+
+def _reasoning_delta_from_chunk(chunk: dict) -> str:
+    """Extract the ``reasoning_content`` delta from a raw streaming chunk.
+
+    Reasoning providers (e.g. DeepSeek thinking mode) stream the thinking text
+    as ``delta.reasoning_content`` alongside the answer content. Handles both
+    the plain SSE chunk dict and the ``beta.chat.completions.stream`` wrapper
+    (``{"chunk": {...}}``). langchain-openai drops this field when converting
+    deltas to message chunks, so we pull it out here and stash it in
+    ``additional_kwargs`` so it survives the turn.
+    """
+    if not isinstance(chunk, dict):
+        return ""
+    raw = chunk.get("chunk") if "chunk" in chunk else chunk
+    if not isinstance(raw, dict):
+        return ""
+    choices = raw.get("choices") or []
+    if not choices:
+        return ""
+    delta = (choices[0] or {}).get("delta") or {}
+    rc = delta.get("reasoning_content")
+    return rc if isinstance(rc, str) else ""
+
+
+def _stamp_reasoning(payload: dict, messages: list[BaseMessage]) -> None:
+    """Re-inject assistant ``reasoning_content`` into the outgoing payload.
+
+    Reasoning models require the thinking text of every previous assistant
+    turn to be passed back unchanged; langchain-openai's
+    ``_convert_message_to_dict`` only forwards tool_calls/function_call/audio,
+    so without this the history silently loses it and the upstream rejects the
+    request with ``reasoning_content in the thinking mode must be passed back``.
+    The chat/completions ``messages`` list is built 1:1 from ``messages``, so a
+    zip is safe; other payload shapes (responses API) are left untouched.
+    """
+    payload_messages = payload.get("messages")
+    if not isinstance(payload_messages, list) or len(payload_messages) != len(messages):
+        return
+    for out, msg in zip(payload_messages, messages):
+        if isinstance(msg, AIMessage):
+            reasoning = msg.additional_kwargs.get("reasoning_content")
+            if reasoning:
+                out["reasoning_content"] = reasoning
 
 
 def _strip_stale_cache_control(payload: dict) -> None:
@@ -132,6 +177,12 @@ class _OpencodeGoCachedChat(ChatOpenAI):
 
     Instrumentation is best-effort: any failure just sends the request
     unchanged (never breaks the LLM call).
+
+    Also preserves ``reasoning_content`` (thinking-mode text) across turns:
+    captured when responses arrive (see ``_create_chat_result`` /
+    ``_convert_chunk_to_generation_chunk`` / ``astream``) and re-injected into
+    assistant messages in ``_get_request_payload``, because reasoning models
+    reject requests whose history is missing it.
     """
 
     prompt_cache_key: str = "default"
@@ -144,6 +195,13 @@ class _OpencodeGoCachedChat(ChatOpenAI):
         **kwargs: Any,
     ) -> dict:
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+        # Reasoning passthrough is independent of prompt-cache instrumentation:
+        # thinking-mode providers reject requests whose history dropped
+        # reasoning_content, so re-inject it whenever we have it.
+        try:
+            _stamp_reasoning(payload, self._convert_input(input_).to_messages())
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("reasoning_content passthrough skipped: %s", exc)
         if not _CACHE_ENABLED or _unsupported_for_cache(self.model_name):
             return payload
         try:
@@ -159,6 +217,64 @@ class _OpencodeGoCachedChat(ChatOpenAI):
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("opencode-go prompt-cache instrumentation skipped: %s", exc)
         return payload
+
+    def _create_chat_result(
+        self,
+        response: Any,
+        generation_info: dict | None = None,
+    ) -> Any:
+        """Capture ``reasoning_content`` from non-streamed responses."""
+        result = super()._create_chat_result(response, generation_info=generation_info)
+        response_dict = (
+            response if isinstance(response, dict) else response.model_dump(warnings=False)
+        )
+        choices = response_dict.get("choices") or []
+        for gen, choice in zip(result.generations, choices):
+            if not isinstance(gen.message, AIMessage):
+                continue
+            reasoning = (choice.get("message") or {}).get("reasoning_content")
+            if reasoning:
+                gen.message.additional_kwargs["reasoning_content"] = reasoning
+        return result
+
+    def _convert_chunk_to_generation_chunk(
+        self,
+        chunk: dict,
+        default_chunk_class: Any,
+        base_generation_info: dict | None,
+    ) -> Any:
+        """Stash per-chunk ``reasoning_content`` deltas before langchain drops them."""
+        gen = super()._convert_chunk_to_generation_chunk(
+            chunk, default_chunk_class, base_generation_info
+        )
+        if gen is not None and isinstance(gen.message, AIMessageChunk):
+            reasoning = _reasoning_delta_from_chunk(chunk)
+            if reasoning:
+                gen.message.additional_kwargs["reasoning_content"] = reasoning
+        return gen
+
+    async def astream(self, input_: Any, config: Any = None, **kwargs: Any) -> Any:
+        """Accumulate reasoning deltas so every yielded chunk carries the FULL
+        thinking text of the turn (a single chunk only holds one delta)."""
+        reasoning: list[str] = []
+        async for chunk in super().astream(input_, config=config, **kwargs):
+            rc = (chunk.additional_kwargs or {}).get("reasoning_content")
+            if rc:
+                reasoning.append(rc)
+            if reasoning:
+                chunk.additional_kwargs["reasoning_content"] = "".join(reasoning)
+            yield chunk
+
+    def stream(self, input_: Any, config: Any = None, **kwargs: Any) -> Any:
+        """Sync twin of :meth:`astream` — same reasoning accumulation."""
+        reasoning: list[str] = []
+        for chunk in super().stream(input_, config=config, **kwargs):
+            rc = (chunk.additional_kwargs or {}).get("reasoning_content")
+            if rc:
+                reasoning.append(rc)
+            if reasoning:
+                chunk.additional_kwargs["reasoning_content"] = "".join(reasoning)
+            yield chunk
 
 
 def get_model(settings: Any, cache_key: str | None = None) -> ChatOpenAI:
