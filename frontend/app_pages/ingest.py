@@ -27,7 +27,7 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from frontend import agents as _agents  # noqa: E402  (needs repo root on sys.path)
+from frontend import builders as _builders  # noqa: E402  (needs repo root on sys.path)
 from frontend.history_store import DEFAULT_ROOT, HistoryStore  # noqa: E402
 from frontend.ui_common import (  # noqa: E402
     init_page,
@@ -71,7 +71,7 @@ st.caption("Chat with the ingest agent or pick a raw/ source")
 
 # --- Raw-source picker (reads raw/ ONLY; users upload files there themselves).
 run_clicked = False
-raw_sources = list_raw_sources(_agents.get_settings().raw_sources_path)
+raw_sources = list_raw_sources(_builders.get_settings().raw_sources_path)
 if raw_sources:
     with st.container(border=True):
         selected = st.selectbox("Source in raw/", raw_sources)

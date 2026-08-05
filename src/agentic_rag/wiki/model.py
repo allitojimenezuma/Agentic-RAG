@@ -25,7 +25,7 @@ from agentic_rag.schemas.wiki import Frontmatter, Heading, Link
 logger = logging.getLogger(__name__)
 
 # First path segment -> page type, used for frontmatter-less pages.
-_DIR_TO_TYPE = {
+DIR_TO_TYPE = {
     "entities": "entity",
     "concepts": "concept",
     "sources": "source",
@@ -138,7 +138,7 @@ def _synthesize_frontmatter(
 ) -> Frontmatter:
     """Build a Frontmatter from path/body when parsing fails or is absent."""
     first_segment = slug.split("/", 1)[0] if "/" in slug else ""
-    page_type = _DIR_TO_TYPE.get(first_segment, "unknown")
+    page_type = DIR_TO_TYPE.get(first_segment, "unknown")
 
     title = slug.rsplit("/", 1)[-1]
     for heading in headings:

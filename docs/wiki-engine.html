@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic RAG — The Wiki Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b1220;
+    --surface: #111a2c;
+    --ink: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #60a5fa;
+    --accent-ink: #0b1220;
+    --accent-soft: #1a2b4a;
+    --border: #24344f;
+    --code-bg: #0d1626;
+    --code-ink: #dbe7ff;
+    --good: #2dd4bf;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --radius: 10px;
+    --shadow: 0 2px 10px rgba(0, 0, 0, .45);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 20px 80px; }
+  header.hero {
+    background:
+      radial-gradient(ellipse 80% 60% at 15% 0%, rgba(96, 165, 250, .14), transparent 60%),
+      radial-gradient(ellipse 70% 55% at 95% 100%, rgba(45, 212, 191, .07), transparent 55%),
+      var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 36px;
+    margin-bottom: 28px;
+    box-shadow: var(--shadow);
+  }
+  header.hero h1 { margin: 0 0 10px; font-size: 2rem; letter-spacing: -.02em; }
+  header.hero .tagline { font-size: 1.05rem; color: var(--muted); max-width: 720px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .chip {
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: .78rem;
+    font-weight: 500;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #c7d8f2;
+  }
+  .exec-summary {
+    background:
+      linear-gradient(180deg, rgba(96, 165, 250, .08), rgba(96, 165, 250, 0) 55%),
+      var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+  .exec-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .exec-summary h2 { margin: 0; padding: 0; border: none; font-size: 1.05rem; }
+  .exec-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: .88rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { background: #7db3fb; }
+  .btn-secondary { background: transparent; color: var(--ink); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .exec-points { margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  .exec-points li { position: relative; padding-left: 26px; font-size: .92rem; }
+  .exec-points li::before {
+    content: "✓";
+    position: absolute;
+    left: 2px;
+    top: 1px;
+    color: var(--good);
+    font-weight: 700;
+  }
+  .exec-points strong { color: #dbe7ff; }
+  .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+  nav.toc {
+    position: sticky;
+    top: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 12px;
+    font-size: .88rem;
+    box-shadow: var(--shadow);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+  }
+  nav.toc h2 { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+  nav.toc ol { margin: 0; padding-left: 18px; }
+  nav.toc li { margin: 3px 0; }
+  nav.toc a { color: var(--ink); text-decoration: none; }
+  nav.toc a:hover { color: var(--accent); text-decoration: underline; }
+  main { min-width: 0; }
+  section.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 28px;
+    margin-bottom: 24px;
+    scroll-margin-top: 16px;
+  }
+  h2 { font-size: 1.35rem; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--accent-soft); }
+  h3 { font-size: 1.08rem; margin: 22px 0 8px; color: #c7d8f2; }
+  h4 { font-size: .95rem; margin: 16px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  p { margin: 8px 0; }
+  code {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-radius: 5px;
+    padding: 1.5px 6px;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .86em;
+  }
+  pre {
+    background: #0a121e;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: .85rem;
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, .35);
+  }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: .88rem; }
+  th, td { border: none; padding: 9px 10px; text-align: left; vertical-align: top; }
+  th {
+    background: var(--accent-soft);
+    color: #dbe7ff;
+    font-weight: 600;
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    border-bottom: 2px solid var(--border);
+  }
+  td { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: #0e1728; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  .mermaid {
+    background: #0e1626;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 12px 0 6px;
+    text-align: center;
+    overflow-x: auto;
+  }
+  figcaption {
+    font-size: .82rem;
+    color: var(--muted);
+    font-style: italic;
+    margin: 0 0 16px;
+    text-align: center;
+  }
+  figure { margin: 18px 0; }
+  .note {
+    background: var(--accent-soft);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    font-size: .9rem;
+    margin: 12px 0;
+  }
+  .note.warn { background: #2b2412; border-left-color: var(--warn); }
+  .badge {
+    display: inline-block;
+    border-radius: 5px;
+    padding: 1px 8px;
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+  .b-green { background: #12332e; color: #5eead4; }
+  .b-amber { background: #3a2c10; color: #fcd34d; }
+  .b-red { background: #3a1620; color: #fca5a5; }
+  .b-blue { background: var(--accent-soft); color: var(--accent); }
+  .tool-list { font-size: .9rem; }
+  .tool-list code { display: inline-block; margin: 2px 3px 2px 0; }
+  footer { text-align: center; color: var(--muted); font-size: .82rem; margin-top: 30px; }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    section.card { padding: 20px 16px; }
+    header.hero { padding: 28px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <h1>The Wiki Engine — How the Code Manages the Wiki</h1>
+    <p class="tagline">
+      Everything below the agents is <strong>pure Python — zero LLM calls</strong>.
+      This page documents the code that reads, writes, searches, matches, indexes,
+      and audits the wiki: how names become slugs, how slugs become paths, how
+      <code>[[links]]</code> are resolved, how <code>index.md</code> is derived,
+      and how health is checked — all deterministically, all testable without a
+      network or a model.
+    </p>
+    <div class="chips">
+      <span class="chip">0 LLM calls</span>
+      <span class="chip">filesystem + frontmatter = source of truth</span>
+      <span class="chip">index.md is a derived view</span>
+      <span class="chip">BM25 + bounded link expansion</span>
+      <span class="chip">7 health-check kinds</span>
+      <span class="chip">atomic writes everywhere</span>
+    </div>
+  </header>
+
+  <!-- ============ Executive summary ============ -->
+  <section class="exec-summary" aria-label="Executive summary">
+    <div class="exec-head">
+      <h2>Executive Summary</h2>
+      <div class="exec-actions">
+        <a class="btn btn-primary" href="documentation.html">The Agents →</a>
+        <a class="btn btn-secondary" href="https://github.com/allitojimenezuma/Agentic-RAG" target="_blank" rel="noopener noreferrer">View GitHub Repository ↗</a>
+      </div>
+    </div>
+    <ul class="exec-points">
+      <li><strong>The filesystem is the source of truth.</strong> Pages on disk + their YAML frontmatter are reality. <code>index.md</code> and lint reports are <em>derived</em> — rebuilt by code, never hand-edited, so they cannot drift from the pages.</li>
+      <li><strong>One canonical model.</strong> <code>wiki/model.py</code> parses every page into a <code>Wiki(pages, by_slug)</code> model with sections, resolved links, and word counts. Search, match, index regeneration, and health checks all consume the same model — one parser, one set of semantics.</li>
+      <li><strong>Deterministic by construction.</strong> BM25 scores, the create/update/conflict decision tree, index entries, and health findings are all pure functions with stable ordering — unit-testable offline with no mocks.</li>
+      <li><strong>Safety is in the IO layer.</strong> Every write is atomic (temp file + rename), slugs are validated against path traversal, and the agents' path-guard middleware can only write inside <code>wiki/</code>.</li>
+    </ul>
+  </section>
+
+  <div class="layout">
+    <nav class="toc">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#s1">Why not classic RAG?</a></li>
+        <li><a href="#s2">The core principle</a></li>
+        <li><a href="#s3">Code map</a></li>
+        <li><a href="#s4">Slugs — names become paths</a></li>
+        <li><a href="#s5">Frontmatter — parse or synthesize</a></li>
+        <li><a href="#s6">The Wiki model</a></li>
+        <li><a href="#s7">Links — extraction &amp; resolution</a></li>
+        <li><a href="#s8">Search — BM25 + link expansion</a></li>
+        <li><a href="#s9">match_page — create / update / conflict</a></li>
+        <li><a href="#s10">The derived index</a></li>
+        <li><a href="#s11">The log</a></li>
+        <li><a href="#s12">Health check</a></li>
+        <li><a href="#s13">The IO layer — atomic writes &amp; path safety</a></li>
+        <li><a href="#s14">AGENTS.md — the schema as config</a></li>
+        <li><a href="#s15">How the agents consume the engine</a></li>
+        <li><a href="#s16">Testability</a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <!-- ============ 1. Why not classic RAG ============ -->
+      <section class="card" id="s1">
+        <h2>1. Why not classic RAG?</h2>
+        <p>
+          Classic RAG stores raw documents as chunks in a vector store. Every query pays the same
+          price: embed the question, retrieve the <em>same</em> chunks, and ask the model to
+          re-synthesize an answer from context. Nothing is learned between queries, cross-document
+          contradictions resurface constantly, and there is no notion of "knowledge that has already
+          been processed."
+        </p>
+        <p>
+          This project takes the opposite stance: <strong>the wiki is the artifact</strong>. A source
+          is ingested once into structured pages, links, and contradiction flags; queries then read a
+          small, curated, interlinked graph. Synthesis is still per-query, but retrieval and
+          understanding are not — and the code that maintains the wiki is a small, deterministic engine.
+        </p>
+        <table>
+          <thead>
+            <tr><th>Dimension</th><th>Chunk-based RAG</th><th>Wiki-based (this project)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Cost per query</td><td>Full retrieval + synthesis over raw chunks, every time</td><td>Small BM25 search over curated pages + navigation</td></tr>
+            <tr><td>Cross-document synthesis</td><td>Re-derived from scattered chunks each query</td><td>Compiled once into pages and <code>[[links]]</code></td></tr>
+            <tr><td>Contradictions</td><td>Both claims surface again and again</td><td>Detected at ingest, flagged for human resolution</td></tr>
+            <tr><td>Knowledge over time</td><td>Flat — a new source adds more chunks, not more understanding</td><td>Compounds — pages update, links grow, index is a derived view</td></tr>
+            <tr><td>Source latency</td><td>Queryable immediately, shallowly</td><td>Ingest is deeper, but the wiki answers better afterward</td></tr>
+            <tr><td>Failure mode</td><td>Hallucinated citations from irrelevant chunks</td><td>Cite-or-die grounding gate drops any unvisited citation</td></tr>
+          </tbody>
+        </table>
+        <p class="note">
+          The agents that drive this engine — ingest, query, lint, fix — are documented separately in
+          <a href="documentation.html" style="color: var(--accent);">documentation.html →</a>. This page
+          stays below the LLM layer: the code that makes the wiki behave like a wiki.
+        </p>
+      </section>
+
+      <!-- ============ 2. The core principle ============ -->
+      <section class="card" id="s2">
+        <h2>2. The core principle</h2>
+        <p>The whole design reduces to one ownership rule per layer:</p>
+        <table>
+          <thead>
+            <tr><th>Layer</th><th>Owner</th><th>Rules</th><th>Managed by</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>raw/</code></td><td>Immutable</td>
+              <td>Agents <strong>read</strong> sources, <strong>never write</strong>. The path guard
+                  blocks <code>raw/</code> paths on every write tool; <code>read_source</code> is the only exempt tool.</td>
+              <td><code>io/source_loader.py</code> (MarkItDown conversion)</td>
+            </tr>
+            <tr>
+              <td><code>wiki/</code></td><td>LLM-owned content, code-managed files</td>
+              <td>Pages (<code>entities/</code>, <code>concepts/</code>, <code>sources/</code>, …) plus
+                  <code>index.md</code> and <code>log.md</code>. <code>index.md</code> is a <strong>derived
+                  view</strong> — rebuilt atomically from the model, never hand-edited.</td>
+              <td><code>io/wiki_io.py</code>, <code>wiki/*.py</code>, <code>io/index.py</code>, <code>io/log.py</code></td>
+            </tr>
+            <tr>
+              <td><code>AGENTS.md</code></td><td>Schema / conventions</td>
+              <td>Page types, slug naming, <code>[[links]]</code>, frontmatter fields, update rules.
+                  Loaded and injected into every agent system prompt.</td>
+              <td><code>schemas/agents_md.py</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <figure>
+          <div class="mermaid">
+flowchart TB
+    subgraph L1["raw/ - immutable"]
+        SRC["Source documents (pdf / docx / md / html)"]
+    end
+    subgraph L2["wiki/ - LLM-owned, code-managed"]
+        PAGES["Pages: entities + concepts + sources + comparisons"]
+        IDX["index.md - derived view (never hand-edited)"]
+        LOG["log.md - append-only"]
+    end
+    SCH["AGENTS.md - schema, injected into every agent prompt"]
+    SRC -->|"read_source (MarkItDown)"| PAGES
+    PAGES -->|"regenerate_index"| IDX
+    PAGES -->|"append_log"| LOG
+    SCH -.-> PAGES
+          </div>
+          <figcaption>Figure 1 — Layer ownership: raw sources are immutable, wiki pages are LLM-owned
+          but code-managed, and the index is derived from the pages, never edited directly.</figcaption>
+        </figure>
+      </section>
+
+      <!-- ============ 3. Code map ============ -->
+      <section class="card" id="s3">
+        <h2>3. Code map</h2>
+        <p>Where each responsibility lives. Everything under <code>io/</code> and <code>wiki/</code>
+        is deterministic Python with zero LLM calls.</p>
+        <table>
+          <thead>
+            <tr><th>Module</th><th>Responsibility</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>io/wiki_io.py</code></td><td>Filesystem ops: list / read / write / delete pages, slug validation, atomic writes.</td></tr>
+            <tr><td><code>io/markdown_parser.py</code></td><td><code>slugify()</code>, <code>[[link]]</code> extraction, heading extraction, frontmatter parse/serialize.</td></tr>
+            <tr><td><code>io/index.py</code></td><td>Read / parse / write <code>wiki/index.md</code>: entry regexes, atomic write.</td></tr>
+            <tr><td><code>io/log.py</code></td><td>Append + tail <code>wiki/log.md</code> with timestamped, prefixed entries.</td></tr>
+            <tr><td><code>io/source_loader.py</code></td><td>MarkItDown conversion of raw sources (pdf, docx, html, …) to markdown.</td></tr>
+            <tr><td><code>wiki/model.py</code></td><td><code>load_wiki()</code> → in-memory <code>Wiki(pages, by_slug)</code>; page parsing, sections, link resolution.</td></tr>
+            <tr><td><code>wiki/search.py</code></td><td>BM25 search over page fields + bounded one-hop link expansion.</td></tr>
+            <tr><td><code>wiki/match.py</code></td><td>Deterministic create / update / conflict decision (<code>match_page</code>) + <code>@tool</code> wrapper.</td></tr>
+            <tr><td><code>wiki/dedupe_index.py</code></td><td><code>regenerate_index()</code> — rebuilds <code>index.md</code> from the Wiki model.</td></tr>
+            <tr><td><code>wiki/health.py</code></td><td>Deterministic health check: 7 structural issue kinds, severity map, report rendering.</td></tr>
+            <tr><td><code>schemas/wiki.py</code></td><td>Pydantic models: <code>Frontmatter</code>, <code>IndexEntry</code>, <code>Index</code>, <code>LogEntry</code>, <code>Heading</code>, <code>Link</code>.</td></tr>
+            <tr><td><code>schemas/agents_md.py</code></td><td>AGENTS.md loader (schema injected into agent prompts) with a built-in default.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ============ 4. Slugs ============ -->
+      <section class="card" id="s4">
+        <h2>4. Slugs — how names become paths</h2>
+        <p>
+          The slug is the single identity for a page: it <em>is</em> the file path relative to
+          <code>wiki/</code>, minus the <code>.md</code> extension. Names are normalized to slugs
+          by <code>slugify()</code> in <code>io/markdown_parser.py</code>:
+        </p>
+        <pre><code>def slugify(name: str) -> str:
+    # Normalize unicode to ASCII
+    name = unicodedata.normalize("NFKD", name)
+    name = name.encode("ascii", "ignore").decode("ascii")
+    # Lowercase and replace non-alphanumeric with hyphens
+    name = name.lower().strip()
+    name = re.sub(r"[^a-z0-9]+", "-", name)
+    # Collapse multiple hyphens and strip leading/trailing
+    name = re.sub(r"-+", "-", name).strip("-")
+    return name</code></pre>
+        <p>Two concrete transformations:</p>
+        <ul>
+          <li><code>"3D Gaussian Splatting"</code> → <code>3d-gaussian-splatting</code></li>
+          <li><code>"Álvaro Jiménez"</code> → <code>alvaro-jimenez</code> (NFKD strips accents first)</li>
+        </ul>
+        <h3>Directory structure mirrors page type</h3>
+        <p>
+          The first path segment of a slug determines the page type. <code>wiki/model.py</code> maps
+          directories to types when frontmatter is missing; <code>create_page</code> applies the
+          inverse mapping when the model submits a bare name:
+        </p>
+        <table>
+          <thead><tr><th>Page type</th><th>Directory</th><th>Example slug</th></tr></thead>
+          <tbody>
+            <tr><td><code>entity</code></td><td><code>entities/</code></td><td><code>entities/mlx</code></td></tr>
+            <tr><td><code>concept</code></td><td><code>concepts/</code></td><td><code>concepts/3d-gaussian-splatting</code></td></tr>
+            <tr><td><code>source</code></td><td><code>sources/</code></td><td><code>sources/cv</code></td></tr>
+            <tr><td><code>comparison</code></td><td><code>comparisons/</code></td><td><code>comparisons/mlx-vs-cuda</code></td></tr>
+            <tr><td><code>overview</code></td><td>wiki root</td><td><code>index</code>-style root pages</td></tr>
+          </tbody>
+        </table>
+        <p>
+          If <code>create_page</code> receives a slug with no <code>/</code> and a type that maps to a
+          directory, it auto-prefixes it (<code>mlx</code> + <code>entity</code> →
+          <code>entities/mlx</code>). Slugs with <code>/</code> are treated as relative paths inside
+          the wiki and are allowed; only path traversal (<code>..</code>) and absolute paths are
+          rejected by <code>_validate_slug</code>.
+        </p>
+        <figure>
+          <div class="mermaid">
+flowchart LR
+    NAME["Name: '3D Gaussian Splatting'"] --> SLUG["slugify() — NFKD → ascii → lowercase → hyphens"]
+    SLUG --> SL["slug: 3d-gaussian-splatting"]
+    SL --> T{"page_type maps to a directory?"}
+    T -- "concept" --> PATH["concepts/3d-gaussian-splatting.md"]
+    T -- "overview" --> ROOT["root-level page, no prefix"]
+    PATH --> VALID["_validate_slug: rejects '..' and absolute paths"]
+    ROOT --> VALID
+    VALID --> WRITE["atomic write — temp file + rename"]
+          </div>
+          <figcaption>Figure 2 — From a display name to a page path: slugify, directory prefixing by
+          page type, slug validation, then an atomic write.</figcaption>
+        </figure>
+        <h3>Reading by slug</h3>
+        <p>
+          <code>_resolve_page_path</code> (in <code>io/wiki_io.py</code>) resolves a slug to a file:
+          the direct path (<code>wiki/&lt;slug&gt;.md</code>) first, then a recursive basename search —
+          so the simple slug <code>mlx</code> finds <code>entities/mlx.md</code>. This is why agents
+          can say <code>wiki_read_page("mlx")</code> instead of the full path.
+        </p>
+      </section>
+
+      <!-- ============ 5. Frontmatter ============ -->
+      <section class="card" id="s5">
+        <h2>5. Frontmatter — parse or synthesize</h2>
+        <p>
+          Every page carries YAML frontmatter defined by the pydantic <code>Frontmatter</code> model
+          (<code>schemas/wiki.py</code>): <code>slug</code>, <code>type</code>, <code>title</code>,
+          <code>sources</code>, <code>updated</code>, <code>tags</code>. This is the structured half
+          of the "source of truth" — the search index, match decisions, and health checks all read it.
+        </p>
+        <pre><code>---
+slug: entities/mlx
+type: entity
+title: MLX
+sources:
+- cv.pdf
+updated: 2026-07-20
+tags:
+- ml
+- apple
+---</code></pre>
+        <p>
+          <code>parse_frontmatter</code> parses the block with <code>yaml.safe_load</code> and fills
+          sensible defaults for missing optional fields (<code>updated</code> → today,
+          <code>sources</code> / <code>tags</code> → <code>[]</code>).
+        </p>
+        <h3>The synthesis fallback — loading never raises</h3>
+        <p>
+          The wiki engine must survive pages the LLM wrote badly. If a page has no frontmatter, or its
+          frontmatter is malformed, <code>load_wiki</code> <em>synthesizes</em> one instead of crashing:
+        </p>
+        <ul>
+          <li><strong>type</strong> — inferred from the first path segment via <code>DIR_TO_TYPE</code> (<code>entities/</code> → <code>entity</code>, …); <code>"unknown"</code> for root pages.</li>
+          <li><strong>title</strong> — the first <code># H1</code> heading, or the slug basename when there is no H1.</li>
+          <li><strong>updated</strong> — the file's mtime (falling back to today).</li>
+        </ul>
+        <p class="note">
+          This is why the health check can flag <code>missing-frontmatter</code> (severity
+          <span class="badge b-red">critical</span>) while every downstream tool still works: the model
+          degrades gracefully, the audit reports the real state.
+        </p>
+      </section>
+
+      <!-- ============ 6. The Wiki model ============ -->
+      <section class="card" id="s6">
+        <h2>6. The Wiki model</h2>
+        <p>
+          <code>load_wiki(wiki_path)</code> parses the whole directory into one
+          <code>Wiki(pages, by_slug)</code> model (<code>wiki/model.py</code>). Every downstream
+          consumer — search, match, index regeneration, health check — uses this model, so parsing
+          semantics live in exactly one place.
+        </p>
+        <pre><code>class Page(BaseModel):
+    slug: str
+    rel_path: Path
+    fm: Frontmatter
+    sections: list[Section]   # heading + level + text
+    outbound_links: list[str] # resolved [[...]] targets
+    word_count: int
+
+class Wiki(BaseModel):
+    pages: list[Page]
+    by_slug: dict[str, Page]</code></pre>
+        <figure>
+          <div class="mermaid">
+flowchart LR
+    DIR["wiki/ directory"] --> LIST["list_pages — rglob *.md,<br/>excludes index.md + log.md"]
+    LIST --> SLUGS["slug = rel path minus .md<br/>full slug set built BEFORE link resolution"]
+    SLUGS --> FM{"frontmatter valid?"}
+    FM -- yes --> P["parse_frontmatter"]
+    FM -- no --> SYN["synthesize: type from dir,<br/>title from H1, updated from mtime"]
+    P --> SECT["sections — body split at headings,<br/>preamble prepended to first section"]
+    SYN --> SECT
+    SECT --> LINK["outbound_links — resolved,<br/>self + unresolvable dropped, deduped"]
+    LINK --> W["Wiki(pages, by_slug)"]
+          </div>
+          <figcaption>Figure 3 — load_wiki pipeline: one canonical parse of every page into the
+          in-memory model that search, match, index, and health all share.</figcaption>
+        </figure>
+        <p>
+          Note the ordering detail: the complete slug set is built <em>before</em> resolving any
+          <code>[[links]]</code>, because link resolution needs the whole namespace. Pages without
+          content produce an empty <code>Wiki</code> rather than an exception.
+        </p>
+      </section>
+
+      <!-- ============ 7. Links ============ -->
+      <section class="card" id="s7">
+        <h2>7. Links — extraction &amp; resolution</h2>
+        <p>
+          Links are Obsidian-style <code>[[Target]]</code> or <code>[[Target|alias]]</code>.
+          <code>extract_links()</code> (<code>io/markdown_parser.py</code>) finds them with one regex:
+        </p>
+        <pre><code>_LINK_RE = re.compile(r"\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]")</code></pre>
+        <p>
+          Raw <code>[[Target]]</code> text is <em>not</em> a slug — <code>Target</code> is a display
+          name. <code>wiki/model.py:_resolve_link</code> resolves it to an actual page slug in three
+          steps, mirroring the health check's own resolver:
+        </p>
+        <figure>
+          <div class="mermaid">
+flowchart TD
+    TGT["[[Málaga]]"] --> E{"exact slug in page_slugs?"}
+    E -- yes --> OUT["entities/málaga"]
+    E -- no --> S{"slugify(target) equals a basename<br/>or endswith '/&lt;slug&gt;'?"}
+    S -- yes --> OUT
+    S -- no --> U{"unicode-preserving match:<br/>lowercase + hyphens (Málaga → málaga)?"}
+    U -- yes --> OUT
+    U -- no --> DROP["unresolvable — dropped from outbound_links<br/>(flagged as broken-link by health_check)"]
+          </div>
+          <figcaption>Figure 4 — Link resolution: exact slug, then slugified short-name, then
+          unicode-preserving fallback so [[Málaga]] reaches entities/málaga.md.</figcaption>
+        </figure>
+        <ul>
+          <li><strong>Step 1</strong> — the target is already a slug in <code>page_slugs</code>.</li>
+          <li><strong>Step 2</strong> — <code>slugify(target)</code> matches a page's basename or a nested slug ending (<code>[[MLX]]</code> → <code>entities/mlx</code>).</li>
+          <li><strong>Step 3</strong> — unicode-preserving lowercase + hyphens, so accents survive (<code>[[Málaga]]</code> → <code>entities/málaga</code>).</li>
+        </ul>
+        <p>
+          Resolved outbound links drop self-links and unresolvable targets and are deduplicated.
+          <code>wiki_link_graph()</code> (the agent-facing tool in <code>tools/nav.py</code>) uses the
+          same resolution to compute each page's inbound and outbound sets plus an orphan summary —
+          the <code>orphan</code> concept ("no inbound links from other pages") is defined on resolved
+          links, never raw text.
+        </p>
+      </section>
+
+      <!-- ============ 8. Search ============ -->
+      <section class="card" id="s8">
+        <h2>8. Search — BM25 + bounded link expansion</h2>
+        <p>
+          <code>wiki/search.py:search(wiki, query, k=8, types, tags, expand_links=True, depth=1)</code>
+          is the retrieval workhorse. Each page's BM25 "document" is built from
+          <em>title + tags + all section headings + all section texts</em> — tokenized with the same
+          normalization as <code>slugify</code>, so queries and pages speak the same token language.
+        </p>
+        <figure>
+          <div class="mermaid">
+flowchart LR
+    Q["query"] --> TOK["tokenize — NFKD → ascii → lowercase → split"]
+    TOK --> FIL{"types / tags filters"}
+    FIL --> BM["BM25 over title + tags + headings + section texts"]
+    BM --> DIR["direct hits — top-k, must contain ≥1 query token"]
+    DIR --> MV["matched_via: title / tags / section:&lt;h&gt; / body"]
+    MV --> EX{"expand_links and depth ≥ 1?"}
+    EX -- yes --> EXP["linked pages — fixed score 0.1,<br/>≤2 per source page, ≤k total (bounded BFS)"]
+    EX -- no --> OUT["ranked results"]
+    EXP --> OUT
+          </div>
+          <figcaption>Figure 5 — Search: direct BM25 hits first, then a bounded one-hop expansion
+          over resolved links with a fixed low score so direct hits always outrank them.</figcaption>
+        </figure>
+        <ul>
+          <li><strong>Direct hits</strong> — candidates that contain at least one query token, sorted by score desc. Each hit carries a <code>matched_via</code> provenance: <code>title</code>, <code>tags</code>, <code>section:&lt;heading&gt;</code>, or <code>body</code> — plus the headings of the sections that matched, so the agent knows <em>where</em> the query hit.</li>
+          <li><strong>Link expansion</strong> — a bounded BFS over resolved <code>outbound_links</code> starting from the direct hits. Expansion hits get a fixed <code>EXPAND_SCORE = 0.1</code>, at most <code>min(2, k)</code> per source page and <code>k</code> in total — never unbounded, always deterministic.</li>
+          <li><strong>Filters</strong> — <code>types</code> / <code>tags</code> are predicate filters applied to the candidate set <em>before</em> scoring, so a filtered search never wastes BM25 on excluded pages.</li>
+        </ul>
+        <p class="note">
+          Provenance matters downstream: <code>match_page</code> only counts hits with
+          <code>matched_via != "expand-link"</code> when deciding "similar" vs "conflict" — an
+          expansion hit is a hint, not a match.
+        </p>
+      </section>
+
+      <!-- ============ 9. match_page ============ -->
+      <section class="card" id="s9">
+        <h2>9. match_page — the create / update / conflict decision</h2>
+        <p>
+          The heart of ingest is <code>wiki/match.py:match_page(wiki, name, page_type)</code>: one pure
+          Python call that decides, <em>before any write</em>, whether a name should update an existing
+          page, create a new one, or be flagged as a contradiction. No score thresholds — the decision
+          rule is structural.
+        </p>
+        <figure>
+          <div class="mermaid">
+flowchart TD
+    N["name + page_type"] --> E{"slugify(name) is a by_slug key<br/>or the unique basename of a nested slug?"}
+    E -- yes --> EX["exact → update_page"]
+    E -- no --> S["BM25 search k=5, types=[page_type]<br/>(untyped fallback when no type dir exists)"]
+    S --> D{"direct hits only — matched_via ≠ expand-link"}
+    D -- "0 hits" --> NONE["none → create_page"]
+    D -- "1 hit" --> SIM["similar → update_page"]
+    D -- "≥2 hits" --> CON["conflict → flag_contradiction (HITL)"]
+          </div>
+          <figcaption>Figure 6 — match_page decision tree: exact → update; no match → create; one
+          direct hit → update; two or more direct hits → contradiction flag.</figcaption>
+        </figure>
+        <pre><code>candidate = slugify(name)
+resolved = _resolve_exact_slug(wiki, candidate)   # by_slug key or unique basename
+if resolved is not None:
+    return MatchResult("exact", [resolved], "exact slug match")
+
+types = [page_type] if _type_dir_exists(wiki, page_type) else None
+hits = search(wiki, name, k=5, types=types)
+direct = [h for h in hits if h.matched_via != "expand-link"]
+
+if len(direct) == 1:      return MatchResult("similar", ...)
+if len(direct) >= 2:      return MatchResult("conflict", ...)
+return MatchResult("none", [], ...)</code></pre>
+        <ul>
+          <li><strong>exact</strong> — <code>slugify(name)</code> is a <code>by_slug</code> key, or the unique basename of a nested slug (<code>mlx</code> → <code>entities/mlx</code>). An <em>ambiguous</em> basename is deliberately <strong>not</strong> exact — it falls through to search, which surfaces it as a conflict.</li>
+          <li><strong>similar / none / conflict</strong> — decided by the number of <em>direct</em> BM25 hits: 1 → update, 0 → create, ≥2 → contradiction.</li>
+          <li><strong>Untyped fallback</strong> — when the page type maps to no existing directory (e.g. <code>source</code> on a wiki without <code>sources/</code>), the search runs without the <code>types</code> filter.</li>
+        </ul>
+        <p>
+          The <code>@tool match_page_tool</code> wrapper loads the wiki and returns a one-line
+          decision string the ingest agent branches on:
+          <code>exact: entities/mlx — exact slug match</code>.
+        </p>
+      </section>
+
+      <!-- ============ 10. The derived index ============ -->
+      <section class="card" id="s10">
+        <h2>10. The derived index</h2>
+        <p>
+          <code>wiki/index.md</code> is <strong>not a source of truth</strong>. It is a human-readable
+          view rebuilt from the pages. Two modules handle it:
+        </p>
+        <h3>Reading &amp; writing the file — <code>io/index.py</code></h3>
+        <p>Entries follow two formats, parsed with two regexes:</p>
+        <pre><code># Non-source pages:
+- [[Display Name]] - summary | Sources: manual | Updated: 2026-08-05
+# Source pages:
+- [Source Title](sources/subagent-architecture.md) - Ingested: 2026-08-05</code></pre>
+        <p>
+          <code>read_index</code> splits the file on <code>## Section</code> headers, maps each section
+          name to a page type (<code>entities</code> → <code>entity</code>, …), and parses entries —
+          including the <code>Source: X</code>/<code>Sources: N</code> field, where a bare number is
+          treated as a count that cannot reconstruct filenames. <code>write_index</code> writes the
+          file atomically (temp + replace). That is the whole interface: the index is a derived
+          view rebuilt wholesale by <code>regenerate_index</code>, so there are no incremental
+          entry-editing helpers — nothing else edits <code>index.md</code> directly.
+        </p>
+        <h3>Regenerating — <code>wiki/dedupe_index.py</code></h3>
+        <p>
+          <code>regenerate_index(wiki_path)</code> rebuilds the whole index from the Wiki model:
+        </p>
+        <figure>
+          <div class="mermaid">
+flowchart LR
+    DISK["pages on disk"] --> LOAD["load_wiki"]
+    LOAD --> SKIP{"lint-report-*?"}
+    SKIP -- yes --> X["excluded — derived artifacts"]
+    SKIP -- no --> GRP["group by fm.type → plural category"]
+    GRP --> SUM["summary — first section text, stripped of [[links]] / emphasis,<br/>whitespace collapsed, truncated ~160 chars at a word boundary"]
+    SUM --> ATOMIC["write_index — temp file + replace"]
+    ATOMIC --> IDX["wiki/index.md — derived view"]
+          </div>
+          <figcaption>Figure 7 — regenerate_index: lint-report pages are excluded, the rest are grouped
+          by type, and each summary is distilled from the first section's body text — never a raw H1
+          heading, which was the previous hand-maintained corruption.</figcaption>
+        </figure>
+        <ul>
+          <li><strong>Lint reports excluded</strong> — <code>lint-report-*.md</code> pages are derived artifacts, not content, so they never appear in the index.</li>
+          <li><strong>Summaries</strong> — from the first section's body text: wiki links reduced to their alias, markdown links to their text, headings and emphasis stripped, whitespace collapsed, truncated at ~160 characters on a word boundary with a <code>…</code> suffix.</li>
+          <li><strong>Atomic</strong> — the write goes through <code>write_index</code>'s temp-file + rename, so a crash mid-rebuild never leaves a torn index.</li>
+        </ul>
+        <p class="note">
+          No agent ever calls an "update index" tool — the ingest prompt explicitly forbids it
+          (<code>NEVER call update_index</code>). The index is rebuilt by <code>regenerate_index</code>
+          as a derived view, so it cannot drift from the pages on disk.
+        </p>
+      </section>
+
+      <!-- ============ 11. The log ============ -->
+      <section class="card" id="s11">
+        <h2>11. The log</h2>
+        <p>
+          <code>wiki/log.md</code> is an append-only audit trail managed by
+          <code>io/log.py</code>. Every entry starts with a parseable prefix:
+        </p>
+        <pre><code>## [2026-07-26 12:00] update | Fix orphan pages from lint report
+- Created entities/python.md to resolve broken index reference C1
+- Fixed concepts/machine-learning.md with proper frontmatter</code></pre>
+        <pre><code>_LOG_PREFIX_RE = re.compile(
+    r"^## \[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]\s+(\S+)\s+\|\s+(.+)$",
+    re.MULTILINE,
+)</code></pre>
+        <ul>
+          <li><code>append_log(wiki_path, entry)</code> — appends the header line plus indented detail bullets. Append-only by construction: it never rewrites the file.</li>
+          <li><code>tail_log(wiki_path, n)</code> — finds entry start positions with the regex, takes the last <code>n</code>, and slices each entry's detail block up to the next entry (or EOF).</li>
+          <li><strong>Operations</strong> — <code>ingest</code>, <code>query</code>, <code>lint</code>, <code>create</code>, <code>update</code>, <code>delete</code> are the standard <code>op</code> values.</li>
+        </ul>
+      </section>
+
+      <!-- ============ 12. Health check ============ -->
+      <section class="card" id="s12">
+        <h2>12. Health check — 7 structural issue kinds</h2>
+        <p>
+          <code>wiki/health.py:health_check(wiki_path)</code> audits the wiki with
+          <strong>zero LLM calls</strong>. It computes seven issue kinds with pinned severities:
+        </p>
+        <table>
+          <thead>
+            <tr><th>Kind</th><th>Severity</th><th>Definition</th><th>Suggested action</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>missing-frontmatter</code></td><td><span class="badge b-red">critical</span></td><td>Page doesn't start with <code>---</code> YAML.</td><td>Add frontmatter with slug/type/title/updated.</td></tr>
+            <tr><td><code>orphan</code></td><td><span class="badge b-amber">high</span></td><td>No inbound links from other content pages (resolved links only).</td><td>Add a <code>[[link]]</code> from a related page.</td></tr>
+            <tr><td><code>missing-index</code></td><td><span class="badge b-amber">high</span></td><td>Page absent from the regenerated index (checked via full slug, short slug, or title-slug).</td><td>Add an entry to index.md.</td></tr>
+            <tr><td><code>broken-link</code></td><td><span class="badge b-amber">high</span></td><td>A raw <code>[[target]]</code> that <code>_resolve_link</code> cannot resolve (lint-report targets excluded).</td><td>Fix or remove the <code>[[link]]</code>.</td></tr>
+            <tr><td><code>empty</code></td><td><span class="badge b-amber">high</span></td><td>Fewer than 50 words of body content.</td><td>Add substantive content.</td></tr>
+            <tr><td><code>missing-related</code></td><td><span class="badge b-blue">medium</span></td><td>No section whose heading is <code>related</code> (case-insensitive).</td><td>Add a <code>## Related</code> section with cross-links.</td></tr>
+            <tr><td><code>stale</code></td><td><span class="badge b-blue">medium</span></td><td><code>fm.updated</code> more than 90 days before the most recent page's date.</td><td>Review and update content.</td></tr>
+          </tbody>
+        </table>
+        <p>Determinism details that matter:</p>
+        <ul>
+          <li><strong>Inbound links</strong> come only from content pages' <em>resolved</em> outbound links — and <code>lint-report-*</code> pages are excluded from the audit, from inbound computation, and from orphan detection.</li>
+          <li><strong>Broken links</strong> are detected on <em>raw</em> targets (the model's <code>outbound_links</code> are already resolved, so they can't reveal what failed to resolve).</li>
+          <li><strong>Stale</strong> is relative: the reference point is the newest page's <code>updated</code> date, not the clock.</li>
+          <li>Issues are sorted by <code>(kind, slug)</code>; counts include only kinds that occurred.</li>
+        </ul>
+        <p>
+          The same module renders a deterministic markdown report
+          (<code>_render_report_markdown</code>) with an executive summary, per-severity sections
+          (<code>C1…</code>, <code>H1…</code>, <code>M1…</code>), and a statistics table — used by the
+          lint agent's <code>write_lint_report</code> tool for the no-LLM path.
+        </p>
+      </section>
+
+      <!-- ============ 13. IO layer ============ -->
+      <section class="card" id="s13">
+        <h2>13. The IO layer — atomic writes &amp; path safety</h2>
+        <p>
+          <code>io/wiki_io.py</code> is the only module that touches page files. Three properties make
+          it safe to hand to an LLM:
+        </p>
+        <h3>Atomic writes</h3>
+        <p>
+          Every write goes through a temp file in the same directory followed by a rename:
+        </p>
+        <pre><code>fd, tmp_path = tempfile.mkstemp(dir=page_path.parent, suffix=".md.tmp")
+try:
+    with open(fd, "w", encoding="utf-8") as f:
+        f.write(full_content)
+    Path(tmp_path).replace(page_path)
+except BaseException:
+    Path(tmp_path).unlink(missing_ok=True)
+    raise</code></pre>
+        <p>
+          A crash mid-write leaves either the old file or the new file — never a torn one. The same
+          pattern is used by <code>write_index</code> for <code>index.md</code>.
+        </p>
+        <h3>Slug validation</h3>
+        <p><code>_validate_slug</code> rejects empty slugs, anything containing <code>..</code>, and absolute paths — while explicitly allowing nested slugs like <code>entities/python</code>.</p>
+        <h3>Page enumeration</h3>
+        <p><code>list_pages</code> walks <code>rglob("*.md")</code> and excludes <code>index.md</code> and <code>log.md</code> — derived files never masquerade as content.</p>
+        <h3>The agent-side guard (cross-reference)</h3>
+        <p>
+          On top of this, the agents' <code>path_guard_middleware</code>
+          (<code>middleware/guardrails.py</code>) rejects any write-tool argument containing
+          <code>raw/</code>, starting with <code>/</code>, or containing <code>..</code>, and blocks
+          write tools that receive a <code>raw/</code> <code>source_path</code>. <code>read_source</code>
+          is the only tool exempt — it legitimately reads raw sources. Together: the IO layer makes
+          writes atomic and validated; the middleware makes writes <em>scoped</em>.
+        </p>
+      </section>
+
+      <!-- ============ 14. AGENTS.md ============ -->
+      <section class="card" id="s14">
+        <h2>14. AGENTS.md — the schema as config</h2>
+        <p>
+          <code>schemas/agents_md.py:load_agents_md(path)</code> reads the schema file and returns its
+          text — falling back to a built-in default matching the spec if the file is missing. It is
+          <strong>not parsed</strong>: it's a contract written for the LLM, injected verbatim into
+          every agent system prompt (see <a href="documentation.html" style="color: var(--accent);">documentation.html §4</a>).
+        </p>
+        <p>It defines the conventions the engine's code assumes:</p>
+        <ul>
+          <li><strong>Page types</strong> → directories: <code>entity</code>, <code>concept</code>, <code>source</code>, <code>comparison</code>, <code>overview</code>.</li>
+          <li><strong>Slug naming</strong> — lowercase, hyphens, no special characters (the <code>slugify</code> contract).</li>
+          <li><strong>Links</strong> — Obsidian <code>[[Page Name]]</code>, a <code>## Related</code> section on every page.</li>
+          <li><strong>Frontmatter</strong> — the exact fields the pydantic model enforces.</li>
+          <li><strong>Update rules &amp; hard rules</strong> — the behavioral contract the agents are prompted to follow (flag contradictions, never write outside <code>wiki/</code>, always regenerate index + log).</li>
+        </ul>
+      </section>
+
+      <!-- ============ 15. How the agents consume the engine ============ -->
+      <section class="card" id="s15">
+        <h2>15. How the agents consume the engine</h2>
+        <p>
+          The agent tools are thin wrappers over the engine functions. This table is the complete
+          mapping — the agent layer adds prompts, middleware, and decision-making; the engine does the work:
+        </p>
+        <table>
+          <thead>
+            <tr><th>Agent tool</th><th>Engine function it wraps</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>wiki_search</code></td><td><code>wiki.search.search()</code></td><td>Also records navigated slugs for cite-or-die.</td></tr>
+            <tr><td><code>wiki_read_page</code></td><td><code>io.wiki_io.read_page()</code> + <code>wiki.model.load_wiki()</code></td><td>Section-scoped reads; resolves short slugs.</td></tr>
+            <tr><td><code>wiki_summary</code> / <code>wiki_scan</code></td><td><code>wiki.model.load_wiki()</code></td><td>Compact catalogs: one line per page (slug, type, title, date) and previews with inbound/outbound counts.</td></tr>
+            <tr><td><code>wiki_link_graph</code></td><td><code>io.wiki_io.list_pages()</code> + <code>io.markdown_parser</code> (local 3-step resolver mirroring <code>wiki.model._resolve_link</code>)</td><td>All pages with inbound/outbound sets + orphan summary.</td></tr>
+            <tr><td><code>match_page_tool</code></td><td><code>wiki.match.match_page()</code></td><td>Returns <code>decision: slugs — detail</code>.</td></tr>
+            <tr><td><code>regenerate_index</code></td><td><code>wiki.dedupe_index.regenerate_index()</code></td><td>Derived index rebuild.</td></tr>
+            <tr><td><code>run_health_check</code></td><td><code>wiki.health.health_check()</code></td><td>0-LLM structural audit.</td></tr>
+            <tr><td><code>write_lint_report</code></td><td><code>wiki.health._render_report_markdown()</code></td><td>Structured or plain-string report → <code>lint-report-YYYY-MM-DD.md</code>.</td></tr>
+            <tr><td><code>create_page</code> / <code>update_page</code> / <code>delete_wiki_page</code></td><td><code>io.wiki_io</code> write/delete + frontmatter serialize</td><td>Auto-prefix type dirs; preserve frontmatter on update.</td></tr>
+            <tr><td><code>add_frontmatter</code> / <code>fix_link</code> / <code>append_related_section</code> / <code>edit_wiki_page</code></td><td><code>io.wiki_io</code> + <code>io.markdown_parser</code></td><td>Pinned fixes for lint kinds.</td></tr>
+            <tr><td><code>read_source</code></td><td><code>io.source_loader.SourceLoader</code></td><td>MarkItDown conversion of raw sources.</td></tr>
+            <tr><td><code>append_log</code></td><td><code>io.log.append_log()</code></td><td>Append-only audit trail.</td></tr>
+            <tr><td><code>get_index_summary</code> (prompt injection)</td><td>raw <code>index.md</code> read</td><td>Injected into every agent system prompt as <code># Current Wiki Pages</code>.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ============ 16. Testability ============ -->
+      <section class="card" id="s16">
+        <h2>16. Testability — pure, deterministic, offline</h2>
+        <p>
+          Because every engine function is pure Python, the whole layer runs in milliseconds with no
+          network and no model calls:
+        </p>
+        <ul>
+          <li><strong>Pure functions</strong> — <code>health_check</code>, <code>match_page</code>, <code>search</code>, <code>regenerate_index</code>, <code>read_index</code>, <code>tail_log</code>, <code>slugify</code> take inputs and return outputs; nothing to mock.</li>
+          <li><strong>Deterministic ordering</strong> — search results sort by score with a fixed expansion score, match decisions are structural, index entries follow the pages, health issues sort by <code>(kind, slug)</code>. The same input always yields the same output.</li>
+          <li><strong>Graceful degradation</strong> — missing frontmatter synthesizes instead of raising; a missing index returns an empty model; a bad slug returns a recoverable error string. The engine is designed to survive the LLM's worst output.</li>
+          <li><strong>Tested through the layers</strong> — unit tests cover the IO, parser, index, search, match, and health modules directly; integration tests drive the agents with scripted fake models and assert on real wiki state; the eval layer checks retrieval recall against curated queries on the live wiki.</li>
+        </ul>
+        <p class="note">
+          This is what lets the agents be LLM-flavored without being LLM-dependent: the wiki stays
+          coherent, searchable, and auditable even when the model behaves badly — and the tests prove it.
+        </p>
+      </section>
+
+      <footer>
+        Agentic RAG · the deterministic wiki engine · code references verified against
+        <code>src/agentic_rag</code> · agent layer documented in
+        <a href="documentation.html" style="color: var(--muted);">documentation.html</a> ·
+        full repo layout: <a href="architecture.md" style="color: var(--muted);">architecture.md</a>.
+      </footer>
+    </main>
+  </div>
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#1a2b4a',
+      primaryBorderColor: '#3b82f6',
+      primaryTextColor: '#e2e8f0',
+      lineColor: '#7c93b5',
+      secondaryColor: '#16223a',
+      tertiaryColor: '#111a2c',
+      clusterBkg: '#111a2c',
+      clusterBorder: '#2c3e5c',
+      edgeLabelBackground: '#111a2c',
+      nodeBorder: '#3b82f6',
+      actorBkg: '#1a2b4a',
+      actorBorder: '#3b82f6',
+      actorTextColor: '#e2e8f0',
+      actorLineColor: '#7c93b5',
+      signalColor: '#7c93b5',
+      signalTextColor: '#e2e8f0',
+      labelBoxBkgColor: '#1a2b4a',
+      labelBoxBorderColor: '#3b82f6',
+      labelTextColor: '#e2e8f0',
+      noteBkgColor: '#24344f',
+      noteBorderColor: '#3b82f6',
+      noteTextColor: '#e2e8f0',
+      loopTextColor: '#94a3b8',
+      activationBkgColor: '#24344f',
+      activationBorderColor: '#3b82f6',
+      sequenceNumberColor: '#e2e8f0',
+      fontSize: '14px',
+      fontFamily: 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+    },
+    securityLevel: 'loose'
+  });
+</script>
+<noscript>
+  <p style="text-align:center;color:#94a3b8;">JavaScript is disabled — Mermaid diagrams won't render, but all text content is readable.</p>
+</noscript>
+</body>
+</html>

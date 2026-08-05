@@ -30,7 +30,7 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from frontend import agents as _agents  # noqa: E402  (needs repo root on sys.path)
+from frontend import builders as _builders  # noqa: E402  (needs repo root on sys.path)
 from frontend.agent_driver import build_fix_message  # noqa: E402
 from frontend.history_store import DEFAULT_ROOT, HistoryStore  # noqa: E402
 from frontend.ui_common import (  # noqa: E402
@@ -89,9 +89,9 @@ if st.session_state.get("fix_pending") is not None:
 elif selection:
     # Pills: the selected value becomes the fix request (CLI `fix` shaping).
     st.session_state["fix_pill_reset"] = True
-    wiki_path = _agents.get_settings().wiki_path
+    wiki_path = _builders.get_settings().wiki_path
     run_turn(AGENT, AGENT_NAME, build_fix_message(selection, wiki_path), store)
 elif prompt := st.chat_input("Ask the fix agent…"):
     # Free text: shaped exactly like a CLI `fix` argument would be.
-    wiki_path = _agents.get_settings().wiki_path
+    wiki_path = _builders.get_settings().wiki_path
     run_turn(AGENT, AGENT_NAME, build_fix_message(prompt, wiki_path), store)

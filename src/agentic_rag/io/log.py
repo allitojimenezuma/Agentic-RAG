@@ -1,4 +1,4 @@
-"""Log manager: append-only wiki/log.md with timestamped, prefixed entries."""
+"""Log codec — append and tail wiki/log.md with timestamped, prefixed entries."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Unit tests for frontend/chat_driver: stream_query event translation.
+"""Unit tests for frontend/query_driver: stream_query event translation.
 
 There is NO finalization tool: the model's free-text message is the answer. The
 scripted-turn tests drive a real compiled agent built with the non-streaming
@@ -25,7 +25,7 @@ import agentic_rag.tools.grounding as grounding
 from agentic_rag.schemas.query import QueryAnswer
 from agentic_rag.tools.nav import wiki_read_page, wiki_search
 from agentic_rag.tools.shared import init_shared_tools
-from frontend.chat_driver import (
+from frontend.query_driver import (
     AnswerToken,
     FinalAnswer,
     stream_query,

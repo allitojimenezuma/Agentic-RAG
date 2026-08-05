@@ -15,12 +15,11 @@ _COLORS = {
     "agentic_rag.tools":        "\033[33m",   # yellow
     "agentic_rag.tools.shared": "\033[33m",   # yellow
     "agentic_rag.tools.ingest_tools": "\033[93m",  # bright yellow
-    "agentic_rag.tools.query_tools":  "\033[93m",  # bright yellow
     "agentic_rag.tools.lint_tools":   "\033[93m",  # bright yellow
     "agentic_rag.io":           "\033[32m",   # green
     "agentic_rag.io.wiki_io":   "\033[32m",   # green
-    "agentic_rag.io.index_manager": "\033[32m",  # green
-    "agentic_rag.io.log_manager":   "\033[32m",  # green
+    "agentic_rag.io.index": "\033[32m",  # green
+    "agentic_rag.io.log":   "\033[32m",  # green
     "agentic_rag.io.source_loader": "\033[32m",  # green
     "agentic_rag.tokens":       "\033[34m",   # blue
 }

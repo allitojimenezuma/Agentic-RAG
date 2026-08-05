@@ -52,7 +52,7 @@ tags:
 
 1. **New info supersedes old**: when a source provides updated facts, update the page rather than creating a duplicate.
 2. **Flag contradictions**: if new info directly contradicts existing content, call `flag_contradiction` and wait for human resolution.
-3. **Always update index**: after creating or updating any page, call `update_index` to keep the index current.
+3. **Always regenerate the index**: after creating or updating any page, call `regenerate_index` so `index.md` stays current (it is a derived view — never hand-edit it).
 4. **Always log**: after any operation, call `append_log` with the operation details.
 5. **Date all changes**: update the `updated` frontmatter field on every write.
 

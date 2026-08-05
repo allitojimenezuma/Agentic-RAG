@@ -19,17 +19,10 @@ from agentic_rag.io.markdown_parser import extract_links, parse_frontmatter, slu
 from agentic_rag.io.wiki_io import list_pages, read_page as _read_page
 from agentic_rag.tools.shared import get_wiki_path
 from agentic_rag.wiki.dedupe_index import regenerate_index as _regenerate_index
-from agentic_rag.wiki.model import Page, Wiki, load_wiki
+from agentic_rag.wiki.model import DIR_TO_TYPE, Page, Wiki, load_wiki
 from agentic_rag.wiki.search import search
 
 logger = logging.getLogger(__name__)
-
-_DIR_TO_TYPE = {
-    "entities": "entity",
-    "concepts": "concept",
-    "sources": "source",
-    "comparisons": "comparison",
-}
 
 
 @tool
@@ -246,7 +239,7 @@ def wiki_link_graph() -> str:
             # Infer type from directory: entities/foo -> entity, concepts/foo -> concept
             if "/" in slug:
                 dir_name = slug.split("/")[0]
-                page_type = _DIR_TO_TYPE.get(dir_name, dir_name.rstrip("s"))
+                page_type = DIR_TO_TYPE.get(dir_name, dir_name.rstrip("s"))
             # Infer title from first heading
             for line in content.split("\n"):
                 if line.startswith("# "):
@@ -304,21 +297,17 @@ def _split_csv(value: str | None) -> list[str] | None:
 
 
 def _resolved_slug(wiki_path: Path, slug: str) -> str:
-    """Resolve a slug to its canonical page slug (mirror of wiki_io._resolve_page_path)."""
-    if (wiki_path / f"{slug}.md").is_file():
-        return slug
-    for md_file in wiki_path.rglob(f"{slug}.md"):
-        if md_file.is_file():
-            return str(md_file.relative_to(wiki_path)).removesuffix(".md")
-    return slug  # unreachable: read_page already raised if the page is missing
+    """Resolve a slug to its canonical page slug (delegates to ``wiki_io._resolve_page_path``)."""
+    try:
+        from agentic_rag.io.wiki_io import _resolve_page_path
+
+        resolved = _resolve_page_path(wiki_path, slug)
+        return str(resolved.relative_to(wiki_path)).removesuffix(".md")
+    except FileNotFoundError:
+        return slug  # unreachable: read_page already raised if the page is missing
 
 
 def _find_page(wiki: Wiki, slug: str) -> Page | None:
     """Resolve a slug against the model like ``wiki_io._resolve_page_path``:
     exact relative-path slug first, then recursive basename match."""
-    if slug in wiki.by_slug:
-        return wiki.by_slug[slug]
-    for page in wiki.pages:
-        if page.slug.rsplit("/", 1)[-1] == slug:
-            return page
-    return None
+    return wiki.by_slug.get(_resolved_slug(get_wiki_path(), slug))

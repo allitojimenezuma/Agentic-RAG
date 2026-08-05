@@ -230,7 +230,7 @@ live `OPENAI_API_KEY`; the levels real-LLM tiers ran because the key is in `.env
 tests/
 ├── unit/                  # Fast, isolated tests (no network)
 │   ├── test_wiki_io.py
-│   ├── test_index_manager.py
+│   ├── test_index.py
 │   ├── test_markdown_parser.py
 │   └── ...
 ├── integration/           # Scripted fake-model agent flows
@@ -275,57 +275,61 @@ tests/
 ```
 agentic_rag/
 ├── src/agentic_rag/        # Main package
-│   ├── config.py           # Settings (pydantic-settings)
-│   ├── paths.py            # Path helpers
-│   ├── cli.py              # Typer CLI (ingest/query/lint/fix/status/log)
-│   ├── main.py             # Entry point
-│   ├── logging_config.py   # Logging setup
-│   ├── token_tracker.py    # Token usage tracking
-│   ├── agents/             # Agent builders
-│   │   ├── factory.py      # create_agent + middleware pipeline
+│   ├── config.py           # Settings (pydantic-settings, .env)
+│   ├── cli.py              # Typer CLI (ingest/query/lint/fix/status/log) — the entry point
+│   ├── logging_config.py   # Colored console/file logging
+│   ├── token_tracker.py    # Token usage tracking (attached to each agent)
+│   ├── agents/             # LLM agent builders (one per agent)
+│   │   ├── factory.py      # build_agent: create_agent + middleware pipeline + tracker
+│   │   ├── llm.py          # get_model — ChatOpenAI factory (base_url/api_key)
+│   │   ├── prompts.py      # System prompt builders (inject AGENTS.md + wiki index)
 │   │   ├── ingest.py       # build_ingest_agent()
 │   │   ├── query.py        # build_query_agent()
 │   │   ├── lint.py         # build_lint_agent()
-│   │   ├── fix.py          # build_fix_agent()
-│   │   ├── model.py        # Model factory
-│   │   └── prompts.py      # System prompt builders
-│   ├── tools/              # LangChain tools
-│   │   ├── shared.py       # Shared init + common tools
-│   │   ├── nav.py          # wiki_search, wiki_read_page, wiki_summary, wiki_scan, wiki_link_graph
-│   │   ├── grounding.py    # build_final_answer + validate_citations (NavCapture, cite-or-die)
-│   │   ├── ingest_grounding.py  # Ingest-side grounding helpers
-│   │   ├── ingest_tools.py # Ingest-specific tools
-│   │   ├── fix_tools.py    # Fix-specific tools
-│   │   ├── lint_tools.py   # Lint-specific tools
-│   │   └── query_tools.py  # Query-specific tools
-│   ├── wiki/               # Deterministic wiki engine (0 LLM)
-│   │   ├── model.py        # load_wiki → Wiki/Page (synthesized frontmatter)
+│   │   └── fix.py          # build_fix_agent()
+│   ├── tools/              # LangChain @tool layer — the agents' action surface
+│   │   ├── shared.py       # init_shared_tools / get_wiki_path / get_index_summary
+│   │   ├── nav.py          # wiki_search, wiki_read_page, wiki_summary, wiki_scan, wiki_link_graph, regenerate_index
+│   │   ├── grounding.py    # cite-or-die finalization (NavCapture, build_final_answer, validate_citations)
+│   │   ├── extraction.py   # submit_extraction — structured extraction boundary (ingest)
+│   │   ├── ingest_tools.py # read_source, create/update/delete page, append_log, flag_contradiction
+│   │   ├── lint_tools.py   # run_health_check, write_lint_report
+│   │   └── fix_tools.py    # edit_wiki_page, add_frontmatter, fix_link, append_related_section
+│   ├── wiki/               # Deterministic wiki engine (0 LLM calls)
+│   │   ├── model.py        # Wiki/Page/Section models + load_wiki (synthesized frontmatter)
 │   │   ├── search.py       # BM25 search + bounded link expansion
 │   │   ├── match.py        # match_page decision tree (exact/similar/conflict/none)
-│   │   └── dedupe_index.py # regenerate_index (derived view, atomic)
-│   ├── lint/
-│   │   └── health.py       # health_check → LintReport (deterministic, 7 kinds)
-│   ├── schemas/            # Pydantic models
-│   │   ├── wiki.py         # Page, Frontmatter, Index, LogEntry
+│   │   ├── health.py       # health_check → LintReport (deterministic, 7 issue kinds)
+│   │   └── dedupe_index.py # regenerate_index — index.md is a derived view, rebuilt atomically
+│   ├── io/                 # Filesystem adapters (read/write the wiki + raw sources)
+│   │   ├── wiki_io.py      # atomic read/write/delete/list of page files
+│   │   ├── index.py        # index.md codec (parse + format + atomic write)
+│   │   ├── log.py          # log.md codec (append + tail)
+│   │   ├── markdown_parser.py  # [[links]], headings, YAML frontmatter, slugify
+│   │   └── source_loader.py    # MarkItDown wrapper (raw sources → markdown)
+│   ├── schemas/            # Pydantic contracts (wire + structured-output models)
+│   │   ├── wiki.py         # Frontmatter, IndexEntry, Index, LogEntry, Heading, Link
 │   │   ├── extraction.py   # Entity, Concept, Contradiction, ExtractionResult
-│   │   ├── query.py        # QueryAnswer, Citation
-│   │   ├── lint.py         # LintReport, LintIssue
-│   │   └── agents_md.py    # AGENTS.md loader
-│   ├── io/                 # File I/O (wiki, sources, index, log)
-│   │   ├── wiki_io.py      # read/write/delete pages (atomic)
-│   │   ├── source_loader.py    # MarkItDown wrapper
-│   │   ├── index_manager.py    # Index helpers
-│   │   ├── log_manager.py      # Append to log.md
-│   │   ├── markdown_parser.py  # Parse [[links]], headings, frontmatter
-│   │   └── chunker.py      # Text chunking
-│   └── middleware/
+│   │   ├── query.py        # QueryAnswer, SourceCitation
+│   │   ├── lint.py         # LintReport, Issue
+│   │   └── agents_md.py    # AGENTS.md loader (embedded default schema)
+│   └── middleware/         # LangChain middleware pipeline (registered in factory)
 │       ├── logging.py      # audit_logging + token_capture middleware
-│       └── guardrails.py   # path_guard (write_tools set)
-├── wiki/                   # LLM-owned wiki (persistent; gitignored runtime data)
-├── raw/                    # Raw sources (immutable)
-├── tests/                  # unit, integration, levels, acceptance, fixtures
-├── AGENTS.md               # Wiki schema conventions
-└── config/                 # Configuration examples
+│       └── guardrails.py   # path_guard — blocks writes outside wiki/ and into raw/
+├── frontend/               # Streamlit UI (same agents, in-process)
+│   ├── app.py              # st.navigation entry point (Settings guard + page list)
+│   ├── builders.py         # @st.cache_resource agent builders + per-agent config factory
+│   ├── query_driver.py     # query streaming adapter → typed events (ToolStart/ToolEnd/AnswerToken/FinalAnswer)
+│   ├── agent_driver.py     # generic HITL streaming driver for ingest/lint/fix
+│   ├── ui_common.py        # shared page shell: session state, sidebar, HITL widgets, run_turn
+│   ├── history_store.py    # durable JSONL chat transcripts (frontend/history/)
+│   └── app_pages/          # query.py, ingest.py, lint.py, fix.py — one page per agent
+├── raw/                    # Raw sources (immutable — agents read, never write)
+├── wiki/                   # LLM-owned wiki (runtime data; gitignored)
+├── tests/                  # unit, integration, levels, eval, acceptance, fixtures
+├── docs/                   # architecture.md (this map), cleanup-plan.md, HTML doc exports
+├── archive/                # Superseded planning docs (PLAN/IDEA/spec)
+└── AGENTS.md               # Wiki schema conventions (injected into every agent prompt)
 ```
 
 ## Key Concepts

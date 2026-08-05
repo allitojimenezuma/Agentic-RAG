@@ -16,7 +16,7 @@ import streamlit as st
 
 # Streamlit puts the script's directory (frontend/) on sys.path, not the repo
 # root. Make the repo root importable so `from frontend.… import …` works
-# exactly as in tests/unit/test_chat_driver.py.
+# exactly as in tests/unit/test_query_driver.py.
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))

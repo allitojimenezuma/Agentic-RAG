@@ -1,18 +1,17 @@
 """Streamlit page: the wiki query chat (moved from the old single-file app.py).
 
-Streaming chat over ``frontend/chat_driver.stream_query``: live tool chips,
+Streaming chat over ``frontend/query_driver.stream_query``: live tool chips,
 streamed answer tokens, and the structured ``QueryAnswer`` render (mirrors the
 CLI ``query`` command). Durable per-agent transcripts via ``HistoryStore`` and
 the shared sidebar thread manager (``ui_common.sidebar`` — thread selector,
 "New chat", delete-selected). Contains no business logic — everything testable
-lives in ``frontend/chat_driver.py``. The per-turn cite-or-die ``_nav_capture``
+lives in ``frontend/query_driver.py``. The per-turn cite-or-die ``_nav_capture``
 reset lives inside ``stream_query``, so every turn starts with a fresh capture
 (turn N's citations never bleed into turn N+1).
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -28,8 +27,8 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from frontend import agents as _agents  # noqa: E402  (needs repo root on sys.path)
-from frontend.chat_driver import (  # noqa: E402
+from frontend import builders as _builders  # noqa: E402  (needs repo root on sys.path)
+from frontend.query_driver import (  # noqa: E402
     AnswerToken,
     FinalAnswer,
     stream_query,
@@ -38,6 +37,8 @@ from frontend.chat_driver import (  # noqa: E402
 )
 from frontend.history_store import DEFAULT_ROOT, HistoryStore  # noqa: E402
 from frontend.ui_common import (  # noqa: E402
+    _ChipTracker,
+    _sync_events,
     init_page,
     render_history,
     sidebar,
@@ -67,16 +68,6 @@ sidebar("query", store)
 
 
 # --- Rendering helpers (mirror cli.py's query command render). --------------
-def _tool_start_label(event: ToolStart) -> str:
-    """Chip label: include the query/slug for the navigation tools."""
-    args = event.args or {}
-    if event.name == "wiki_search" and args.get("query"):
-        return f"wiki_search(query={args['query']!r})"
-    if event.name == "wiki_read_page" and args.get("slug"):
-        return f"wiki_read_page(slug={args['slug']!r})"
-    return event.name
-
-
 def _render_query_answer(answer) -> str:
     """Structured markdown mirroring cli.py: answer + Confidence + Citations
     (``- {slug} - {title}{ (section: {section})}``) + Suggestion if non-empty."""
@@ -98,52 +89,23 @@ def _render_query_answer(answer) -> str:
 
 
 # --- Streaming bridge --------------------------------------------------------
-def _sync_events(agent, message: str, thread_id: str, recursion_limit: int):
-    """Iterate stream_query's async generator synchronously.
-
-    Streamlit scripts have no event loop, so drive the async generator with a
-    dedicated loop. st.* calls stay on the script thread (no threads involved).
-    The generator is explicitly aclosed on exit so a mid-stream exception does
-    not leave pending asyncio tasks ("Task was destroyed but it is pending").
-    """
-    loop = asyncio.new_event_loop()
-    agen = stream_query(agent, message, thread_id, recursion_limit)
-    try:
-        while True:
-            try:
-                yield loop.run_until_complete(agen.__anext__())
-            except StopAsyncIteration:
-                return
-    finally:
-        try:
-            loop.run_until_complete(agen.aclose())
-        except Exception:
-            pass
-        loop.close()
-
-
 def stream_turn(agent, message: str, thread_id: str, recursion_limit: int, chips, answer_ph):
     """Run one turn, updating live tool chips + the streaming answer bubble.
 
     Returns the final rendered text (structured QueryAnswer block) for the
-    session-state chat log. Raises if ``stream_query`` raises.
+    session-state chat log. Raises if ``stream_query`` raises. Reuses the
+    shared async-generator bridge and chip tracker from ``ui_common``.
     """
-    running_chips: list[dict] = []  # {"name", "label", "ph", "done"}
+    tracker = _ChipTracker(chips)
     streamed_answer = ""
     final_text = ""
+    agen = stream_query(agent, message, thread_id, recursion_limit)
 
-    for event in _sync_events(agent, message, thread_id, recursion_limit):
+    for event in _sync_events(agen):
         if isinstance(event, ToolStart):
-            label = _tool_start_label(event)
-            ph = chips.empty()
-            ph.markdown(f"🔍 {label}…")
-            running_chips.append({"name": event.name, "label": label, "ph": ph, "done": False})
+            tracker.on_start(event)
         elif isinstance(event, ToolEnd):
-            for chip in reversed(running_chips):
-                if chip["name"] == event.name and not chip["done"]:
-                    chip["ph"].markdown(f"✅ {chip['label']}")
-                    chip["done"] = True
-                    break
+            tracker.on_end(event)
         elif isinstance(event, AnswerToken):
             streamed_answer += event.text
             answer_ph.markdown(streamed_answer)
@@ -151,7 +113,7 @@ def stream_turn(agent, message: str, thread_id: str, recursion_limit: int, chips
             final_text = _render_query_answer(event.answer)
             answer_ph.markdown(final_text)
 
-    # chat_driver always emits FinalAnswer; this is only a defensive fallback.
+    # query_driver always emits FinalAnswer; this is only a defensive fallback.
     return final_text or streamed_answer
 
 
@@ -174,10 +136,10 @@ if prompt := st.chat_input("Ask the wiki…"):
         answer_ph = st.empty()
         try:
             rendered = stream_turn(
-                agent=_agents.get_query_agent(),
+                agent=_builders.get_query_agent(),
                 message=prompt,
                 thread_id=tid,
-                recursion_limit=_agents.agent_config("query", tid)["recursion_limit"],
+                recursion_limit=_builders.agent_config("query", tid)["recursion_limit"],
                 chips=chips,
                 answer_ph=answer_ph,
             )

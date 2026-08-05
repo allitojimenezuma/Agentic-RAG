@@ -8,7 +8,7 @@ from pathlib import Path
 from agentic_rag.config import Settings
 from agentic_rag.agents.ingest import build_ingest_agent
 from agentic_rag.io.wiki_io import list_pages
-from agentic_rag.io.index_manager import read_index
+from agentic_rag.io.index import read_index
 
 
 @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="No OPENAI_API_KEY")

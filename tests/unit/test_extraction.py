@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from agentic_rag.schemas import Concept, Contradiction, Entity, ExtractionResult
-from agentic_rag.tools import ingest_grounding
+from agentic_rag.tools.extraction import submit_extraction
 
 
 def _entity(name: str = "MLX") -> Entity:
@@ -38,7 +38,7 @@ class TestSubmitExtraction:
         concept = _concept()
         contradiction = _contradiction()
 
-        result = ingest_grounding.submit_extraction.invoke(
+        result = submit_extraction.invoke(
             {
                 "entities": [entity],
                 "concepts": [concept],
@@ -52,7 +52,7 @@ class TestSubmitExtraction:
         assert parsed.contradictions == [contradiction]
 
     def test_empty_lists_round_trip(self):
-        result = ingest_grounding.submit_extraction.invoke(
+        result = submit_extraction.invoke(
             {"entities": [], "concepts": [], "contradictions": []}
         )
 
@@ -65,7 +65,7 @@ class TestSubmitExtraction:
         entity = _entity()
         original_entity = entity.model_copy(deep=True)
 
-        result = ingest_grounding.submit_extraction.invoke(
+        result = submit_extraction.invoke(
             {"entities": [entity], "concepts": [], "contradictions": []}
         )
 
@@ -80,7 +80,7 @@ class TestSubmitExtraction:
 
         monkeypatch.setattr("builtins.open", _fail_open)
 
-        result = ingest_grounding.submit_extraction.invoke(
+        result = submit_extraction.invoke(
             {"entities": [_entity()], "concepts": [_concept()], "contradictions": []}
         )
 

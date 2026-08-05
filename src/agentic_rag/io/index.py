@@ -1,4 +1,4 @@
-"""Index manager: read, update, parse wiki/index.md."""
+"""Index codec — parse, format, and atomically write wiki/index.md."""
 
 from __future__ import annotations
 
@@ -169,43 +169,3 @@ _PLURAL_MAP = {
 def _category_for_type(page_type: str) -> str:
     """Map a page type to its plural category name."""
     return _PLURAL_MAP.get(page_type, page_type + "s")
-
-
-def upsert_entry(wiki_path: Path, entry: IndexEntry) -> None:
-    """Add or update an entry in the correct category of the index."""
-    index = read_index(wiki_path)
-    category = _category_for_type(entry.type)
-    if category not in index.categories:
-        index.categories[category] = []
-
-    # Find existing entry by slug
-    entries = index.categories[category]
-    for i, existing in enumerate(entries):
-        if existing.slug == entry.slug:
-            entries[i] = entry
-            write_index(wiki_path, index)
-            return
-
-    # Not found — append
-    entries.append(entry)
-    write_index(wiki_path, index)
-
-
-def remove_entry(wiki_path: Path, slug: str) -> None:
-    """Remove an entry by slug from all categories in the index."""
-    index = read_index(wiki_path)
-    for category_name, entries in index.categories.items():
-        index.categories[category_name] = [e for e in entries if e.slug != slug]
-    write_index(wiki_path, index)
-
-
-def find_in_index(wiki_path: Path, query: str) -> list[IndexEntry]:
-    """Search the index for entries matching a query (substring/keyword on summary or slug)."""
-    index = read_index(wiki_path)
-    query_lower = query.lower()
-    results: list[IndexEntry] = []
-    for entries in index.categories.values():
-        for entry in entries:
-            if query_lower in entry.summary.lower() or query_lower in entry.slug.lower():
-                results.append(entry)
-    return results

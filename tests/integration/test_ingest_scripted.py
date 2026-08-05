@@ -16,7 +16,7 @@ from langchain_core.messages import AIMessage, ToolCall
 
 from agentic_rag.agents.prompts import build_ingest_prompt
 from agentic_rag.schemas.extraction import Concept, Entity
-from agentic_rag.tools.ingest_grounding import submit_extraction
+from agentic_rag.tools.extraction import submit_extraction
 from agentic_rag.tools.ingest_tools import (
     append_log,
     create_page,

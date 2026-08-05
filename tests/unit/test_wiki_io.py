@@ -14,7 +14,7 @@ from agentic_rag.io.wiki_io import (
     read_page_with_frontmatter,
     write_page,
 )
-from agentic_rag.io.index_manager import read_index, write_index
+from agentic_rag.io.index import read_index, write_index
 from agentic_rag.schemas.wiki import Frontmatter, IndexEntry
 from datetime import date
 
@@ -183,7 +183,7 @@ class TestIndexDisplayNames:
 
     def test_source_path_format_in_output(self, wiki: Path) -> None:
         """Verify _format_entry links source entries at their full slug path."""
-        from agentic_rag.io.index_manager import _format_entry
+        from agentic_rag.io.index import _format_entry
         entry = IndexEntry(
             slug="sources/cv",
             summary="Cv",
@@ -198,7 +198,7 @@ class TestIndexDisplayNames:
         assert "sources/sources" not in line
 
     def test_section_to_type_entities(self) -> None:
-        from agentic_rag.io.index_manager import _SECTION_TO_TYPE
+        from agentic_rag.io.index import _SECTION_TO_TYPE
         assert _SECTION_TO_TYPE["entities"] == "entity"
         assert _SECTION_TO_TYPE["concepts"] == "concept"
         assert _SECTION_TO_TYPE["sources"] == "source"

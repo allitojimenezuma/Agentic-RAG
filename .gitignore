@@ -16,3 +16,8 @@ build/
 htmlcov/
 .pi-subagents/knowledge_graph.html
 .pi-subagents/
+# Generated artifacts (scripts/knowledge_graph.py output)
+knowledge_graph.html
+
+# macOS
+.DS_Store

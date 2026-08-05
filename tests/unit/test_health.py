@@ -7,7 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from agentic_rag.io.markdown_parser import serialize_frontmatter
-from agentic_rag.lint.health import _render_report_markdown, health_check
+from agentic_rag.wiki.health import _render_report_markdown, health_check
 from agentic_rag.schemas.lint import LintReport
 from agentic_rag.schemas.wiki import Frontmatter
 from agentic_rag.tools.lint_tools import write_lint_report
@@ -160,7 +160,7 @@ class TestHealthCheck:
         assert health_check(wiki).model_dump() == health_check(wiki).model_dump()
 
     def test_zero_llm_calls(self):
-        import agentic_rag.lint.health as health
+        import agentic_rag.wiki.health as health
 
         src = Path(health.__file__).read_text(encoding="utf-8")
         assert "langchain" not in src

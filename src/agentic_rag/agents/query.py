@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from agentic_rag.agents.factory import build_agent
-from agentic_rag.agents.model import get_model
+from agentic_rag.agents.llm import get_model
 from agentic_rag.agents.prompts import build_query_prompt
 from agentic_rag.schemas.agents_md import load_agents_md
 from agentic_rag.tools.grounding import new_nav_capture

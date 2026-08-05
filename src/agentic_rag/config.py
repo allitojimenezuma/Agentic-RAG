@@ -26,15 +26,10 @@ class Settings(BaseSettings):
     # enforces SOME technical cap (omitting the key means the default 25 — worse),
     # so 200 is an effective "no practical limit" for ingest while query/lint keep 30.
     ingest_recursion_limit: int = 200
-    hitl_enabled: bool = True
 
     # Logging
     log_level: str = "INFO"
     log_dir: Path | None = None  # None = console only
-
-    # Retrieval (MVP: index-only)
-    retrieval_mode: str = "index"
-    vector_db_path: Path | None = None
 
     # MarkItDown
     markitdown_llm_describe_images: bool = False
