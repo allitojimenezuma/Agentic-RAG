@@ -89,6 +89,7 @@ def resume_auto(
     agent,
     config,
     *,
+    state: dict | None = None,
     choice: str = "approve",
     feedback: str = "",
     index: int = 0,
@@ -96,15 +97,32 @@ def resume_auto(
 ) -> dict:
     """Resume an interrupted agent run programmatically.
 
-    Pulls the current state via ``agent.get_state(config).values`` (falling
-    back to ``{}`` for fakes without ``get_state``), builds the decisions with
-    :func:`auto_decide`, and invokes ``Command(resume={"decisions": [...]})``.
-    Returns the resumed run result dict.
+    Args:
+        agent: the (mocked) agent/graph with ``invoke`` and (optionally)
+            ``get_state``.
+        config: run config forwarded to ``invoke``.
+        state: OPTIONAL interrupt-bearing dict. Pass the pre-resume invoke
+            RESULT here when the interrupt lives only in that result — which
+            is exactly what langchain's ``HumanInTheLoopMiddleware`` does:
+            ``agent.get_state(config).values`` carries ``messages`` but NO
+            ``__interrupt__``, so without ``state`` the ``action_requests``
+            would be invisible and edit/reject choices would silently degrade
+            to ``[{"type": "approve"}]``. When omitted, falls back to
+            ``agent.get_state(config).values`` (``{}`` on exception, e.g.
+            fakes without ``get_state``).
+        choice: ``"approve"`` | ``"reject"`` | ``"edit"``.
+        feedback: used by ``reject``.
+        index: zero-based index of the action to edit (``edit`` only).
+        new_resolution: replacement ``proposed_resolution`` (``edit`` only).
+
+    Builds the decisions with :func:`auto_decide` and invokes
+    ``Command(resume={"decisions": [...]})``. Returns the resumed run result.
     """
-    try:
-        state = agent.get_state(config).values
-    except Exception:
-        state = {}
+    if state is None:
+        try:
+            state = agent.get_state(config).values
+        except Exception:
+            state = {}
     decisions = auto_decide(
         state, choice, feedback=feedback, index=index, new_resolution=new_resolution
     )

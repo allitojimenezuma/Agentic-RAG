@@ -172,6 +172,51 @@ def test_resume_auto_edit_uses_new_resolution() -> None:
     )
 
 
+def test_resume_auto_with_state_issues_edit_decision() -> None:
+    """``state=result`` (interrupt-bearing invoke result) -> the CLI EDIT shape
+    reaches invoke: name + args + human ``proposed_resolution``."""
+    result = _state_with_actions([_contradiction_action(resolution="Old.")])
+    agent = _FakeAgent({"messages": []}, {"messages": []})
+    resume_auto(agent, {}, state=result, choice="edit", index=0, new_resolution="X")
+
+    decisions = getattr(agent.last_command, "resume")["decisions"]
+    assert decisions == [
+        {
+            "type": "edit",
+            "edited_action": {
+                "name": "flag_contradiction",
+                "args": {
+                    "page_slug": "entities/mlx",
+                    "existing_claim": "MLX is developed by Apple",
+                    "new_claim": "MLX is developed by Google",
+                    "proposed_resolution": "X",
+                },
+            },
+        }
+    ]
+
+
+def test_resume_auto_with_state_issues_reject_decision() -> None:
+    """``state=result`` + ``choice="reject"`` -> every decision carries feedback."""
+    result = _state_with_actions([_contradiction_action()])
+    agent = _FakeAgent({"messages": []}, {"messages": []})
+    resume_auto(agent, {}, state=result, choice="reject", feedback="Keep it.")
+
+    decisions = getattr(agent.last_command, "resume")["decisions"]
+    assert decisions == [{"type": "reject", "feedback": "Keep it."}]
+
+
+def test_resume_auto_without_state_still_approves() -> None:
+    """Backward compat: no ``state`` kwarg and no ``get_state`` -> the approve
+    fallback shape, never an empty/None decisions list."""
+    agent = _FakeAgent({"messages": []}, {"messages": []})
+    agent.get_state = None  # type: ignore[method-assign]
+    resume_auto(agent, {}, choice="approve")
+
+    decisions = getattr(agent.last_command, "resume")["decisions"]
+    assert decisions == [{"type": "approve"}]
+
+
 def test_resume_auto_tolerates_missing_get_state() -> None:
     """Fakes without ``get_state`` degrade to an empty state, still resume."""
     agent = _FakeAgent({"__interrupt__": "no-actions"}, {"messages": []})

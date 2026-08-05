@@ -24,6 +24,7 @@ tests.
 
 from __future__ import annotations
 
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -39,7 +40,16 @@ from agentic_rag.tools.grounding import (
 )
 from agentic_rag.tools.nav import wiki_read_page, wiki_search, wiki_summary
 from agentic_rag.tools.shared import init_shared_tools
+from tests.fixtures.eval_judge import (
+    FABRICATED_MAX,
+    FAITHFULNESS_SYSTEM,
+    GROUNDED_MIN,
+    FaithfulnessScore,
+    _judge,
+    judge_faithfulness,
+)
 from tests.fixtures.fake_llm import ScriptedChatModel
+from tests.levels.conftest import requires_llm
 
 
 @pytest.fixture(autouse=True)
@@ -189,3 +199,107 @@ def test_end_to_end_nav_capture_citations_are_navigated(eval_wiki) -> None:
     # Cite-or-die end-to-end: every citation slug was genuinely navigated this turn.
     assert all(c.slug in navigated for c in qa.citations)
     assert [c.slug for c in qa.citations] == ["entities/mlx"]
+
+
+# --- calibrated judge: stub round-trip + real-model anchors (T7) -----------------
+# The judge harness lives in tests/fixtures/eval_judge.py. Deterministic tiers
+# exercise its strict-JSON + corrective-retry semantics with a ScriptedChatModel
+# stub (0 LLM, ALWAYS run); the @requires_llm tier calls judge_faithfulness on
+# the real model and asserts the pinned anchor separation.
+
+MLX_PAGE_CONTEXT_PATH = (
+    Path(__file__).parents[2] / "fixtures" / "eval_wiki" / "entities" / "mlx.md"
+)
+
+
+def _mlx_context() -> str:
+    """REAL page text from the committed eval corpus — never invented."""
+    return MLX_PAGE_CONTEXT_PATH.read_text(encoding="utf-8")
+
+
+def test_judge_stub_round_trip_parses_score() -> None:
+    """A scripted valid-JSON response parses to a FaithfulnessScore."""
+    stub = ScriptedChatModel(
+        responses=[
+            AIMessage(content='{"score": 0.9, "rationale": "directly supported"}')
+        ]
+    )
+    score = _judge(
+        stub,
+        FAITHFULNESS_SYSTEM,
+        "Question: What is MLX?\nAnswer: MLX is Apple's framework.\nContext: [1] MLX.",
+        FaithfulnessScore,
+    )
+    assert isinstance(score, FaithfulnessScore)
+    assert score.score == 0.9
+    assert score.rationale == "directly supported"
+
+
+def test_judge_corrective_retry_recovers_valid_json() -> None:
+    """First response unparseable -> ONE corrective retry parses the second."""
+    stub = ScriptedChatModel(
+        responses=[
+            AIMessage(content="not json at all"),
+            AIMessage(content='{"score": 0.3, "rationale": "recovered on retry"}'),
+        ]
+    )
+    score = _judge(
+        stub,
+        FAITHFULNESS_SYSTEM,
+        "Question: What is MLX?\nAnswer: unsupported.\nContext: [1] MLX.",
+        FaithfulnessScore,
+    )
+    assert score.score == 0.3
+    assert score.rationale == "recovered on retry"
+
+
+def test_judge_out_of_bounds_score_raises_runtime_error_never_silent() -> None:
+    """A score outside [0, 1] fails validation -> RuntimeError with raw output.
+
+    Two identical scripted responses so the corrective retry also yields the
+    invalid score and the RuntimeError carries the raw output (never a
+    silent passing score).
+    """
+    raw = '{"score": 1.7, "rationale": "invalid"}'
+    stub = ScriptedChatModel(responses=[AIMessage(content=raw), AIMessage(content=raw)])
+    with pytest.raises(RuntimeError) as exc_info:
+        _judge(
+            stub,
+            FAITHFULNESS_SYSTEM,
+            "Question: What is MLX?\nAnswer: MLX.\nContext: [1] MLX.",
+            FaithfulnessScore,
+        )
+    message = str(exc_info.value)
+    assert "Raw output" in message
+    assert "1.7" in message
+
+
+# --- real-judge tier: anchor separation (requires_llm) --------------------------
+QUESTION = "What is MLX?"
+GROUNDED_ANSWER = (
+    "MLX is a machine learning framework developed by Apple for Apple "
+    "Silicon, using the Metal API."
+)
+FABRICATED_ANSWER = "MLX was developed by Google for TPU clusters."
+
+
+@requires_llm
+def test_real_judge_grounded_answer_meets_anchor_min() -> None:
+    """A claim directly supported by the corpus context must score >= 0.7."""
+    score = judge_faithfulness(QUESTION, GROUNDED_ANSWER, [_mlx_context()])
+    assert score.score >= GROUNDED_MIN, (
+        f"grounded answer scored {score.score:.2f} < pinned "
+        f"GROUNDED_MIN={GROUNDED_MIN} — anchor separation missed by the model "
+        f"under test (measured outcome, pins not loosened)"
+    )
+
+
+@requires_llm
+def test_real_judge_fabricated_answer_stays_below_anchor_max() -> None:
+    """A claim contradicted by the corpus context must score <= 0.4."""
+    score = judge_faithfulness(QUESTION, FABRICATED_ANSWER, [_mlx_context()])
+    assert score.score <= FABRICATED_MAX, (
+        f"fabricated answer scored {score.score:.2f} > pinned "
+        f"FABRICATED_MAX={FABRICATED_MAX} — anchor separation missed by the "
+        f"model under test (measured outcome, pins not loosened)"
+    )
