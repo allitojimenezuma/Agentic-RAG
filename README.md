@@ -232,6 +232,7 @@ tests/
 │   ├── test_wiki_io.py
 │   ├── test_index.py
 │   ├── test_markdown_parser.py
+│   ├── test_eval_hitl.py   # Headless HITL helpers: approve/reject/edit decision shapes
 │   └── ...
 ├── integration/           # Scripted fake-model agent flows
 │   ├── test_ingest_scripted.py
@@ -245,8 +246,7 @@ tests/
 │   ├── level3/            # Recall@8 on curated/hard queries, calibrated faithfulness/relevancy
 │   │                      #   judges (real-LLM tier), contradiction handling
 │   ├── conftest.py        # Loads .env into os.environ so real-LLM tiers run with OPENAI_API_KEY
-│   ├── test_corpus_selfcheck.py
-│   └── test_eval_hitl.py
+│   └── test_corpus_selfcheck.py
 ├── acceptance/            # Real LLM tests (requires API key; skipped by default)
 │   ├── test_wiki_health.py
 │   └── test_ingest_real_source.py
