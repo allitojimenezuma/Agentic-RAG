@@ -6,8 +6,8 @@ decision widgets, and :func:`run_turn` — the single turn/HITL-rerun loop share
 by every page (query uses ``query_driver.stream_query`` via its own page).
 
 Streamlit-dependent by design (verified via AppTest, not unit tests). The pure
-helpers (:func:`render_final`, :func:`action_summary`, :func:`make_pending`)
-stay unit-testable.
+helpers (:func:`render_final`, :func:`action_summary`, :func:`make_pending`,
+:func:`contradiction_markdown`) stay unit-testable.
 """
 
 from __future__ import annotations
@@ -147,11 +147,43 @@ def action_summary(action: dict) -> str:
     return out
 
 
+def contradiction_markdown(action: dict) -> str:
+    """Readable markdown card for a ``flag_contradiction`` action.
+
+    The compact :func:`action_summary` one-liner truncates claim text at 120
+    chars, which makes real contradictions unreadable; this renders the page
+    slug plus the full existing/new claims and proposed resolution. Pure
+    (no Streamlit import) so it stays unit-testable.
+    """
+    args = action.get("args", {})
+    if not isinstance(args, dict):
+        args = {}
+    slug = args.get("page_slug", args.get("slug", ""))
+    title = f"⚠️ Contradiction — {slug}" if slug else "⚠️ Contradiction"
+    lines = [f"**{title}**"]
+    for label, key in (
+        ("Existing claim", "existing_claim"),
+        ("New claim", "new_claim"),
+        ("Proposed resolution", "proposed_resolution"),
+    ):
+        value = args.get(key)
+        lines.append(f"**{label}:** {value}" if value else f"**{label}:** —")
+    return "\n\n".join(lines)
+
+
 def render_actions(actions: list[dict]) -> None:
-    """One bordered card per pending action, mirroring cli.py's display."""
+    """One bordered card per pending action.
+
+    ``flag_contradiction`` renders the full readable card
+    (:func:`contradiction_markdown`); every other action keeps the compact
+    CLI-mirroring one-liner (:func:`action_summary`).
+    """
     for action in actions:
         with st.container(border=True):
-            st.markdown(f"**{action_summary(action)}**")
+            if isinstance(action, dict) and action.get("name") == "flag_contradiction":
+                st.markdown(contradiction_markdown(action))
+            else:
+                st.markdown(f"**{action_summary(action)}**")
 
 
 def make_pending(actions: list[dict], turn_text: str) -> dict:
@@ -228,6 +260,21 @@ def _get_agent(agent: str) -> object:
     return builders[agent]()
 
 
+def _chip_label(name: str, args: Any) -> str:
+    """Compact live-chip label.
+
+    Contradictions show only the page slug: their claim text is huge and the
+    pending card (:func:`contradiction_markdown`) renders it in full once the
+    interrupt fires. Everything else keeps the CLI-mirroring summary.
+    """
+    if name == "flag_contradiction":
+        if isinstance(args, dict):
+            slug = args.get("page_slug", args.get("slug", ""))
+            return f"flag_contradiction({slug})" if slug else "flag_contradiction"
+        return "flag_contradiction"
+    return action_summary({"name": name, "args": args})
+
+
 class _ChipTracker:
     """Live tool chips (mirrors app.py's streaming chip rendering)."""
 
@@ -236,7 +283,7 @@ class _ChipTracker:
         self._running: list[dict] = []
 
     def on_start(self, event: ToolStart) -> None:
-        label = action_summary({"name": event.name, "args": event.args})
+        label = _chip_label(event.name, event.args)
         ph = self._container.empty()
         ph.markdown(f"🔍 {label}…")
         self._running.append({"name": event.name, "label": label, "ph": ph, "done": False})

@@ -113,6 +113,43 @@ class TestPureHelpers:
             == "t()"
         )
 
+    def test_contradiction_markdown_full_card(self):
+        action = {
+            "name": "flag_contradiction",
+            "args": {
+                "page_slug": "entities/málaga",
+                "existing_claim": "Existing text.",
+                "new_claim": "New text.",
+                "proposed_resolution": "Merge both.",
+            },
+        }
+        md = ui_common.contradiction_markdown(action)
+        assert "⚠️ Contradiction — entities/málaga" in md
+        assert "**Existing claim:** Existing text." in md
+        assert "**New claim:** New text." in md
+        assert "**Proposed resolution:** Merge both." in md
+
+    def test_contradiction_markdown_slug_alias_and_missing_fields(self):
+        # Tool schema arg is page_slug; frontend fixtures also use the slug
+        # alias. Missing fields render as an em dash instead of breaking.
+        md = ui_common.contradiction_markdown(
+            {"name": "flag_contradiction", "args": {"slug": "entities/a"}}
+        )
+        assert "⚠️ Contradiction — entities/a" in md
+        assert "**New claim:** —" in md
+        assert "**Proposed resolution:** —" in md
+
+    def test_contradiction_markdown_tolerates_garbage(self):
+        md = ui_common.contradiction_markdown(
+            {"name": "flag_contradiction", "args": "not-a-dict"}
+        )
+        assert md == (
+            "**⚠️ Contradiction**\n\n"
+            "**Existing claim:** —\n\n"
+            "**New claim:** —\n\n"
+            "**Proposed resolution:** —"
+        )
+
     def test_make_pending_shape(self):
         pending = ui_common.make_pending([DELETE_MLX], "Checking…")
         assert pending == {"actions": [DELETE_MLX], "turn_text": "Checking…"}
