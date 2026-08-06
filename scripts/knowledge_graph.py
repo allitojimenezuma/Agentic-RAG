@@ -116,7 +116,7 @@ def _render_body(md: MarkdownIt, body: str, resolver, title: str | None = None) 
         alias_html = html_mod.escape(alias)
         if slug:
             return f'<a href="#" class="wiki-link" data-page="{html_mod.escape(slug)}">{alias_html}</a>'
-        return f'<span class="wiki-dangling" title="unresolved: {html_mod.escape(target)}">{alias_html}</span>'
+        return f'[[{alias_html}]]'
 
     body = _LINK_RE.sub(_link_repl, body)
 

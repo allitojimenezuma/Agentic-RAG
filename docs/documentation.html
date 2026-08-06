@@ -1,15 +1,15 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Agentic RAG — The Agent Layer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
-    rel="stylesheet">
+    rel="stylesheet" />
   <style>
     :root {
       --bg: #0b1220;
@@ -26,7 +26,7 @@
       --warn: #fbbf24;
       --bad: #f87171;
       --radius: 10px;
-      --shadow: 0 2px 10px rgba(0, 0, 0, .45);
+      --shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
     }
 
     * {
@@ -39,7 +39,15 @@
 
     body {
       margin: 0;
-      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family:
+        "Inter",
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        Helvetica,
+        Arial,
+        sans-serif;
       background: var(--bg);
       color: var(--ink);
       line-height: 1.6;
@@ -54,8 +62,12 @@
 
     header.hero {
       background:
-        radial-gradient(ellipse 80% 60% at 15% 0%, rgba(96, 165, 250, .14), transparent 60%),
-        radial-gradient(ellipse 70% 55% at 95% 100%, rgba(45, 212, 191, .07), transparent 55%),
+        radial-gradient(ellipse 80% 60% at 15% 0%,
+          rgba(96, 165, 250, 0.14),
+          transparent 60%),
+        radial-gradient(ellipse 70% 55% at 95% 100%,
+          rgba(45, 212, 191, 0.07),
+          transparent 55%),
         var(--surface);
       color: var(--ink);
       border: 1px solid var(--border);
@@ -68,7 +80,7 @@
     header.hero h1 {
       margin: 0 0 10px;
       font-size: 2rem;
-      letter-spacing: -.02em;
+      letter-spacing: -0.02em;
     }
 
     header.hero .tagline {
@@ -89,15 +101,19 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 3px 10px;
-      font-size: .78rem;
+      font-size: 0.78rem;
       font-weight: 500;
-      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family:
+        "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+        monospace;
       color: #c7d8f2;
     }
 
     .exec-summary {
       background:
-        linear-gradient(180deg, rgba(96, 165, 250, .08), rgba(96, 165, 250, 0) 55%),
+        linear-gradient(180deg,
+          rgba(96, 165, 250, 0.08),
+          rgba(96, 165, 250, 0) 55%),
         var(--surface);
       border: 1px solid var(--border);
       border-left: 4px solid var(--accent);
@@ -132,10 +148,13 @@
       display: inline-block;
       padding: 8px 16px;
       border-radius: 6px;
-      font-size: .88rem;
+      font-size: 0.88rem;
       font-weight: 600;
       text-decoration: none;
-      transition: background .15s ease, border-color .15s ease, color .15s ease;
+      transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease;
     }
 
     .btn-primary {
@@ -169,7 +188,7 @@
     .exec-points li {
       position: relative;
       padding-left: 26px;
-      font-size: .92rem;
+      font-size: 0.92rem;
     }
 
     .exec-points li::before {
@@ -199,16 +218,16 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 14px 12px;
-      font-size: .88rem;
+      font-size: 0.88rem;
       box-shadow: var(--shadow);
       max-height: calc(100vh - 32px);
       overflow-y: auto;
     }
 
     nav.toc h2 {
-      font-size: .75rem;
+      font-size: 0.75rem;
       text-transform: uppercase;
-      letter-spacing: .08em;
+      letter-spacing: 0.08em;
       color: var(--muted);
       margin: 0 0 8px;
     }
@@ -260,11 +279,11 @@
     }
 
     h4 {
-      font-size: .95rem;
+      font-size: 0.95rem;
       margin: 16px 0 6px;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: .04em;
+      letter-spacing: 0.04em;
     }
 
     p {
@@ -276,8 +295,10 @@
       color: var(--code-ink);
       border-radius: 5px;
       padding: 1.5px 6px;
-      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: .86em;
+      font-family:
+        "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+        monospace;
+      font-size: 0.86em;
     }
 
     pre {
@@ -286,8 +307,8 @@
       border-radius: 8px;
       padding: 14px 16px;
       overflow-x: auto;
-      font-size: .85rem;
-      box-shadow: inset 0 2px 10px rgba(0, 0, 0, .35);
+      font-size: 0.85rem;
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.35);
     }
 
     pre code {
@@ -299,7 +320,7 @@
       width: 100%;
       border-collapse: collapse;
       margin: 12px 0;
-      font-size: .88rem;
+      font-size: 0.88rem;
     }
 
     th,
@@ -314,9 +335,9 @@
       background: var(--accent-soft);
       color: #dbe7ff;
       font-weight: 600;
-      font-size: .8rem;
+      font-size: 0.8rem;
       text-transform: uppercase;
-      letter-spacing: .06em;
+      letter-spacing: 0.06em;
       border-bottom: 2px solid var(--border);
     }
 
@@ -352,7 +373,7 @@
     }
 
     figcaption {
-      font-size: .82rem;
+      font-size: 0.82rem;
       color: var(--muted);
       font-style: italic;
       margin: 0 0 16px;
@@ -368,7 +389,7 @@
       border-left: 4px solid var(--accent);
       border-radius: 0 8px 8px 0;
       padding: 10px 14px;
-      font-size: .9rem;
+      font-size: 0.9rem;
       margin: 12px 0;
     }
 
@@ -381,10 +402,10 @@
       display: inline-block;
       border-radius: 5px;
       padding: 1px 8px;
-      font-size: .75rem;
+      font-size: 0.75rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: .03em;
+      letter-spacing: 0.03em;
     }
 
     .b-green {
@@ -408,7 +429,7 @@
     }
 
     .tool-list {
-      font-size: .9rem;
+      font-size: 0.9rem;
     }
 
     .tool-list code {
@@ -419,7 +440,7 @@
     footer {
       text-align: center;
       color: var(--muted);
-      font-size: .82rem;
+      font-size: 0.82rem;
       margin-top: 30px;
     }
 
@@ -449,11 +470,13 @@
     <header class="hero">
       <h1>Agentic RAG — The Agent Layer</h1>
       <p class="tagline">
-        Four LangChain agents — <code>ingest</code>, <code>query</code>, <code>lint</code>,
-        <code>fix</code> — built with <code>create_agent()</code> + middleware. They share one
-        injected schema (<code>AGENTS.md</code>), one deterministic wiki engine beneath them, and a
-        set of scoped tools per agent: read-only navigation for query, structured extraction for
-        ingest, and human-in-the-loop approval for anything destructive.
+        Four LangChain agents — <code>ingest</code>, <code>query</code>,
+        <code>lint</code>, <code>fix</code> — built with
+        <code>create_agent()</code> + middleware. They share one injected
+        schema (<code>AGENTS.md</code>), one deterministic wiki engine beneath
+        them, and a set of scoped tools per agent: read-only navigation for
+        query, structured extraction for ingest, and human-in-the-loop
+        approval for anything destructive.
       </p>
       <div class="chips">
         <span class="chip">4 agents · LangChain create_agent</span>
@@ -479,20 +502,40 @@
         </div>
       </div>
       <ul class="exec-points">
-        <li><strong>Scope-per-agent security.</strong> No god-agent: <code>query</code> gets exactly three read-only
-          tools, <code>fix</code> has no shell and can only act through wiki tools, and every write is filtered by a
-          path-guard middleware that blocks <code>raw/</code>, absolute paths, and <code>..</code>.</li>
-        <li><strong>Zero-hallucination grounding gate.</strong> The query agent has <em>no finalization tool</em> — its
-          answer is auto-built from the model's own message, extracting <code>[[Page]]</code> links as citations and
-          dropping any whose slug was never navigated this turn ("cite-or-die").</li>
-        <li><strong>Deterministic decisions, LLM judgment.</strong> Everything the agents <em>decide</em> structurally
-          (match vs create vs conflict, health findings, index entries) is pure Python with zero LLM calls; the model
-          only adds judgment (extraction, semantics, wording) and writes.</li>
-        <li><strong>Human-in-the-loop where it hurts.</strong> Page deletion pauses for human approval wherever it is
-          possible; contradiction flags pause for approve / edit / reject in ingest. The CLI and the Streamlit UI both
-          drive the same <code>Command(resume=…)</code> flow.</li>
-        <li><strong>Three-level eval suite.</strong> 206 tests in <code>tests/levels/</code> — mechanical rules, agent
-          behavior, and answer quality — run on a neutral corpus, with real-LLM tests that skip without a key.</li>
+        <li>
+          <strong>Scope-per-agent security.</strong> No god-agent:
+          <code>query</code> gets exactly three read-only tools,
+          <code>fix</code> has no shell and can only act through wiki tools,
+          and every write is filtered by a path-guard middleware that blocks
+          <code>raw/</code>, absolute paths, and <code>..</code>.
+        </li>
+        <li>
+          <strong>Zero-hallucination grounding gate.</strong> The query agent
+          has <em>no finalization tool</em> — its answer is auto-built from
+          the model's own message, extracting <code>[[Page]]</code> links as
+          citations and dropping any whose slug was never navigated this turn
+          ("cite-or-die").
+        </li>
+        <li>
+          <strong>Deterministic decisions, LLM judgment.</strong> Everything
+          the agents <em>decide</em> structurally (match vs create vs
+          conflict, health findings, index entries) is pure Python with zero
+          LLM calls; the model only adds judgment (extraction, semantics,
+          wording) and writes.
+        </li>
+        <li>
+          <strong>Human-in-the-loop where it hurts.</strong> Page deletion
+          pauses for human approval wherever it is possible; contradiction
+          flags pause for approve / edit / reject in ingest. The CLI and the
+          Streamlit UI both drive the same
+          <code>Command(resume=…)</code> flow.
+        </li>
+        <li>
+          <strong>Three-level eval suite.</strong> 206 tests in
+          <code>tests/levels/</code> — mechanical rules, agent behavior, and
+          answer quality — run on a neutral corpus, with real-LLM tests that
+          skip without a key.
+        </li>
       </ul>
     </section>
 
@@ -509,7 +552,8 @@
           <li><a href="#s7">Human-in-the-loop</a></li>
           <li><a href="#s8">CLI reference</a></li>
           <li><a href="#s9">Frontend (Streamlit)</a></li>
-          <li><a href="#s10">Testing the agents</a>
+          <li>
+            <a href="#s10">Testing the agents</a>
             <ol>
               <li><a href="#s10-1">Level 1 — the rules</a></li>
               <li><a href="#s10-2">Level 2 — how the agents behave</a></li>
@@ -523,15 +567,16 @@
       </nav>
 
       <main>
-
         <!-- ============ 1. Why agents ============ -->
         <section class="card" id="s1">
           <h2>1. Why agents instead of one pipeline?</h2>
           <p>
-            Each operation — ingest, query, lint, fix — is a different <em>kind</em> of work with
-            different permissions, different budgets, and different outputs. One "god-agent" holding
-            every tool would need the union of all permissions to exist, which is the worst security
-            posture for an LLM. Instead, each agent is assembled with a tool list that is the
+            Each operation — ingest, query, lint, fix — is a different
+            <em>kind</em> of work with different permissions, different
+            budgets, and different outputs. One "god-agent" holding every tool
+            would need the union of all permissions to exist, which is the
+            worst security posture for an LLM. Instead, each agent is
+            assembled with a tool list that is the
             <strong>minimum required for its job</strong>:
           </p>
           <table>
@@ -547,14 +592,19 @@
             <tbody>
               <tr>
                 <td><code>ingest</code></td>
-                <td>Read a source, extract structured knowledge, create / update / flag pages</td>
+                <td>
+                  Read a source, extract structured knowledge, create / update
+                  / flag pages
+                </td>
                 <td>12 (read + match + write)</td>
                 <td>Yes — pages, index, log</td>
                 <td>delete + contradiction (approve / edit / reject)</td>
               </tr>
               <tr>
                 <td><code>query</code></td>
-                <td>Answer questions from the wiki with grounded citations</td>
+                <td>
+                  Answer questions from the wiki with grounded citations
+                </td>
                 <td>3 (read-only)</td>
                 <td>No</td>
                 <td>None</td>
@@ -576,10 +626,12 @@
             </tbody>
           </table>
           <p>
-            Beneath all four sits the <strong>deterministic wiki engine</strong> — pure Python, zero LLM
-            calls — documented separately in <a href="wiki-engine.html" style="color: var(--accent);">wiki-engine.html
-              →</a>.
-            This page is about the LLM layer: how agents are built, prompted, constrained, and looped.
+            Beneath all four sits the
+            <strong>deterministic wiki engine</strong> — pure Python, zero LLM
+            calls — documented separately in
+            <a href="wiki-engine.html" style="color: var(--accent)">wiki-engine.html →</a>. This page is about the LLM
+            layer: how agents are built,
+            prompted, constrained, and looped.
           </p>
         </section>
 
@@ -587,8 +639,9 @@
         <section class="card" id="s2">
           <h2>2. The agent factory</h2>
           <p>
-            Every agent is produced by one function, <code>factory.build_agent()</code>, which wraps
-            LangChain's <code>create_agent()</code> with a fixed middleware chain and a
+            Every agent is produced by one function,
+            <code>factory.build_agent()</code>, which wraps LangChain's
+            <code>create_agent()</code> with a fixed middleware chain and a
             <code>MemorySaver</code> checkpointer:
           </p>
           <pre><code>def build_agent(model, tools, system_prompt, middleware=None, model_name="unknown"):
@@ -611,41 +664,48 @@
     return agent</code></pre>
           <figure>
             <div class="mermaid">
-              flowchart TB
-              subgraph IN["Inputs"]
-              M["model — ChatOpenAI (temperature 0),<br />any OpenAI-compatible provider"]
-              T["tools — per-agent scoped list"]
-              SP["system_prompt — role + AGENTS.md + wiki index"]
-              end
-              subgraph MW["Always-on middleware"]
-              A1["audit_logging_middleware"]
-              A2["path_guard_middleware"]
-              A3["token_capture_middleware (@after_model)"]
-              end
-              subgraph X["Agent-specific"]
-              H["HumanInTheLoopMiddleware — delete / contradiction"]
-              end
-              IN --> AG["create_agent(...)<br />checkpointer = MemorySaver()"]
-              MW --> AG
-              X --> AG
-              AG --> OUT["compiled agent<br />+ _token_tracker attached"]
+              flowchart TB subgraph IN["Inputs"] M["model — ChatOpenAI
+              (temperature 0),<br />any OpenAI-compatible provider"] T["tools
+              — per-agent scoped list"] SP["system_prompt — role + AGENTS.md +
+              wiki index"] end subgraph MW["Always-on middleware"]
+              A1["audit_logging_middleware"] A2["path_guard_middleware"]
+              A3["token_capture_middleware (@after_model)"] end subgraph
+              X["Agent-specific"] H["HumanInTheLoopMiddleware — delete /
+              contradiction"] end IN --> AG["create_agent(...)<br />checkpointer
+              = MemorySaver()"] MW --> AG X --> AG AG --> OUT["compiled
+              agent<br />+ _token_tracker attached"]
             </div>
-            <figcaption>Figure 1 — build_agent assembly: one factory, one middleware order, one
-              checkpointer; agents differ only in tools, prompt, and HITL configuration.</figcaption>
+            <figcaption>
+              Figure 1 — build_agent assembly: one factory, one middleware
+              order, one checkpointer; agents differ only in tools, prompt,
+              and HITL configuration.
+            </figcaption>
           </figure>
           <ul>
-            <li><strong>Model</strong> — <code>ChatOpenAI</code> built with an explicit
-              <code>base_url</code>/<code>api_key</code> and <code>temperature=0</code>, so any OpenAI-compatible
-              provider (Azure, OpenRouter, local proxy) works via env vars.
+            <li>
+              <strong>Model</strong> — <code>ChatOpenAI</code> built with an
+              explicit <code>base_url</code>/<code>api_key</code> and
+              <code>temperature=0</code>, so any OpenAI-compatible provider
+              (Azure, OpenRouter, local proxy) works via env vars.
             </li>
-            <li><strong>Checkpointer</strong> — a fresh <code>MemorySaver</code> per agent, with a per-invocation
-              <code>thread_id</code> from the CLI. State never leaks between runs.
+            <li>
+              <strong>Checkpointer</strong> — a fresh
+              <code>MemorySaver</code> per agent, with a per-invocation
+              <code>thread_id</code> from the CLI. State never leaks between
+              runs.
             </li>
-            <li><strong>Recursion limits</strong> — query/lint/fix run at the default (30 via config for query;
-              LangGraph's built-in cap otherwise); ingest gets 200 because a single ingest can legitimately span many
-              create/update super-steps.</li>
-            <li><strong>Token tracker</strong> — attached as <code>agent._token_tracker</code> so the CLI can log usage
-              summaries; the frontend mirrors the pattern for the query agent's <code>_nav_capture</code>.</li>
+            <li>
+              <strong>Recursion limits</strong> — query/lint/fix run at the
+              default (30 via config for query; LangGraph's built-in cap
+              otherwise); ingest gets 200 because a single ingest can
+              legitimately span many create/update super-steps.
+            </li>
+            <li>
+              <strong>Token tracker</strong> — attached as
+              <code>agent._token_tracker</code> so the CLI can log usage
+              summaries; the frontend mirrors the pattern for the query
+              agent's <code>_nav_capture</code>.
+            </li>
           </ul>
         </section>
 
@@ -653,47 +713,62 @@
         <section class="card" id="s3">
           <h2>3. The agent loop &amp; middleware pipeline</h2>
           <p>
-            The loop is the standard LangGraph cycle — model call → tool call → observe → repeat — with
-            middleware interposed at two points: <code>wrap_tool_call</code> around every tool
-            execution, and the <code>@after_model</code> hook after every LLM call. Both sync
+            The loop is the standard LangGraph cycle — model call → tool call
+            → observe → repeat — with middleware interposed at two points:
+            <code>wrap_tool_call</code> around every tool execution, and the
+            <code>@after_model</code> hook after every LLM call. Both sync
             (<code>invoke()</code>/<code>stream()</code> in the CLI) and async
-            (<code>astream()</code> in the Streamlit UI) hooks are implemented, so one middleware set
-            serves every entry point.
+            (<code>astream()</code> in the Streamlit UI) hooks are
+            implemented, so one middleware set serves every entry point.
           </p>
           <figure>
             <div class="mermaid">
-              flowchart LR
-              M["model call"] --> TC["token_capture_middleware — @after_model hook<br />reads token_usage from the
-              response"]
-              M --> TOOL["model emits a tool call"]
-              TOOL --> A["audit_logging_middleware — logs name, args, result, duration"]
-              A --> P["path_guard_middleware — rejects raw/ ,<br />absolute paths , '..' on write tools"]
-              P --> H{"dangerous tool?"}
-              H -- "delete_wiki_page · flag_contradiction" --> HT["HumanInTheLoopMiddleware —<br />approve / reject /
-              edit"]
-              H -- no --> EX["execute tool"]
-              HT --> EX
+              flowchart LR M["model call"] --> TC["token_capture_middleware —
+              @after_model hook<br />reads token_usage from the response"] M
+              --> TOOL["model emits a tool call"] TOOL -->
+              A["audit_logging_middleware — logs name, args, result,
+              duration"] A --> P["path_guard_middleware — rejects raw/ ,<br />absolute
+              paths , '..' on write tools"] P --> H{"dangerous tool?"} H --
+              "delete_wiki_page · flag_contradiction" -->
+              HT["HumanInTheLoopMiddleware —<br />approve / reject / edit"] H
+              -- no --> EX["execute tool"] HT --> EX
             </div>
-            <figcaption>Figure 2 — Middleware pipeline applied to every agent: token capture runs after
-              each model call; audit, path guard, and HITL wrap every tool call in that order.</figcaption>
+            <figcaption>
+              Figure 2 — Middleware pipeline applied to every agent: token
+              capture runs after each model call; audit, path guard, and HITL
+              wrap every tool call in that order.
+            </figcaption>
           </figure>
           <ul>
-            <li><code>audit_logging_middleware</code> — records every tool call (name, args, result, duration) to the
-              audit log; failures are logged with the exception and elapsed time.</li>
-            <li><code>path_guard_middleware</code> — the write-tools set (<code>create_page</code>,
-              <code>update_page</code>, <code>delete_wiki_page</code>, <code>write_lint_report</code>,
-              <code>add_frontmatter</code>, <code>fix_link</code>, <code>append_related_section</code>) must not receive
-              arguments containing <code>raw/</code>, starting with <code>/</code>, or containing <code>..</code>.
-              <code>read_source</code> is exempt — it legitimately reads raw sources. New write tools must join the set
-              or they are unguarded by design.
+            <li>
+              <code>audit_logging_middleware</code> — records every tool call
+              (name, args, result, duration) to the audit log; failures are
+              logged with the exception and elapsed time.
             </li>
-            <li><code>token_capture_middleware</code> — an <code>@after_model</code> hook that extracts
-              <code>token_usage</code> (or <code>usage</code>) from the last message's <code>response_metadata</code>
+            <li>
+              <code>path_guard_middleware</code> — the write-tools set
+              (<code>create_page</code>, <code>update_page</code>,
+              <code>delete_wiki_page</code>, <code>write_lint_report</code>,
+              <code>add_frontmatter</code>, <code>fix_link</code>,
+              <code>append_related_section</code>) must not receive arguments
+              containing <code>raw/</code>, starting with <code>/</code>, or
+              containing <code>..</code>. <code>read_source</code> is exempt —
+              it legitimately reads raw sources. New write tools must join the
+              set or they are unguarded by design.
+            </li>
+            <li>
+              <code>token_capture_middleware</code> — an
+              <code>@after_model</code> hook that extracts
+              <code>token_usage</code> (or <code>usage</code>) from the last
+              message's <code>response_metadata</code>
               and records it on the session tracker.
             </li>
-            <li><code>HumanInTheLoopMiddleware</code> — agent-specific (see <a href="#s7">§7</a>): pauses on
-              <code>delete_wiki_page</code> for all agents and on <code>flag_contradiction</code> for ingest, with
-              explicit decision sets.
+            <li>
+              <code>HumanInTheLoopMiddleware</code> — agent-specific (see
+              <a href="#s7">§7</a>): pauses on
+              <code>delete_wiki_page</code> for all agents and on
+              <code>flag_contradiction</code> for ingest, with explicit
+              decision sets.
             </li>
           </ul>
         </section>
@@ -702,8 +777,9 @@
         <section class="card" id="s4">
           <h2>4. System prompt assembly</h2>
           <p>
-            Four builders in <code>agents/prompts.py</code> assemble the system prompts. They all follow
-            the same skeleton — role, schema, inventory, workflow, rules:
+            Four builders in <code>agents/prompts.py</code> assemble the
+            system prompts. They all follow the same skeleton — role, schema,
+            inventory, workflow, rules:
           </p>
           <pre><code>def build_query_prompt(agents_md: str, wiki_index: str = "") -> str:
     index_section = f"\n# Current Wiki Pages\n{wiki_index}\n" if wiki_index else ""
@@ -724,17 +800,30 @@
 - Never infer or hallucinate content from page names alone."""</code></pre>
           <p>Four ingredients, in order:</p>
           <ul>
-            <li><strong>Role</strong> — one paragraph defining the agent's job and identity.</li>
-            <li><strong><code>AGENTS.md</code> schema</strong> — loaded by <code>load_agents_md</code> (with a built-in
-              default fallback) and injected verbatim. This is the shared contract: page types, slug naming,
-              <code>[[links]]</code>, frontmatter, update rules, hard rules.
+            <li>
+              <strong>Role</strong> — one paragraph defining the agent's job
+              and identity.
             </li>
-            <li><strong>Current wiki pages</strong> — the raw <code>index.md</code> injected as
-              <code># Current Wiki Pages</code> (<code>get_index_summary</code>). The model knows the page inventory
-              before making a single tool call — no blind guessing of slugs.
+            <li>
+              <strong><code>AGENTS.md</code> schema</strong> — loaded by
+              <code>load_agents_md</code> (with a built-in default fallback)
+              and injected verbatim. This is the shared contract: page types,
+              slug naming, <code>[[links]]</code>, frontmatter, update rules,
+              hard rules.
             </li>
-            <li><strong>Workflow + hard rules</strong> — agent-specific instructions, including the structural
-              invariants the code enforces (see below).</li>
+            <li>
+              <strong>Current wiki pages</strong> — the raw
+              <code>index.md</code> injected as
+              <code># Current Wiki Pages</code>
+              (<code>get_index_summary</code>). The model knows the page
+              inventory before making a single tool call — no blind guessing
+              of slugs.
+            </li>
+            <li>
+              <strong>Workflow + hard rules</strong> — agent-specific
+              instructions, including the structural invariants the code
+              enforces (see below).
+            </li>
           </ul>
           <h3>Per-agent prompt highlights</h3>
           <table>
@@ -747,33 +836,48 @@
             <tbody>
               <tr>
                 <td><code>ingest</code></td>
-                <td>Two modes (file path vs natural language). <code>submit_extraction</code> MUST run before any page
-                  write; <code>match_page_tool</code> called once per name; branch on its decision; after
-                  <code>flag_contradiction</code> returns, the human decision is <em>already known</em> — continue,
-                  never ask again. <strong>NEVER call <code>update_index</code></strong> — the index is derived; end
-                  with <code>regenerate_index</code> + <code>append_log</code>.
+                <td>
+                  Two modes (file path vs natural language).
+                  <code>submit_extraction</code> MUST run before any page
+                  write; <code>match_page_tool</code> called once per name;
+                  branch on its decision; after
+                  <code>flag_contradiction</code> returns, the human decision
+                  is <em>already known</em> — continue, never ask again.
+                  <strong>NEVER call <code>update_index</code></strong> — the
+                  index is derived; end with <code>regenerate_index</code> +
+                  <code>append_log</code>.
                 </td>
               </tr>
               <tr>
                 <td><code>query</code></td>
-                <td>Cite every page read with inline <code>[[slug]]</code>; any other citation is dropped automatically
-                  (cite-or-die). Read-only — no write tools exist. Say so clearly when the wiki doesn't cover the
-                  question.</td>
+                <td>
+                  Cite every page read with inline <code>[[slug]]</code>; any
+                  other citation is dropped automatically (cite-or-die).
+                  Read-only — no write tools exist. Say so clearly when the
+                  wiki doesn't cover the question.
+                </td>
               </tr>
               <tr>
                 <td><code>lint</code></td>
-                <td>Run <code>run_health_check</code> FIRST as ground truth; get the full picture with
-                  <code>wiki_scan</code> + <code>wiki_link_graph</code> instead of reading pages; hard budget of ≤3
-                  <code>wiki_read_page</code> calls; ALWAYS write the report, even with zero findings; never modify
-                  content pages.
+                <td>
+                  Run <code>run_health_check</code> FIRST as ground truth; get
+                  the full picture with <code>wiki_scan</code> +
+                  <code>wiki_link_graph</code> instead of reading pages; hard
+                  budget of ≤3 <code>wiki_read_page</code> calls; ALWAYS write
+                  the report, even with zero findings; never modify content
+                  pages.
                 </td>
               </tr>
               <tr>
                 <td><code>fix</code></td>
-                <td>Pinned issue-kind → tool map (<code>missing-frontmatter</code> → <code>add_frontmatter</code>, …);
-                  natural-language requests take priority over the issue list; never read <code>lint-report-*</code>
-                  pages; verify each fix by re-reading; end with <code>regenerate_index</code> when titles/content
-                  changed.</td>
+                <td>
+                  Pinned issue-kind → tool map (<code>missing-frontmatter</code>
+                  → <code>add_frontmatter</code>, …); natural-language
+                  requests take priority over the issue list; never read
+                  <code>lint-report-*</code> pages; verify each fix by
+                  re-reading; end with <code>regenerate_index</code> when
+                  titles/content changed.
+                </td>
               </tr>
             </tbody>
           </table>
@@ -785,165 +889,181 @@
 
           <h3>5.1 Ingest Agent — compile once</h3>
           <p>
-            Reads a source, extracts structured knowledge in one pure pass, then decides —
-            deterministically — whether each name becomes a new page, an update, or a contradiction
-            flag.
+            Reads a source, extracts structured knowledge in one pure pass,
+            then decides — deterministically — whether each name becomes a new
+            page, an update, or a contradiction flag.
           </p>
           <h4>Tools</h4>
           <p class="tool-list">
-            <code>read_source</code> <code>submit_extraction</code> <code>match_page_tool</code>
-            <code>wiki_read_page</code> <code>wiki_scan</code> <code>wiki_link_graph</code>
-            <code>create_page</code> <code>update_page</code> <code>flag_contradiction</code>
-            <code>regenerate_index</code> <code>append_log</code> <code>delete_wiki_page</code>
+            <code>read_source</code> <code>submit_extraction</code>
+            <code>match_page_tool</code> <code>wiki_read_page</code>
+            <code>wiki_scan</code> <code>wiki_link_graph</code>
+            <code>create_page</code> <code>update_page</code>
+            <code>flag_contradiction</code> <code>regenerate_index</code>
+            <code>append_log</code> <code>delete_wiki_page</code>
           </p>
           <figure>
             <div class="mermaid">
-              sequenceDiagram
-              participant CLI as CLI
-              participant A as Ingest Agent
-              participant R as raw/
-              participant M as match_page (deterministic)
-              participant W as wiki/
-              CLI->>A: ingest path-or-text
-              A->>R: read_source (MarkItDown)
-              A->>A: submit_extraction → Entity / Concept / Contradiction JSON (pure, no writes)
-              loop each extracted name
-              A->>M: match_page_tool(name, page_type)
-              alt exact or similar
-              M-->>A: decision — update existing page
-              A->>W: update_page
-              else none
-              M-->>A: decision — no existing page
-              A->>W: create_page
-              else conflict
-              M-->>A: decision — multiple candidates
-              A->>W: flag_contradiction (HITL: approve / edit / reject)
-              end
-              end
-              A->>W: update ## Related links on touched pages
-              A->>W: write sources/&lt;slug&gt;.md summary page
-              A->>W: regenerate_index (derived) + append_log
+              sequenceDiagram participant CLI as CLI participant A as Ingest
+              Agent participant R as raw/ participant M as match_page
+              (deterministic) participant W as wiki/ CLI->>A: ingest
+              path-or-text A->>R: read_source (MarkItDown) A->>A:
+              submit_extraction → Entity / Concept / Contradiction JSON (pure,
+              no writes) loop each extracted name A->>M: match_page_tool(name,
+              page_type) alt exact or similar M-->>A: decision — update
+              existing page A->>W: update_page else none M-->>A: decision — no
+              existing page A->>W: create_page else conflict M-->>A: decision
+              — multiple candidates A->>W: flag_contradiction (HITL: approve /
+              edit / reject) end end A->>W: update ## Related links on touched
+              pages A->>W: write sources/&lt;slug&gt;.md summary page A->>W:
+              regenerate_index (derived) + append_log
             </div>
-            <figcaption>Figure 3 — Ingest sequence: extraction is submitted as pure structured JSON;
-              matching is deterministic; only the create/update/flag branch touches the wiki.</figcaption>
+            <figcaption>
+              Figure 3 — Ingest sequence: extraction is submitted as pure
+              structured JSON; matching is deterministic; only the
+              create/update/flag branch touches the wiki.
+            </figcaption>
           </figure>
           <p>
-            The deliberate split: <code>submit_extraction</code> (<code>tools/extraction.py</code>)
-            performs <strong>no writes</strong> — it validates an <code>ExtractionResult</code> of
-            entities, concepts, and contradictions and returns it as JSON. It forces a structured,
+            The deliberate split:
+            <code>submit_extraction</code> (<code>tools/extraction.py</code>)
+            performs <strong>no writes</strong> — it validates an
+            <code>ExtractionResult</code> of entities, concepts, and
+            contradictions and returns it as JSON. It forces a structured,
             testable extraction boundary before any page write, and the agent
-            <strong>never calls an "update index" tool</strong> — the index is rebuilt by
-            <code>regenerate_index</code> as a derived view.
+            <strong>never calls an "update index" tool</strong> — the index is
+            rebuilt by <code>regenerate_index</code> as a derived view.
           </p>
 
           <h3>5.2 Query Agent — cite or die</h3>
           <p>
-            Read-only. Searches with BM25, navigates pages, and writes a plain-message answer with
-            inline <code>[[Page]]</code> links. There is <strong>no finalization tool</strong>: the
-            answer is auto-built from the model's own final message by
-            <code>build_final_answer</code>, which extracts every inline link as a citation and drops
-            any whose slug was never actually navigated this turn.
+            Read-only. Searches with BM25, navigates pages, and writes a
+            plain-message answer with inline <code>[[Page]]</code> links.
+            There is <strong>no finalization tool</strong>: the answer is
+            auto-built from the model's own final message by
+            <code>build_final_answer</code>, which extracts every inline link
+            as a citation and drops any whose slug was never actually
+            navigated this turn.
           </p>
           <h4>Tools</h4>
-          <p class="tool-list"><code>wiki_search</code> <code>wiki_read_page</code> <code>wiki_summary</code></p>
+          <p class="tool-list">
+            <code>wiki_search</code> <code>wiki_read_page</code>
+            <code>wiki_summary</code>
+          </p>
           <figure>
             <div class="mermaid">
-              flowchart LR
-              Q["question"] --> S["wiki_search — BM25, k=8, link expansion<br />records navigated slugs"]
-              S --> R["wiki_read_page on hits<br />records navigated slugs"]
-              R --> N{"need more context?"}
-              N -- yes --> R
-              N -- no --> A["model writes the final answer with inline [[Page]] links"]
-              A --> E["build_final_answer — auto-synthesizes QueryAnswer:<br />answer + citations extracted from the
-              links"]
-              E --> V{"NavCapture gate — was each cited slug<br />navigated this turn?"}
-              V -- "slug never navigated" --> DROP["citation dropped (cite-or-die)"]
-              V -- "all cited slugs visited" --> OUT["render Answer + Confidence + Citations"]
+              flowchart LR Q["question"] --> S["wiki_search — BM25, k=8, link
+              expansion<br />records navigated slugs"] S --> R["wiki_read_page
+              on hits<br />records navigated slugs"] R --> N{"need more
+              context?"} N -- yes --> R N -- no --> A["model writes the final
+              answer with inline [[Page]] links"] A --> E["build_final_answer
+              — auto-synthesizes QueryAnswer:<br />answer + citations
+              extracted from the links"] E --> V{"NavCapture gate — was each
+              cited slug<br />navigated this turn?"} V -- "slug never
+              navigated" --> DROP["citation dropped (cite-or-die)"] V -- "all
+              cited slugs visited" --> OUT["render Answer + Confidence +
+              Citations"]
             </div>
-            <figcaption>Figure 4 — Query flow with cite-or-die: navigation is recorded into a fresh
-              per-invocation NavCapture; the answer is built from the model output; any citation whose
-              slug was never navigated is dropped before rendering.</figcaption>
+            <figcaption>
+              Figure 4 — Query flow with cite-or-die: navigation is recorded
+              into a fresh per-invocation NavCapture; the answer is built from
+              the model output; any citation whose slug was never navigated is
+              dropped before rendering.
+            </figcaption>
           </figure>
           <ul>
-            <li><strong>Fresh capture per invocation</strong> — <code>agent._nav_capture = new_nav_capture()</code> at
-              build time, mirrored by the frontend's chat driver per turn. Every cited slug must be a page navigated
-              <em>this turn</em>.
+            <li>
+              <strong>Fresh capture per invocation</strong> —
+              <code>agent._nav_capture = new_nav_capture()</code> at build
+              time, mirrored by the frontend's chat driver per turn. Every
+              cited slug must be a page navigated <em>this turn</em>.
             </li>
-            <li><strong>Confidence is inferred, not claimed</strong>: <span class="badge b-green">high</span> when
-              navigated pages are cited, <span class="badge b-amber">medium</span> when pages were navigated but none
-              are cited, <span class="badge b-red">low</span> when nothing was navigated.</li>
-            <li><strong>Rendering</strong> — <code>render_answer_text</code> strips <code>[[…]]</code> markup for
-              display; citations carry slug + title (from frontmatter) + section.</li>
+            <li>
+              <strong>Confidence is inferred, not claimed</strong>:
+              <span class="badge b-green">high</span> when navigated pages are
+              cited, <span class="badge b-amber">medium</span> when pages were
+              navigated but none are cited,
+              <span class="badge b-red">low</span> when nothing was navigated.
+            </li>
+            <li>
+              <strong>Rendering</strong> —
+              <code>render_answer_text</code> strips <code>[[…]]</code> markup
+              for display; citations carry slug + title (from frontmatter) +
+              section.
+            </li>
           </ul>
 
           <h3>5.3 Lint Agent — deterministic audit + semantic judgment</h3>
           <p>
-            The structural audit is a <strong>0-LLM</strong> <code>health_check</code>; the agent adds
-            the one thing that needs a model (duplicate coverage and cross-page consistency) and writes
+            The structural audit is a <strong>0-LLM</strong>
+            <code>health_check</code>; the agent adds the one thing that needs
+            a model (duplicate coverage and cross-page consistency) and writes
             the report.
           </p>
           <h4>Tools</h4>
-          <p class="tool-list"><code>run_health_check</code> <code>wiki_link_graph</code> <code>wiki_read_page</code>
+          <p class="tool-list">
+            <code>run_health_check</code> <code>wiki_link_graph</code>
+            <code>wiki_read_page</code>
             <code>write_lint_report</code>
           </p>
           <figure>
             <div class="mermaid">
-              flowchart TB
-              subgraph DET["Deterministic — run_health_check (0 LLM calls)"]
-              K1["orphan — high"]
-              K2["missing-index — high"]
-              K3["broken-link — high"]
-              K4["missing-frontmatter — critical"]
-              K5["missing-related — medium"]
-              K6["empty — high"]
-              K7["stale — medium"]
-              end
-              subgraph SEM["LLM part — semantic judgment"]
-              AG["Lint agent reviews wiki_scan previews<br />+ wiki_link_graph context"]
-              DUP["duplicate coverage detection"]
-              BUD["hard budget: ≤3 wiki_read_page calls"]
-              end
-              DET --> RP["LintReport (structured issues)"]
-              SEM --> RP
-              RP --> WR["write_lint_report → wiki/lint-report-YYYY-MM-DD.md"]
+              flowchart TB subgraph DET["Deterministic — run_health_check (0
+              LLM calls)"] K1["orphan — high"] K2["missing-index — high"]
+              K3["broken-link — high"] K4["missing-frontmatter — critical"]
+              K5["missing-related — medium"] K6["empty — high"] K7["stale —
+              medium"] end subgraph SEM["LLM part — semantic judgment"]
+              AG["Lint agent reviews wiki_scan previews<br />+ wiki_link_graph
+              context"] DUP["duplicate coverage detection"] BUD["hard budget:
+              ≤3 wiki_read_page calls"] end DET --> RP["LintReport (structured
+              issues)"] SEM --> RP RP --> WR["write_lint_report →
+              wiki/lint-report-YYYY-MM-DD.md"]
             </div>
-            <figcaption>Figure 5 — Lint pipeline: seven deterministic issue kinds feed a structured
-              LintReport; the agent contributes only semantic judgment and renders the report.</figcaption>
+            <figcaption>
+              Figure 5 — Lint pipeline: seven deterministic issue kinds feed a
+              structured LintReport; the agent contributes only semantic
+              judgment and renders the report.
+            </figcaption>
           </figure>
           <p>
-            Note the asymmetry: the agent is read-only except for <code>write_lint_report</code> (its
-            tool list contains no page-write tool at all), and <code>lint-report-*</code> pages are
-            excluded from the health check itself — a report can't flag itself.
+            Note the asymmetry: the agent is read-only except for
+            <code>write_lint_report</code> (its tool list contains no
+            page-write tool at all), and <code>lint-report-*</code> pages are
+            excluded from the health check itself — a report can't flag
+            itself.
           </p>
 
           <h3>5.4 Fix Agent — structured issues in, pinned fixes out</h3>
           <p>
-            The CLI runs <code>health_check</code> first, converts each issue to a one-line message
-            (<code>[kind] slug: detail</code>), and hands it to the Fix Agent, which applies a pinned
-            kind→tool map. There is <strong>no shell tool</strong> in this agent — it can only act
-            through the wiki tools.
+            The CLI runs <code>health_check</code> first, converts each issue
+            to a one-line message (<code>[kind] slug: detail</code>), and
+            hands it to the Fix Agent, which applies a pinned kind→tool map.
+            There is <strong>no shell tool</strong> in this agent — it can
+            only act through the wiki tools.
           </p>
           <h4>Tools</h4>
           <p class="tool-list">
-            <code>wiki_read_page</code> <code>edit_wiki_page</code> <code>add_frontmatter</code>
-            <code>fix_link</code> <code>append_related_section</code> <code>regenerate_index</code>
+            <code>wiki_read_page</code> <code>edit_wiki_page</code>
+            <code>add_frontmatter</code> <code>fix_link</code>
+            <code>append_related_section</code> <code>regenerate_index</code>
             <code>delete_wiki_page</code>
           </p>
           <figure>
             <div class="mermaid">
-              flowchart LR
-              CLI["agentic-rag fix latest"] --> HC["health_check — 0 LLM"]
-              HC --> MSG["one line per issue — [kind] slug: detail"]
-              MSG --> AG["Fix Agent"]
-              AG -- "missing-frontmatter" --> T1["add_frontmatter"]
-              AG -- "broken-link" --> T2["fix_link"]
-              AG -- "missing-related" --> T3["append_related_section"]
-              AG -- "missing-index" --> T4["regenerate_index"]
-              AG -- "orphan / empty / stale" --> RPT["report only — needs human judgment"]
-              AG -- "delete_wiki_page" --> HT["HITL — human approval required"]
+              flowchart LR CLI["agentic-rag fix latest"] --> HC["health_check
+              — 0 LLM"] HC --> MSG["one line per issue — [kind] slug: detail"]
+              MSG --> AG["Fix Agent"] AG -- "missing-frontmatter" -->
+              T1["add_frontmatter"] AG -- "broken-link" --> T2["fix_link"] AG
+              -- "missing-related" --> T3["append_related_section"] AG --
+              "missing-index" --> T4["regenerate_index"] AG -- "orphan / empty
+              / stale" --> RPT["report only — needs human judgment"] AG --
+              "delete_wiki_page" --> HT["HITL — human approval required"]
             </div>
-            <figcaption>Figure 6 — Fix flow: the CLI runs the deterministic health check, and the agent
-              maps each issue kind to exactly one tool. Deletes are the only HITL-gated operation.</figcaption>
+            <figcaption>
+              Figure 6 — Fix flow: the CLI runs the deterministic health
+              check, and the agent maps each issue kind to exactly one tool.
+              Deletes are the only HITL-gated operation.
+            </figcaption>
           </figure>
         </section>
 
@@ -951,7 +1071,8 @@
         <section class="card" id="s6">
           <h2>6. Tools by agent</h2>
           <p>
-            The full inventory. <span class="badge b-green">W</span> = writes to the wiki.
+            The full inventory. <span class="badge b-green">W</span> = writes
+            to the wiki.
           </p>
           <table>
             <thead>
@@ -971,7 +1092,10 @@
                 <td></td>
                 <td></td>
                 <td></td>
-                <td>Convert a raw source (pdf/docx/html/…) to markdown via MarkItDown.</td>
+                <td>
+                  Convert a raw source (pdf/docx/html/…) to markdown via
+                  MarkItDown.
+                </td>
               </tr>
               <tr>
                 <td><code>submit_extraction</code></td>
@@ -979,7 +1103,10 @@
                 <td></td>
                 <td></td>
                 <td></td>
-                <td>Pure structured extraction boundary: entities/concepts/contradictions as JSON, no writes.</td>
+                <td>
+                  Pure structured extraction boundary:
+                  entities/concepts/contradictions as JSON, no writes.
+                </td>
               </tr>
               <tr>
                 <td><code>match_page_tool</code></td>
@@ -987,7 +1114,10 @@
                 <td></td>
                 <td></td>
                 <td></td>
-                <td>Deterministic create / update / conflict decision for a name.</td>
+                <td>
+                  Deterministic create / update / conflict decision for a
+                  name.
+                </td>
               </tr>
               <tr>
                 <td><code>wiki_search</code></td>
@@ -995,7 +1125,10 @@
                 <td>●</td>
                 <td></td>
                 <td></td>
-                <td>BM25 ranked pages + bounded link expansion; records navigated slugs.</td>
+                <td>
+                  BM25 ranked pages + bounded link expansion; records
+                  navigated slugs.
+                </td>
               </tr>
               <tr>
                 <td><code>wiki_read_page</code></td>
@@ -1003,7 +1136,10 @@
                 <td>●</td>
                 <td>●</td>
                 <td>●</td>
-                <td>Read a page (full or section-scoped); records navigated slug.</td>
+                <td>
+                  Read a page (full or section-scoped); records navigated
+                  slug.
+                </td>
               </tr>
               <tr>
                 <td><code>wiki_summary</code></td>
@@ -1019,7 +1155,10 @@
                 <td></td>
                 <td></td>
                 <td></td>
-                <td>Full-picture previews: first-section text, inbound/outbound counts, dates.</td>
+                <td>
+                  Full-picture previews: first-section text, inbound/outbound
+                  counts, dates.
+                </td>
               </tr>
               <tr>
                 <td><code>wiki_link_graph</code></td>
@@ -1027,18 +1166,29 @@
                 <td></td>
                 <td>●</td>
                 <td></td>
-                <td>All pages with inbound/outbound links + orphan summary.</td>
+                <td>
+                  All pages with inbound/outbound links + orphan summary.
+                </td>
               </tr>
               <tr>
-                <td><code>create_page</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>create_page</code>
+                  <span class="badge b-green">W</span>
+                </td>
                 <td>●</td>
                 <td></td>
                 <td></td>
                 <td></td>
-                <td>Create a page (fails if it exists); auto-prefixes type directory.</td>
+                <td>
+                  Create a page (fails if it exists); auto-prefixes type
+                  directory.
+                </td>
               </tr>
               <tr>
-                <td><code>update_page</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>update_page</code>
+                  <span class="badge b-green">W</span>
+                </td>
                 <td>●</td>
                 <td></td>
                 <td></td>
@@ -1051,10 +1201,16 @@
                 <td></td>
                 <td></td>
                 <td></td>
-                <td>Flag conflicting claims — pauses for approve / edit / reject.</td>
+                <td>
+                  Flag conflicting claims — pauses for approve / edit /
+                  reject.
+                </td>
               </tr>
               <tr>
-                <td><code>regenerate_index</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>regenerate_index</code>
+                  <span class="badge b-green">W</span>
+                </td>
                 <td>●</td>
                 <td></td>
                 <td></td>
@@ -1062,15 +1218,22 @@
                 <td>Rebuild <code>index.md</code> as a derived view.</td>
               </tr>
               <tr>
-                <td><code>append_log</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>append_log</code> <span class="badge b-green">W</span>
+                </td>
                 <td>●</td>
                 <td></td>
                 <td></td>
                 <td></td>
-                <td>Append a timestamped, prefixed entry to <code>log.md</code>.</td>
+                <td>
+                  Append a timestamped, prefixed entry to <code>log.md</code>.
+                </td>
               </tr>
               <tr>
-                <td><code>delete_wiki_page</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>delete_wiki_page</code>
+                  <span class="badge b-green">W</span>
+                </td>
                 <td>●</td>
                 <td></td>
                 <td></td>
@@ -1086,15 +1249,24 @@
                 <td>Deterministic 7-kind structural audit (0 LLM).</td>
               </tr>
               <tr>
-                <td><code>write_lint_report</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>write_lint_report</code>
+                  <span class="badge b-green">W</span>
+                </td>
                 <td></td>
                 <td></td>
                 <td>●</td>
                 <td></td>
-                <td>Write <code>lint-report-YYYY-MM-DD.md</code> from a structured report or markdown.</td>
+                <td>
+                  Write <code>lint-report-YYYY-MM-DD.md</code> from a
+                  structured report or markdown.
+                </td>
               </tr>
               <tr>
-                <td><code>edit_wiki_page</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>edit_wiki_page</code>
+                  <span class="badge b-green">W</span>
+                </td>
                 <td></td>
                 <td></td>
                 <td></td>
@@ -1102,7 +1274,10 @@
                 <td>Exact old_text → new_text replacement in a page.</td>
               </tr>
               <tr>
-                <td><code>add_frontmatter</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>add_frontmatter</code>
+                  <span class="badge b-green">W</span>
+                </td>
                 <td></td>
                 <td></td>
                 <td></td>
@@ -1110,15 +1285,23 @@
                 <td>Add YAML frontmatter to a page that lacks it.</td>
               </tr>
               <tr>
-                <td><code>fix_link</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>fix_link</code> <span class="badge b-green">W</span>
+                </td>
                 <td></td>
                 <td></td>
                 <td></td>
                 <td>●</td>
-                <td>Repair a broken <code>[[old_target]]</code> → <code>[[new_target]]</code>.</td>
+                <td>
+                  Repair a broken <code>[[old_target]]</code> →
+                  <code>[[new_target]]</code>.
+                </td>
               </tr>
               <tr>
-                <td><code>append_related_section</code> <span class="badge b-green">W</span></td>
+                <td>
+                  <code>append_related_section</code>
+                  <span class="badge b-green">W</span>
+                </td>
                 <td></td>
                 <td></td>
                 <td></td>
@@ -1133,8 +1316,9 @@
         <section class="card" id="s7">
           <h2>7. Human-in-the-loop</h2>
           <p>
-            <code>HumanInTheLoopMiddleware</code> (from <code>langchain.agents.middleware</code>)
-            interrupts the agent run before a dangerous tool executes. The configuration is explicit
+            <code>HumanInTheLoopMiddleware</code> (from
+            <code>langchain.agents.middleware</code>) interrupts the agent run
+            before a dangerous tool executes. The configuration is explicit
             and per-agent:
           </p>
           <table>
@@ -1148,8 +1332,14 @@
             <tbody>
               <tr>
                 <td><code>ingest</code></td>
-                <td><code>delete_wiki_page</code>, <code>flag_contradiction</code></td>
-                <td><code>approve</code> / <code>reject</code>; contradiction adds <code>edit</code></td>
+                <td>
+                  <code>delete_wiki_page</code>,
+                  <code>flag_contradiction</code>
+                </td>
+                <td>
+                  <code>approve</code> / <code>reject</code>; contradiction
+                  adds <code>edit</code>
+                </td>
               </tr>
               <tr>
                 <td><code>query</code></td>
@@ -1158,7 +1348,10 @@
               </tr>
               <tr>
                 <td><code>lint</code></td>
-                <td><code>delete_wiki_page</code> (declared; tool not in its list)</td>
+                <td>
+                  <code>delete_wiki_page</code> (declared; tool not in its
+                  list)
+                </td>
                 <td><code>approve</code> / <code>reject</code></td>
               </tr>
               <tr>
@@ -1170,23 +1363,34 @@
           </table>
           <h3>How the decision flows back</h3>
           <p>
-            On interruption, the run result carries <code>__interrupt__</code> with the pending
-            <code>action_requests</code>. The caller resumes with a LangGraph <code>Command</code>:
+            On interruption, the run result carries
+            <code>__interrupt__</code> with the pending
+            <code>action_requests</code>. The caller resumes with a LangGraph
+            <code>Command</code>:
           </p>
           <pre><code>result = agent.invoke(Command(resume={
     "decisions": [{"type": "approve"}]
 }), config=config)</code></pre>
           <ul>
-            <li><strong>CLI</strong> — <code>agentic-rag ingest</code> prompts
-              <code>[a]pprove all / [e]dit one / [r]eject all</code>; lint and fix prompt approve/reject. An
-              <code>edit</code> decision rewrites <code>proposed_resolution</code> in the flagged action and resumes.
+            <li>
+              <strong>CLI</strong> — <code>agentic-rag ingest</code> prompts
+              <code>[a]pprove all / [e]dit one / [r]eject all</code>; lint and
+              fix prompt approve/reject. An <code>edit</code> decision
+              rewrites <code>proposed_resolution</code> in the flagged action
+              and resumes.
             </li>
-            <li><strong>Frontend</strong> — <code>frontend/agent_driver.py:build_decisions</code> builds the same resume
-              payload from the UI's approve/edit/reject controls.</li>
-            <li><strong>In-agent semantics</strong> — the ingest prompt tells the agent that once
-              <code>flag_contradiction</code> returns, the human decision is <em>already known</em>:
-              <code>approve</code> → proceed with the proposed resolution; <code>reject</code> → leave the page
-              unchanged; <code>edit</code> → apply the edited resolution. The agent must not re-ask.
+            <li>
+              <strong>Frontend</strong> —
+              <code>frontend/agent_driver.py:build_decisions</code> builds the
+              same resume payload from the UI's approve/edit/reject controls.
+            </li>
+            <li>
+              <strong>In-agent semantics</strong> — the ingest prompt tells
+              the agent that once <code>flag_contradiction</code> returns, the
+              human decision is <em>already known</em>: <code>approve</code> →
+              proceed with the proposed resolution; <code>reject</code> →
+              leave the page unchanged; <code>edit</code> → apply the edited
+              resolution. The agent must not re-ask.
             </li>
           </ul>
         </section>
@@ -1194,8 +1398,11 @@
         <!-- ============ 8. CLI reference ============ -->
         <section class="card" id="s8">
           <h2>8. CLI reference</h2>
-          <p>Single entry point: the <code>agentic-rag</code> script (typer). Each command builds its
-            agent fresh and runs it with a unique <code>thread_id</code>.</p>
+          <p>
+            Single entry point: the <code>agentic-rag</code> script (typer).
+            Each command builds its agent fresh and runs it with a unique
+            <code>thread_id</code>.
+          </p>
           <table>
             <thead>
               <tr>
@@ -1208,32 +1415,49 @@
               <tr>
                 <td><code>ingest</code></td>
                 <td><code>&lt;path-or-text&gt;</code></td>
-                <td>File path → file mode; anything else → natural-language mode. Runs the ingest agent with HITL
-                  (a/e/r) until all interrupts resolve.</td>
+                <td>
+                  File path → file mode; anything else → natural-language
+                  mode. Runs the ingest agent with HITL (a/e/r) until all
+                  interrupts resolve.
+                </td>
               </tr>
               <tr>
                 <td><code>query</code></td>
                 <td><code>&lt;question&gt;</code></td>
-                <td>Runs the query agent; renders via <code>build_final_answer</code> + <code>render_answer_text</code>
-                  → Answer / Confidence / Citations.</td>
+                <td>
+                  Runs the query agent; renders via
+                  <code>build_final_answer</code> +
+                  <code>render_answer_text</code> → Answer / Confidence /
+                  Citations.
+                </td>
               </tr>
               <tr>
                 <td><code>lint</code></td>
                 <td>—</td>
-                <td>Runs the lint agent; the deterministic health check is the ground truth, the model adds semantics
-                  and writes the report.</td>
+                <td>
+                  Runs the lint agent; the deterministic health check is the
+                  ground truth, the model adds semantics and writes the
+                  report.
+                </td>
               </tr>
               <tr>
                 <td><code>fix</code></td>
                 <td><code>[kind | slug | "latest"]</code></td>
-                <td>Runs <code>health_check</code> locally, filters to the argument (or <code>latest</code> = all),
-                  passes one-line issues to the fix agent; unknown filters pass the raw request through as a
-                  natural-language instruction with issues as context.</td>
+                <td>
+                  Runs <code>health_check</code> locally, filters to the
+                  argument (or <code>latest</code> = all), passes one-line
+                  issues to the fix agent; unknown filters pass the raw
+                  request through as a natural-language instruction with
+                  issues as context.
+                </td>
               </tr>
               <tr>
                 <td><code>status</code></td>
                 <td>—</td>
-                <td>Wiki page count, index entry count, last log entry — all deterministic, no agent.</td>
+                <td>
+                  Wiki page count, index entry count, last log entry — all
+                  deterministic, no agent.
+                </td>
               </tr>
               <tr>
                 <td><code>log</code></td>
@@ -1268,14 +1492,23 @@
                 <td>Default model for all agents (temperature 0).</td>
               </tr>
               <tr>
-                <td><code>WIKI_PATH</code> / <code>RAW_SOURCES_PATH</code> / <code>AGENTS_MD_PATH</code></td>
-                <td><code>./wiki</code> / <code>./raw</code> / <code>./AGENTS.md</code></td>
+                <td>
+                  <code>WIKI_PATH</code> / <code>RAW_SOURCES_PATH</code> /
+                  <code>AGENTS_MD_PATH</code>
+                </td>
+                <td>
+                  <code>./wiki</code> / <code>./raw</code> /
+                  <code>./AGENTS.md</code>
+                </td>
                 <td>Layer locations.</td>
               </tr>
               <tr>
                 <td><code>RECURSION_LIMIT</code></td>
                 <td><code>30</code></td>
-                <td>Query agent loop cap; ingest uses <code>INGEST_RECURSION_LIMIT</code> (default 200).</td>
+                <td>
+                  Query agent loop cap; ingest uses
+                  <code>INGEST_RECURSION_LIMIT</code> (default 200).
+                </td>
               </tr>
               <tr>
                 <td><code>LOG_LEVEL</code> / <code>LOG_DIR</code></td>
@@ -1290,110 +1523,312 @@
         <section class="card" id="s9">
           <h2>9. Frontend (Streamlit)</h2>
           <p>
-            The web UI (<code>frontend/app.py</code>) is not a separate implementation — it drives the
-            <em>same</em> four agents in-process (<code>frontend/builders.py</code> calls
-            <code>build_query_agent</code>, <code>build_ingest_agent</code>, …) and streams them with
-            <code>agent.astream()</code>. The middleware's async hooks exist precisely so the same chain
-            works under <code>astream</code>.
+            The web UI (<code>frontend/app.py</code>) is not a separate
+            implementation — it drives the
+            <em>same</em> four agents in-process (<code>frontend/builders.py</code>
+            calls <code>build_query_agent</code>,
+            <code>build_ingest_agent</code>, …) and streams them with
+            <code>agent.astream()</code>. The middleware's async hooks exist
+            precisely so the same chain works under <code>astream</code>.
           </p>
           <ul>
-            <li><strong>Query driver</strong> (<code>frontend/query_driver.py</code>) — for the query page, it creates a
-              <em>fresh</em> <code>new_nav_capture()</code> per turn (cite-or-die), streams
-              <code>stream_mode="messages"</code>, and renders the final <code>QueryAnswer</code> with the same
+            <li>
+              <strong>Query driver</strong>
+              (<code>frontend/query_driver.py</code>) — for the query page, it
+              creates a <em>fresh</em> <code>new_nav_capture()</code> per turn
+              (cite-or-die), streams <code>stream_mode="messages"</code>, and
+              renders the final <code>QueryAnswer</code> with the same
               <code>build_final_answer</code> the CLI uses.
             </li>
-            <li><strong>Tool chips</strong> — tool calls surface live in the UI, so the loop is visible: search → read →
-              answer.</li>
-            <li><strong>HITL controls</strong> — <code>agent_driver.build_decisions</code> turns the UI's
-              approve/edit/reject buttons into the same <code>Command(resume=…)</code> payloads.</li>
-            <li><strong>Run it</strong> — <code>uv sync --extra ui</code> then
+            <li>
+              <strong>Tool chips</strong> — tool calls surface live in the UI,
+              so the loop is visible: search → read → answer.
+            </li>
+            <li>
+              <strong>HITL controls</strong> —
+              <code>agent_driver.build_decisions</code> turns the UI's
+              approve/edit/reject buttons into the same
+              <code>Command(resume=…)</code> payloads.
+            </li>
+            <li>
+              <strong>Run it</strong> — <code>uv sync --extra ui</code> then
               <code>uv run streamlit run frontend/app.py</code>.
             </li>
           </ul>
         </section>
 
         <!-- ============ 10. Agent Evaluation Architecture ============ -->
+        <!-- ============ 10. Testing Architecture & Evaluation Suite ============ -->
         <section class="card" id="s10">
-          <h2>10. Agent Evaluation Architecture</h2>
+          <h2>10. Testing Architecture &amp; Evaluation Suite</h2>
           <p>
-            The evaluation suite in <code>tests/levels/</code> adopts a three-tier testing pyramid
-            designed to decouple deterministic system guarantees from probabilistic model behavior.
-            By separating code-level integrity, tool-trajectory discipline, and semantic output quality,
-            the suite ensures robust agent orchestration while minimizing API token overhead.
+            The project enforces a clear separation between code-level unit
+            testing and multi-tier agent evaluation. The base codebase logic
+            is protected by a dedicated <strong>Unit Test Suite</strong>
+            (<code>tests/unit/</code>), while agent safety, orchestrator
+            mechanics, and RAG output quality are measured by the
+            <strong>Agent Evaluation Pyramid</strong> in
+            <code>tests/levels/</code>.
           </p>
 
-          <h3 id="s10-1">Level 1 — Deterministic Quality Gates &amp; Corpus Integrity (0-LLM)</h3>
-          <p>
-            Fast, offline CI/CD checks executed with zero LLM API calls. Level 1 validates structural
-            invariants, security boundaries, and data integrity across the wiki corpus:
-          </p>
-          <ul>
-            <li><strong>Schema Conformance:</strong> Asserts that every markdown page strictly adheres to the
-              <code>AGENTS.md</code> specification, validating YAML frontmatter fields, directory placement, and
-              required <code>## Related</code> sections.
-            </li>
-            <li><strong>Path-Guard Safety Matrix:</strong> Exhaustively tests the <code>PathGuardMiddleware</code>
-              against a 7 write-tool × 5 attack vector matrix (traversal attacks, <code>raw/</code> protection, absolute
-              paths).</li>
-            <li><strong>Link Integrity &amp; Graph Topology:</strong> Verifies full graph resolution for Obsidian-style
-              <code>[[links]]</code> and guarantees zero orphan pages across the corpus.
-            </li>
-            <li><strong>Cite-or-Die Grounding (NavCapture):</strong> Validates that any final response referencing
-              unnavigated page slugs has those citations deterministically stripped before rendering.</li>
-          </ul>
+          <div class="note">
+            <strong>Codebase Unit Test Baseline (<code>tests/unit/</code>):</strong>
+            25 files containing 320+ fast, offline unit tests that cover pure
+            Python components in isolation — including MarkItDown source
+            loaders, markdown parsers, index/log file managers, individual
+            tool implementations, middleware logic, token trackers, and
+            Streamlit frontend helper drivers.
+          </div>
 
-          <h3 id="s10-2">Level 2 — Trajectory Contracts &amp; Orchestrator Discipline</h3>
+          <h3 id="s10-1">
+            The Three Evaluation Levels (<code>tests/levels/</code>)
+          </h3>
           <p>
-            Evaluates agent tool-calling mechanics, middleware interlocks, and state consistency across two distinct
-            layers:
-          </p>
-          <ul>
-            <li><strong>Deterministic Engine &amp; Pipeline Layer (Scripted 0-LLM):</strong> Uses a
-              <code>ScriptedChatModel</code> to verify that the LangChain/LangGraph orchestrator correctly enforces
-              per-role tool whitelists, turn-efficiency caps (<code>query ≤ 5</code>, <code>lint ≤ 4</code>,
-              <code>fix ≤ 8</code>, <code>ingest ≤ 15</code>), headless HITL interrupt/resume contracts (via
-              <code>eval_hitl.py</code>), and post-execution disk state consistency (idempotent index regeneration and
-              log appending).
-            </li>
-            <li><strong>Real-LLM Acceptance Tier (Causal DAG Contracts):</strong> Evaluates live model reasoning against
-              declarative Directed Acyclic Graph (DAG) contracts. Rather than asserting brittle fixed tool sequences, it
-              validates causal prerequisites (e.g., <code>wiki_search</code> before <code>wiki_read_page</code>),
-              forbidden tools per role, and terminal invariants. Requires a <code>≥ 80%</code> aggregate pass rate
-              across pinned tasks.</li>
-          </ul>
-
-          <h3 id="s10-3">Level 3 — RAG Performance &amp; Semantic Quality (LLM-as-a-Judge)</h3>
-          <p>
-            Measures retrieval effectiveness and output trustworthiness:
-          </p>
-          <ul>
-            <li><strong>Context Recall @ K:</strong> Evaluates BM25 retrieval and 1-hop link expansion accuracy against
-              curated query-slug benchmarks on a neutral eval corpus.</li>
-            <li><strong>Calibrated LLM Judges:</strong> Uses zero-temperature, few-shot anchored judge prompts (scoring
-              1.0, 0.5, 0.0) with strict Pydantic JSON parsing to measure <em>Faithfulness</em> (grounding against
-              navigated context) and <em>Answer Relevancy</em> without score drift.</li>
-            <li><strong>Contradiction Resolution:</strong> Validates end-to-end handling when new ingests conflict with
-              existing wiki claims, ensuring proper flagging and HITL intervention.</li>
-          </ul>
-
-          <h3 id="s10-4">Harness &amp; Execution Strategy</h3>
-          <p>
-            To maintain absolute isolation, all tests operate on temporary copies of clean (<code>eval_wiki</code>),
-            raw (<code>eval_raw</code>), or defective (<code>eval_broken_wiki</code>) fixture trees via
-            <code>copy_eval_wiki(tmp_path)</code>.
-            The committed source fixtures are immutable and self-checked via content hashes.
-            All Human-In-The-Loop (HITL) interrupts are resumed programmatically via <code>resume_auto()</code>,
-            preventing blocking CLI <code>input()</code> calls during headless CI/CD execution.
+            While unit tests verify individual functions, the evaluation suite
+            tests full agent workflows, security boundaries, and probabilistic
+            LLM outcomes across three levels of abstraction:
           </p>
 
-          <h3 id="s10-5">Running the Evaluation Suite</h3>
-          <pre><code># Run full evaluation suite (real-LLM tests auto-skip if OPENAI_API_KEY is unset)
+          <h4>
+            Level 1 — Deterministic Quality Gates, Safety &amp; Validator
+            Logic (0-LLM)
+          </h4>
+          <p>
+            Fast, 100% offline checks executed without API token costs. Level
+            1 asserts structural
+            <code>AGENTS.md</code>
+            schema conformance, Obsidian <code>[[link]]</code> graph
+            integrity, direct <code>@tool</code> error handling semantics, the
+            7×5 <code>PathGuardMiddleware</code> security matrix, and
+            unit-tests the DAG contract validator itself.
+          </p>
+
+          <h4>
+            Level 2 — Orchestrator Discipline, State Consistency &amp;
+            Trajectory Acceptance
+          </h4>
+          <p>
+            Evaluates tool calling behavior, causal prerequisites,
+            step-efficiency caps, and post-execution disk state consistency.
+            It combines 0-LLM pipeline verification using a
+            <code>ScriptedChatModel</code> (verifying idempotent index
+            regeneration, log appending, and headless HITL resume contracts)
+            with a live-model acceptance tier that validates causal Directed
+            Acyclic Graph (DAG) contracts.
+          </p>
+
+          <h4>
+            Level 3 — RAG Metrics, Grounding &amp; Calibrated LLM Judges
+          </h4>
+          <p>
+            Measures search retrieval coverage (Context Recall @ K with
+            SHA-256 corpus neutrality checks), grounding fidelity (cite-or-die
+            gate and <code>Faithfulness</code> judge),
+            <code>Answer Relevancy</code>, and end-to-end contradiction
+            resolution workflows across all HITL resume variants.
+          </p>
+
+          <h3 id="s10-2">
+            File-by-File Reference of <code>tests/levels/</code>
+          </h3>
+          <p>
+            Comprehensive breakdown of every file in the evaluation tree and
+            its specific testing responsibility:
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>File Path</th>
+                <th>Category / Level</th>
+                <th>Specific Testing Responsibility &amp; Mechanics</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>conftest.py</code></td>
+                <td>Harness / Fixtures</td>
+                <td>
+                  Provides level-scoped Pytest fixtures
+                  (<code>eval_wiki</code>, <code>eval_env</code>), judge skip
+                  markers (<code>requires_llm</code>), and env helpers.
+                </td>
+              </tr>
+              <tr>
+                <td><code>test_corpus_selfcheck.py</code></td>
+                <td>Sanity Guard</td>
+                <td>
+                  Verifies that committed fixture trees
+                  (<code>eval_wiki</code>, <code>eval_raw</code>,
+                  <code>eval_broken_wiki</code>) remain clean and uncorrupted
+                  before tests execute.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level1/test_argument_schemas.py</code></td>
+                <td>Level 1 (0-LLM)</td>
+                <td>
+                  Tests tool error semantics: direct <code>@tool</code> error
+                  string returns, schema-validation error recovery when agents
+                  pass incomplete args, and path-guard short-circuit error
+                  shapes.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level1/test_link_integrity.py</code></td>
+                <td>Level 1 (0-LLM)</td>
+                <td>
+                  Audits raw <code>[[target]]</code> link resolution against
+                  wiki slugs, verifies exact/display-name link resolution, and
+                  asserts zero orphan pages across the corpus.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level1/test_path_guard_matrix.py</code></td>
+                <td>Level 1 (0-LLM)</td>
+                <td>
+                  Exhaustively tests <code>PathGuardMiddleware</code> across
+                  all 7 write tools × 5 attack patterns (<code>raw/</code>,
+                  <code>../</code>, absolute paths), scanned arg keys, and
+                  short-circuit agent runs.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level1/test_schema_conformance.py</code></td>
+                <td>Level 1 (0-LLM)</td>
+                <td>
+                  Asserts <code>AGENTS.md</code> wiki rules (frontmatter YAML
+                  keys, type-to-directory mapping, required
+                  <code>## Related</code> sections) and guards against
+                  unpinned corpus drift.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level1/test_trajectory_contract.py</code></td>
+                <td>Level 1 (0-LLM)</td>
+                <td>
+                  Deterministic unit tests validating the DAG contract engine
+                  (<code>validate_trajectory</code>) against synthetic tool
+                  trajectories (prerequisites, required groups, terminal
+                  rules, caps).
+                </td>
+              </tr>
+              <tr>
+                <td><code>level2/trajectory_contract.py</code></td>
+                <td>Level 2 (Infrastructure)</td>
+                <td>
+                  Declarative Pydantic models
+                  (<code>TrajectoryContract</code>,
+                  <code>TrajectoryReport</code>) and the pure validation logic
+                  used by trajectory tests.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level2/test_state_consistency.py</code></td>
+                <td>Level 2 (0-LLM)</td>
+                <td>
+                  Proves post-ingest disk/state consistency (direct and
+                  scripted): idempotent <code>index.md</code> regeneration,
+                  <code>log.md</code> parsing via <code>tail_log</code>, zero
+                  health issues, and parseable frontmatter.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level2/test_tool_selection.py</code></td>
+                <td>Level 2 (0-LLM)</td>
+                <td>
+                  Verifies scripted agent tool invariants: query read-only
+                  whitelist, ingest causal order, lint health check ordering,
+                  fix kind→tool mapping, and headless HITL interrupt/resume
+                  contracts.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level2/test_turn_efficiency.py</code></td>
+                <td>Level 2 (0-LLM)</td>
+                <td>
+                  Asserts that agent happy-path runs stay strictly within
+                  spec-pinned turn caps (<code>query ≤ 5</code>,
+                  <code>lint ≤ 4</code>, <code>fix ≤ 8</code>,
+                  <code>ingest ≤ 15</code>).
+                </td>
+              </tr>
+              <tr>
+                <td><code>level2/test_trajectory_real_llm.py</code></td>
+                <td>Level 2 (Real LLM)</td>
+                <td>
+                  Live acceptance tier running real models against 8 pinned
+                  tasks over isolated tmp copies to validate causal DAG
+                  contracts &amp; tool accuracy (≥80% pass floor).
+                </td>
+              </tr>
+              <tr>
+                <td><code>level3/test_answer_relevancy.py</code></td>
+                <td>Level 3 (Hybrid)</td>
+                <td>
+                  Combines a 0-LLM proxy (length bounds, key-term containment)
+                  and stub model round-trips with a calibrated real-LLM judge
+                  measuring answer directness vs refusal dodges.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level3/test_context_recall.py</code></td>
+                <td>Level 3 (0-LLM)</td>
+                <td>
+                  Measures BM25 retrieval and 1-hop link expansion accuracy
+                  (Recall@8) against 15 curated and 6 hard queries; includes
+                  SHA-256 file hashing to prove search passes never mutate the
+                  corpus.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level3/test_contradiction_handling.py</code></td>
+                <td>Level 3 (0-LLM Scripted)</td>
+                <td>
+                  Tests end-to-end contradiction flows when ingesting
+                  conflicting sources, exercising all 3 headless HITL resume
+                  variants (<code>approve</code>, <code>reject</code>,
+                  <code>edit</code>) and verifying merged wording in disk
+                  artifacts.
+                </td>
+              </tr>
+              <tr>
+                <td><code>level3/test_faithfulness.py</code></td>
+                <td>Level 3 (Hybrid)</td>
+                <td>
+                  Tests deterministic grounding proxies (cite-or-die gate,
+                  link-citation consistency, confidence inference) and calls a
+                  calibrated LLM judge to assert anchor separation (grounded ≥
+                  0.7 vs fabricated ≤ 0.4).
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3 id="s10-3">Harness &amp; Headless Execution Discipline</h3>
+          <p>
+            To achieve complete test isolation, all evaluation runs operate on
+            temporary copies of clean (<code>eval_wiki</code>), raw
+            (<code>eval_raw</code>), or defective
+            (<code>eval_broken_wiki</code>) fixture trees via
+            <code>copy_eval_wiki(tmp_path)</code>. The committed fixture
+            source trees are immutable. Furthermore, all Human-In-The-Loop
+            (HITL) interrupts are resumed programmatically via
+            <code>resume_auto()</code> in
+            <code>tests/fixtures/eval_hitl.py</code>, preventing blocking CLI
+            <code>input()</code> calls during automated CI/CD execution.
+          </p>
+
+          <h3 id="s10-4">Running the Test Suites</h3>
+          <pre><code># 1. Run the codebase unit test baseline (25 files, 320+ tests)
+uv run pytest tests/unit/ -q
+
+# 2. Run the full agent evaluation suite (real-LLM tests auto-skip if OPENAI_API_KEY is unset)
 uv run pytest tests/levels/ -q
 
-# Run per-level target suites
-uv run pytest tests/levels/level1 -q   # Level 1: Deterministic Quality Gates (0-LLM)
-uv run pytest tests/levels/level2 -q   # Level 2: Trajectory Contracts &amp; Tool Calling
-uv run pytest tests/levels/level3 -q   # Level 3: RAG Metrics &amp; LLM-as-a-Judge</code></pre>
+# 3. Run individual evaluation levels
+uv run pytest tests/levels/level1 -q   # Level 1: Deterministic Quality Gates &amp; Safety Matrix
+uv run pytest tests/levels/level2 -q   # Level 2: Trajectory Contracts &amp; Orchestrator Discipline
+uv run pytest tests/levels/level3 -q   # Level 3: RAG Metrics &amp; Calibrated LLM Judges</code></pre>
         </section>
 
         <!-- ============ 11. Glossary ============ -->
@@ -1409,139 +1844,189 @@ uv run pytest tests/levels/level3 -q   # Level 3: RAG Metrics &amp; LLM-as-a-Jud
             <tbody>
               <tr>
                 <td><strong>Agent</strong></td>
-                <td>A compiled LangGraph runnable from <code>create_agent()</code>: model + scoped tools + system prompt
-                  + middleware + <code>MemorySaver</code> checkpointer. Four exist: ingest, query, lint, fix.</td>
+                <td>
+                  A compiled LangGraph runnable from
+                  <code>create_agent()</code>: model + scoped tools + system
+                  prompt + middleware + <code>MemorySaver</code> checkpointer.
+                  Four exist: ingest, query, lint, fix.
+                </td>
               </tr>
               <tr>
                 <td><strong>Middleware</strong></td>
-                <td>Hooks around tool calls (<code>wrap_tool_call</code>) and after model calls
-                  (<code>@after_model</code>). Always-on: audit logging, path guard, token capture. Agent-specific:
-                  HITL.</td>
+                <td>
+                  Hooks around tool calls (<code>wrap_tool_call</code>) and
+                  after model calls (<code>@after_model</code>). Always-on:
+                  audit logging, path guard, token capture. Agent-specific:
+                  HITL.
+                </td>
               </tr>
               <tr>
                 <td><strong>HITL</strong></td>
-                <td>Human-in-the-loop: a middleware interrupt that pauses the agent until a human approves / rejects /
-                  edits (mandatory for page deletion, and for contradiction flags in ingest).</td>
+                <td>
+                  Human-in-the-loop: a middleware interrupt that pauses the
+                  agent until a human approves / rejects / edits (mandatory
+                  for page deletion, and for contradiction flags in ingest).
+                </td>
               </tr>
               <tr>
                 <td><strong>NavCapture</strong></td>
-                <td>The per-invocation store of slugs the agent actually navigated (populated by
-                  <code>wiki_search</code> / <code>wiki_read_page</code>). The cite-or-die gate validates citations
-                  against it.
+                <td>
+                  The per-invocation store of slugs the agent actually
+                  navigated (populated by <code>wiki_search</code> /
+                  <code>wiki_read_page</code>). The cite-or-die gate validates
+                  citations against it.
                 </td>
               </tr>
               <tr>
                 <td><strong>Cite-or-die</strong></td>
-                <td>The query-agent rule: an answer may only cite pages whose slugs were actually navigated this turn —
-                  enforced automatically because answers are built from the model output, not a submit tool.</td>
+                <td>
+                  The query-agent rule: an answer may only cite pages whose
+                  slugs were actually navigated this turn — enforced
+                  automatically because answers are built from the model
+                  output, not a submit tool.
+                </td>
               </tr>
               <tr>
                 <td><strong>submit_extraction</strong></td>
-                <td>The ingest agent's pure finalization-as-tool: forces structured Entity/Concept/Contradiction JSON
-                  before any page write. No writes, never raises.</td>
+                <td>
+                  The ingest agent's pure finalization-as-tool: forces
+                  structured Entity/Concept/Contradiction JSON before any page
+                  write. No writes, never raises.
+                </td>
               </tr>
               <tr>
                 <td><strong>match_page</strong></td>
-                <td>Deterministic decision for a name: <code>exact</code> / <code>similar</code> → update,
-                  <code>none</code> → create, <code>conflict</code> → flag. No score thresholds.
+                <td>
+                  Deterministic decision for a name: <code>exact</code> /
+                  <code>similar</code> → update, <code>none</code> → create,
+                  <code>conflict</code> → flag. No score thresholds.
                 </td>
               </tr>
               <tr>
                 <td><strong>regenerate_index</strong></td>
-                <td>The only "index" operation — rebuilds <code>index.md</code> from the pages as a derived view. The
-                  ingest prompt forbids calling an <code>update_index</code> tool.</td>
+                <td>
+                  The only "index" operation — rebuilds
+                  <code>index.md</code> from the pages as a derived view. The
+                  ingest prompt forbids calling an
+                  <code>update_index</code> tool.
+                </td>
               </tr>
               <tr>
                 <td><strong>Path guard</strong></td>
-                <td>Middleware that rejects <code>raw/</code>, absolute, and <code>..</code> paths on write tools;
+                <td>
+                  Middleware that rejects <code>raw/</code>, absolute, and
+                  <code>..</code> paths on write tools;
                   <code>read_source</code> is the only exempt tool.
                 </td>
               </tr>
               <tr>
                 <td><strong>Token capture</strong></td>
-                <td><code>@after_model</code> hook that records <code>token_usage</code> from each LLM response onto the
-                  run's <code>TokenTracker</code>.</td>
+                <td>
+                  <code>@after_model</code> hook that records
+                  <code>token_usage</code> from each LLM response onto the
+                  run's <code>TokenTracker</code>.
+                </td>
               </tr>
               <tr>
                 <td><strong>Recursion limit</strong></td>
-                <td>Maximum agent loop turns per invocation: 30 for query, 200 for ingest (which legitimately spans many
-                  create/update super-steps).</td>
+                <td>
+                  Maximum agent loop turns per invocation: 30 for query, 200
+                  for ingest (which legitimately spans many create/update
+                  super-steps).
+                </td>
               </tr>
               <tr>
                 <td><strong>Scripted fake model</strong></td>
-                <td>A test fixture that replays a predetermined tool-call script instead of calling an LLM — how agent
-                  integration tests run offline.</td>
+                <td>
+                  A test fixture that replays a predetermined tool-call script
+                  instead of calling an LLM — how agent integration tests run
+                  offline.
+                </td>
               </tr>
               <tr>
                 <td><strong>Level 1 / 2 / 3 evals</strong></td>
-                <td>The three-tier test suite in <code>tests/levels/</code>: mechanical rules (L1), agent tool behavior
-                  (L2), and answer quality (L3).</td>
+                <td>
+                  The three-tier test suite in <code>tests/levels/</code>:
+                  mechanical rules (L1), agent tool behavior (L2), and answer
+                  quality (L3).
+                </td>
               </tr>
               <tr>
                 <td><strong>Neutral eval corpus</strong></td>
-                <td>A small fake wiki shipped with the repo for tests to work on — each test copies it to a temp folder
-                  and never changes the original.</td>
+                <td>
+                  A small fake wiki shipped with the repo for tests to work on
+                  — each test copies it to a temp folder and never changes the
+                  original.
+                </td>
               </tr>
               <tr>
                 <td><strong>TrajectoryContract</strong></td>
-                <td>A rule sheet describing how an agent may use its tools — which ones, in what order, and how many
-                  calls are allowed.</td>
+                <td>
+                  A rule sheet describing how an agent may use its tools —
+                  which ones, in what order, and how many calls are allowed.
+                </td>
               </tr>
             </tbody>
           </table>
         </section>
 
         <footer>
-          Agentic RAG · agent layer documentation · code references verified against
-          <code>src/agentic_rag</code> · the deterministic wiki engine is documented in
-          <a href="wiki-engine.html" style="color: var(--muted);">wiki-engine.html</a> ·
-          full repo layout: <a href="architecture.md" style="color: var(--muted);">architecture.md</a>.
+          Agentic RAG · agent layer documentation · code references verified
+          against
+          <code>src/agentic_rag</code> · the deterministic wiki engine is
+          documented in
+          <a href="wiki-engine.html" style="color: var(--muted)">wiki-engine.html</a>
+          · full repo layout:
+          <a href="architecture.md" style="color: var(--muted)">architecture.md</a>.
         </footer>
       </main>
     </div>
   </div>
 
   <script type="module">
-    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
     mermaid.initialize({
       startOnLoad: true,
-      theme: 'base',
+      theme: "base",
       themeVariables: {
-        primaryColor: '#1a2b4a',
-        primaryBorderColor: '#3b82f6',
-        primaryTextColor: '#e2e8f0',
-        lineColor: '#7c93b5',
-        secondaryColor: '#16223a',
-        tertiaryColor: '#111a2c',
-        clusterBkg: '#111a2c',
-        clusterBorder: '#2c3e5c',
-        edgeLabelBackground: '#111a2c',
-        nodeBorder: '#3b82f6',
-        actorBkg: '#1a2b4a',
-        actorBorder: '#3b82f6',
-        actorTextColor: '#e2e8f0',
-        actorLineColor: '#7c93b5',
-        signalColor: '#7c93b5',
-        signalTextColor: '#e2e8f0',
-        labelBoxBkgColor: '#1a2b4a',
-        labelBoxBorderColor: '#3b82f6',
-        labelTextColor: '#e2e8f0',
-        noteBkgColor: '#24344f',
-        noteBorderColor: '#3b82f6',
-        noteTextColor: '#e2e8f0',
-        loopTextColor: '#94a3b8',
-        activationBkgColor: '#24344f',
-        activationBorderColor: '#3b82f6',
-        sequenceNumberColor: '#e2e8f0',
-        fontSize: '14px',
-        fontFamily: 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+        primaryColor: "#1a2b4a",
+        primaryBorderColor: "#3b82f6",
+        primaryTextColor: "#e2e8f0",
+        lineColor: "#7c93b5",
+        secondaryColor: "#16223a",
+        tertiaryColor: "#111a2c",
+        clusterBkg: "#111a2c",
+        clusterBorder: "#2c3e5c",
+        edgeLabelBackground: "#111a2c",
+        nodeBorder: "#3b82f6",
+        actorBkg: "#1a2b4a",
+        actorBorder: "#3b82f6",
+        actorTextColor: "#e2e8f0",
+        actorLineColor: "#7c93b5",
+        signalColor: "#7c93b5",
+        signalTextColor: "#e2e8f0",
+        labelBoxBkgColor: "#1a2b4a",
+        labelBoxBorderColor: "#3b82f6",
+        labelTextColor: "#e2e8f0",
+        noteBkgColor: "#24344f",
+        noteBorderColor: "#3b82f6",
+        noteTextColor: "#e2e8f0",
+        loopTextColor: "#94a3b8",
+        activationBkgColor: "#24344f",
+        activationBorderColor: "#3b82f6",
+        sequenceNumberColor: "#e2e8f0",
+        fontSize: "14px",
+        fontFamily:
+          "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
       },
-      securityLevel: 'loose'
+      securityLevel: "loose",
     });
   </script>
   <noscript>
-    <p style="text-align:center;color:#94a3b8;">JavaScript is disabled — Mermaid diagrams won't render, but all text
-      content is readable.</p>
+    <p style="text-align: center; color: #94a3b8">
+      JavaScript is disabled — Mermaid diagrams won't render, but all text
+      content is readable.
+    </p>
   </noscript>
 </body>
 
