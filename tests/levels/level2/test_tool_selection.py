@@ -86,7 +86,7 @@ INGEST_TOOL_NAMES = {
     "delete_wiki_page",
 }
 
-LINT_TOOL_NAMES = {"run_health_check", "wiki_link_graph", "wiki_read_page", "write_lint_report"}
+LINT_TOOL_NAMES = {"run_health_check", "wiki_link_graph", "wiki_read_page", "wiki_scan", "write_lint_report"}
 
 FIX_TOOL_NAMES = {
     "wiki_read_page",
@@ -96,6 +96,7 @@ FIX_TOOL_NAMES = {
     "append_related_section",
     "regenerate_index",
     "delete_wiki_page",
+    "wiki_link_graph",
 }
 
 # Write-tools set (path guard) — no agent may cross its boundary.
@@ -124,7 +125,7 @@ INGEST_TOOLS = [
     delete_wiki_page,
 ]
 
-LINT_TOOLS = [run_health_check, wiki_link_graph, wiki_read_page, write_lint_report]
+LINT_TOOLS = [run_health_check, wiki_link_graph, wiki_read_page, wiki_scan, write_lint_report]
 
 FIX_TOOLS = [
     wiki_read_page,
@@ -134,6 +135,7 @@ FIX_TOOLS = [
     append_related_section,
     regenerate_index,
     delete_wiki_page,
+    wiki_link_graph,
 ]
 
 

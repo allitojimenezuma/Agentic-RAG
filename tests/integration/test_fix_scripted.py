@@ -26,7 +26,7 @@ from agentic_rag.tools.fix_tools import (
     fix_link,
 )
 from agentic_rag.tools.ingest_tools import delete_wiki_page
-from agentic_rag.tools.nav import regenerate_index, wiki_read_page
+from agentic_rag.tools.nav import regenerate_index, wiki_link_graph, wiki_read_page
 from agentic_rag.tools.shared import init_shared_tools
 from tests.fixtures.fake_llm import ScriptedChatModel
 
@@ -47,6 +47,7 @@ FIX_TOOLS = [
     append_related_section,
     regenerate_index,
     delete_wiki_page,
+    wiki_link_graph,
 ]
 
 

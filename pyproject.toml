@@ -38,3 +38,9 @@ packages = ["src/agentic_rag"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "deepeval>=4.1.5",
+    "litellm>=1.95.0",
+]

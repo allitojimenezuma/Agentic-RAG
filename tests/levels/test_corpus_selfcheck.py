@@ -9,7 +9,10 @@ Deterministic tier: zero LLM calls, zero network. Asserts:
 3. ``eval_broken_wiki/`` reports EXACTLY its three seeded defects
    (missing-frontmatter / broken-link / missing-related), nothing else.
 4. The pinned recall floors are reachable on the neutral corpus — measured
-   recall@8: curated 15/15 = 1.00 (floor 0.80), hard 6/6 = 1.00 (floor 0.60).
+   recall@8: curated 15/15 = 1.00 (floor 0.80), hard 6/6 = 1.00 (floor 0.60),
+   AND every ground-truth slug surfaces in the top-8 per query (the per-query
+   checks folded in from level3/test_context_recall.py on 2026-08-06 — L3 is
+   answer quality now).
 5. Neutrality: searching over tmp copies never mutates the committed trees
    (file hashes unchanged across a full search pass).
 """
@@ -97,6 +100,40 @@ def test_hard_ground_truth_slug_exists(query: str, expected_slug: str) -> None:
     """Every hard query's ground-truth slug must resolve in the corpus."""
     assert expected_slug in load_wiki(EVAL_WIKI_SRC).by_slug, (
         f"hard ground-truth slug missing: {expected_slug!r} (query: {query!r})"
+    )
+
+
+# --- per-query retrieval: every ground-truth slug must surface in top-k ---------
+# (folded in from tests/levels/level3/test_context_recall.py on 2026-08-06 —
+# L3 is answer quality now; retrieval checks live with the corpus self-checks.)
+
+
+def _top_k_slugs(wiki, query: str) -> list[str]:
+    """The top-``RECALL_K`` slugs for ``query`` in retrieval order."""
+    return [h.slug for h in search(wiki, query, k=RECALL_K)]
+
+
+@pytest.mark.parametrize("query,expected_slug", CURATED_QUERIES)
+def test_curated_query_retrieves_ground_truth(
+    query: str, expected_slug: str, tmp_path: Path
+) -> None:
+    """Curated query must surface its ground-truth page in the top-8 hits."""
+    top_k = _top_k_slugs(load_wiki(copy_eval_wiki(tmp_path)), query)
+    assert expected_slug in top_k, (
+        f"curated query {query!r} MISSED ground truth {expected_slug!r}; "
+        f"actual top-{RECALL_K} slugs: {top_k}"
+    )
+
+
+@pytest.mark.parametrize("query,expected_slug", HARD_QUERIES)
+def test_hard_query_retrieves_ground_truth(
+    query: str, expected_slug: str, tmp_path: Path
+) -> None:
+    """Hard (typo/synonym/cross-type) query must surface its ground truth."""
+    top_k = _top_k_slugs(load_wiki(copy_eval_wiki(tmp_path)), query)
+    assert expected_slug in top_k, (
+        f"hard query {query!r} MISSED ground truth {expected_slug!r}; "
+        f"actual top-{RECALL_K} slugs: {top_k}"
     )
 
 

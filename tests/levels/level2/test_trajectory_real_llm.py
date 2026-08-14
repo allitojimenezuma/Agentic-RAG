@@ -33,6 +33,7 @@ call targets that run's wiki). Skipped without ``OPENAI_API_KEY``
 from __future__ import annotations
 
 import traceback
+from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
@@ -43,6 +44,9 @@ from agentic_rag.agents.ingest import build_ingest_agent
 from agentic_rag.agents.lint import build_lint_agent
 from agentic_rag.agents.query import build_query_agent
 from agentic_rag.config import Settings
+from agentic_rag.io.log import tail_log
+from agentic_rag.tools.grounding import build_final_answer
+from agentic_rag.wiki.health import health_check
 from tests.fixtures.eval_corpus import copy_broken_wiki, copy_eval_raw, copy_eval_wiki
 from tests.levels.conftest import requires_llm
 from tests.levels.level2.trajectory_contract import (
@@ -69,7 +73,7 @@ INGEST_TOOLS = [
     "delete_wiki_page",
 ]
 
-LINT_TOOLS = ["run_health_check", "wiki_link_graph", "wiki_read_page", "write_lint_report"]
+LINT_TOOLS = ["run_health_check", "wiki_link_graph", "wiki_read_page", "wiki_scan", "write_lint_report"]
 
 FIX_TOOLS = [
     "wiki_read_page",
@@ -79,6 +83,7 @@ FIX_TOOLS = [
     "append_related_section",
     "regenerate_index",
     "delete_wiki_page",
+    "wiki_link_graph",
 ]
 
 # "write_tools=fix writes" from the spec table — every fix tool that mutates
@@ -158,7 +163,7 @@ TRAJECTORY_TASKS: list[TrajectoryContract] = [
         allowed=LINT_TOOLS,
         prerequisites=[("run_health_check", "write_lint_report")],
         required=["run_health_check"],
-        max_calls=4,
+        max_calls=7,
         expected_first_tool="run_health_check",
     ),
     TrajectoryContract(
@@ -260,11 +265,13 @@ def _run_task(task: TrajectoryContract, env: dict) -> dict:
     result = agent.invoke(
         {"messages": [{"role": "user", "content": message}]}, config=config
     )
+    nav_capture = getattr(agent, "_nav_capture", None)
     return {
         "result": result,
         "message": message,
         "calls": _record_calls(result),
         "interrupted": "__interrupt__" in result,
+        "nav_slugs": set(nav_capture.navigated) if nav_capture is not None else set(),
     }
 
 
@@ -275,13 +282,100 @@ def _print_trajectory(message: str, calls: list[dict]) -> None:
         print(f"    step {i}: {call['name']} args={call['args']!r}")
 
 
+def _check_outcome(task: TrajectoryContract, run: dict, env: dict) -> list[str]:
+    """On-disk / output assertions that turn 'tool order ok' into 'work done'.
+
+    Contract validation proves the model CALLED the right tools in the right
+    order; these checks prove the run actually CHANGED the wiki / produced a
+    usable answer. Real-model outcomes are measured results — a violation
+    here is a genuine model gap to report, never something to loosen.
+    """
+    violations: list[str] = []
+    if task.agent == "query":
+        qa = build_final_answer(run["result"]["messages"], run["nav_slugs"])
+        if not qa.answer.strip():
+            violations.append("query: final answer is empty")
+        if not qa.citations:
+            violations.append("query: final answer has zero citations")
+        for citation in qa.citations:
+            if citation.slug not in run["nav_slugs"]:
+                violations.append(
+                    f"query: citation {citation.slug!r} not in navigated set "
+                    f"{sorted(run['nav_slugs'])}"
+                )
+        return violations
+    if task.agent == "ingest" and task.message.endswith("sample.md"):
+        # The created/updated page exists on disk with valid frontmatter,
+        # the index picked it up, the log gained an ingest entry, and the
+        # copy is still health-clean (no orphans / broken links introduced).
+        writes = [c for c in run["calls"] if c["name"] in ("create_page", "update_page")]
+        if not writes:
+            violations.append("ingest: no create_page/update_page call recorded")
+        else:
+            for w in writes:
+                slug = w["args"].get("slug")
+                if not slug:
+                    continue
+                page_file = Path(env["wiki"]) / f"{slug}.md"
+                if not page_file.is_file():
+                    violations.append(f"ingest: page file missing on disk: {slug}")
+                elif not page_file.read_text(encoding="utf-8").startswith("---"):
+                    violations.append(f"ingest: page {slug} lacks YAML frontmatter")
+        index_text = (Path(env["wiki"]) / "index.md").read_text(encoding="utf-8")
+        if not any(
+            w["args"].get("slug") and w["args"]["slug"] in index_text
+            for w in writes
+        ):
+            violations.append("ingest: created/updated slug absent from index.md")
+        if not any(e.op == "ingest" for e in tail_log(Path(env["wiki"]))):
+            violations.append("ingest: log.md gained no ingest entry")
+        report = health_check(Path(env["wiki"]))
+        if report.issues:
+            kinds = sorted({i.kind for i in report.issues})
+            violations.append(f"ingest: health_check reports issues after run: {kinds}")
+        return violations
+    if task.agent == "lint":
+        report_file = Path(env["wiki"]) / f"lint-report-{date.today().isoformat()}.md"
+        if not report_file.is_file():
+            violations.append("lint: lint-report-YYYY-MM-DD.md not written to wiki/")
+        else:
+            content = report_file.read_text(encoding="utf-8")
+            if len(content.strip()) < 20:
+                violations.append("lint: written report is empty/trivial")
+        return violations
+    if task.agent == "fix":
+        # Each fix task must actually clear its seeded defect on disk.
+        expected_gone: dict[str, str] = {
+            "add_frontmatter": "missing-frontmatter",
+            "fix_link": "broken-link",
+            "append_related_section": "missing-related",
+        }
+        for call in run["calls"]:
+            kind = expected_gone.get(call["name"])
+            if not kind:
+                continue
+            report = health_check(Path(env["wiki"]))
+            if any(i.kind == kind for i in report.issues):
+                violations.append(
+                    f"fix: {kind} still present in health_check after fixing"
+                )
+            break
+        return violations
+    return violations
+
+
 @requires_llm
 def test_real_llm_trajectory_acceptance(tmp_path: Path) -> None:
     """Run all 8 pinned contracts against real agents; aggregate >= 0.8.
 
     Per task: invoke the real builder over a fresh tmp copy, record tool
     names in order, validate against the contract (``interrupted`` set from
-    ``"__interrupt__" in result``), print the full trajectory on failure.
+    ``"__interrupt__" in result``), then check the ON-DISK / OUTPUT outcome
+    (``_check_outcome``): query answers are non-empty + grounded (citations
+    resolve to navigated pages), ingest leaves a valid page + index + log
+    entry + health-clean copy, lint writes a real report file, and each fix
+    task actually clears its seeded defect. Print the full trajectory +
+    violations on failure.
     Acceptance: pass_rate >= 0.8 (>= 7 of 8). Tool-selection accuracy
     (correct-first-tool rate) is reported, never asserted. A sub-0.8
     aggregate is a legitimate, measured failure — the threshold is pinned.
@@ -312,23 +406,25 @@ def test_real_llm_trajectory_acceptance(tmp_path: Path) -> None:
         report: TrajectoryReport = validate_trajectory(
             task, names, interrupted=run["interrupted"]
         )
+        outcome_violations = _check_outcome(task, run, env)
+        all_violations = list(report.violations) + outcome_violations
         outcomes.append(
             {
                 "task": task,
                 "message": run["message"],
-                "passed": report.passed,
-                "violations": report.violations,
+                "passed": report.passed and not outcome_violations,
+                "violations": all_violations,
                 "calls": run["calls"],
                 "interrupted": run["interrupted"],
             }
         )
-        if report.passed:
+        if report.passed and not outcome_violations:
             print(f"  PASS ({len(names)} calls, interrupted={run['interrupted']})")
         else:
             print(f"  FAIL ({len(names)} calls, interrupted={run['interrupted']})")
             _print_trajectory(run["message"], run["calls"])
             print(f"  contract: {task.model_dump(exclude_none=True)!r}")
-            for v in report.violations:
+            for v in all_violations:
                 print(f"    violation: {v}")
 
     passed = sum(1 for o in outcomes if o["passed"])

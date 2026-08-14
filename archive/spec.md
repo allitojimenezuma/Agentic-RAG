@@ -40,8 +40,10 @@ untouched as the regression baseline.
     `HARD_QUERIES` (≥5 typo/synonym/cross-type variants), `RECALL_K=8`, threshold
     floors, `copy_eval_wiki(tmp_path) -> Path`, `eval_wiki` fixture, and an
     `eval_env(tmp_path)` fixture returning both wiki + raw copies.
-  - `tests/fixtures/eval_judge.py` — calibrated real-LLM judge harness (few-shot
-    anchors, strict JSON + Pydantic, corrective retry).
+  - `tests/fixtures/eval_dataset.py` — curated L3 answer-quality dataset (gold
+    answers, expected slugs; consumed by `test_answer_quality_real_llm.py`).
+  - `tests/fixtures/deepeval_judge.py` — DeepEval judge for the project's
+    OpenAI-compatible proxy (`JsonObjectLiteLLM`, json_schema→json_object shim).
   - `tests/fixtures/eval_hitl.py` — headless HITL auto-responders
     (`auto_decide` / `resume_auto`) driving `Command(resume={"decisions": [...]})`.
 - New suites, all deterministic tier = 0 LLM calls, judge/trajectory tier = real LLM:
@@ -51,9 +53,12 @@ untouched as the regression baseline.
     `test_turn_efficiency.py`, `test_state_consistency.py` (deterministic);
     `trajectory_contract.py` (pure DAG/invariant validator) +
     `test_trajectory_contract.py` (its deterministic unit tests);
-    `test_trajectory_real_llm.py` (acceptance-tier real-model runs).
-  - `tests/levels/level3/`: `test_context_recall.py`, `test_faithfulness.py`,
-    `test_answer_relevancy.py`, `test_contradiction_handling.py`.
+    `test_trajectory_real_llm.py` (acceptance-tier real-model runs with
+    on-disk/answer outcome assertions — see §5.1 of the test-suite plan).
+  - `tests/levels/level3/`: `test_faithfulness.py`, `test_answer_relevancy.py`,
+    `test_answer_quality_real_llm.py` (DeepEval answer quality),
+    `test_contradiction_handling.py`. Retrieval recall checks folded into
+    `test_corpus_selfcheck.py` (L3 judges answers, not the retriever).
   - `tests/levels/conftest.py` — level-scoped fixtures (re-export `eval_wiki` /
     `eval_env` / HITL helpers, judge skip marker).
 - Remove `tests/eval/test_search_recall.py` and `tests/eval/test_grounding_gate.py`
@@ -64,10 +69,15 @@ untouched as the regression baseline.
 - Rewriting existing `tests/unit/` / `tests/integration/` tests (321-passed baseline
   stays green and untouched).
 - Any change to `src/agentic_rag/` (agents, tools, middleware, wiki engine) — hard
-  acceptance gate.
-- New runtime or dev dependencies (no ragas, no pandas/datasets). Judges are
-  hand-rolled prompts over the already-installed `langchain-openai`.
-- `pyproject.toml` changes.
+  acceptance gate. EXCEPTIONS (2026-08-06, test-suite plan Phase 3/5, user-approved):
+  - lint agent gained `wiki_scan` (its prompt already instructed it; toolset was
+    missing it — real prompt/implementation bug, fixed in code);
+  - fix agent keeps `wiki_link_graph` (deliberate 2026-08-06 feature) — contracts
+    and spec tool inventories updated to match;
+  - query prompt strengthened: final answer MUST contain ≥1 citation (model was
+    answering without citations — measured gap, fixed in code).
+- Dev deps added (2026-08-06): `deepeval>=4.1.5` + `litellm>=1.95.0` (L3
+  LLM-as-judge tier). Judges run through the project's OpenAI-compatible proxy.
 - CI pipeline configuration changes.
 - Level 4 / production observability (explicitly excluded by the user).
 
@@ -249,7 +259,7 @@ directly as `ends_with_interrupt`).
 | query multi-hop | "How does MLX relate to Apple Silicon?" | same allowed/prereq; required=[wiki_read_page]; max 5 |
 | ingest happy path | "Ingest raw/sample.md" | allowed=ingest toolset; prereqs (read_source→submit_extraction, submit_extraction→match_page_tool, match_page_tool→create_page, match_page_tool→update_page); required=[read_source, submit_extraction, match_page_tool, regenerate_index, append_log]; required_any=[(create_page, update_page)]; write_tools=[create_page, update_page]; terminal_after=[regenerate_index, append_log]; max 15 |
 | ingest contradiction | "Ingest raw/contradiction-source.md" | same allowed/prereqs up to match; required=[flag_contradiction]; write_tools=[]; ends_with_interrupt=True; max 15 |
-| lint full check | "Run a full wiki health check. Report orphans, contradictions, missing links, and data gaps." | allowed=lint toolset; prereq (run_health_check→write_lint_report); required=[run_health_check]; max 4 |
+| lint full check | "Run a full wiki health check. Report orphans, contradictions, missing links, and data gaps." | allowed=lint toolset; prereq (run_health_check→write_lint_report); required=[run_health_check]; max 7 (lint prompt's own budget: health + graph + scan + up to 3 reads + report) |
 | fix missing-frontmatter | "Fix the missing-frontmatter issue on entities/broken-fm" (broken-wiki copy) | allowed=fix toolset; required=[add_frontmatter]; forbidden=[fix_link, append_related_section, edit_wiki_page]; write_tools=fix writes; terminal_after=[regenerate_index]; max 8 |
 | fix broken-link | "Fix broken links" (broken-wiki copy) | required=[fix_link]; forbidden=[add_frontmatter, append_related_section, edit_wiki_page]; terminal_after=[regenerate_index]; max 8 |
 | fix missing-related | "Fix missing-related on entities/lonely" (broken-wiki copy) | required=[append_related_section]; forbidden=[add_frontmatter, fix_link, edit_wiki_page]; terminal_after=[regenerate_index]; max 8 |
@@ -259,9 +269,9 @@ Tool inventories (pin): query = {wiki_search, wiki_read_page, wiki_summary}; ing
 {read_source, submit_extraction, match_page_tool, wiki_read_page, wiki_scan,
 wiki_link_graph, create_page, update_page, flag_contradiction, regenerate_index,
 append_log, delete_wiki_page}; lint = {run_health_check, wiki_link_graph,
-wiki_read_page, write_lint_report}; fix = {wiki_read_page, edit_wiki_page,
+wiki_read_page, wiki_scan, write_lint_report}; fix = {wiki_read_page, edit_wiki_page,
 add_frontmatter, fix_link, append_related_section, regenerate_index,
-delete_wiki_page}. Write-tools set (path guard) = {create_page, update_page,
+delete_wiki_page, wiki_link_graph}. Write-tools set (path guard) = {create_page, update_page,
 delete_wiki_page, write_lint_report, add_frontmatter, fix_link,
 append_related_section}.
 
@@ -287,10 +297,12 @@ append_related_section}.
 4. Level 2 (deterministic): argument schemas, turn efficiency, state consistency.
 5. Level 2: `trajectory_contract.py` + its deterministic validator tests +
    `test_trajectory_real_llm.py` (DAG contracts, acceptance tier).
-6. Level 3: Context Recall@K (calibrated floors, neutral corpus) + deterministic
-   faithfulness proxies.
-7. Level 3: few-shot judges (faithfulness/relevancy) + contradiction handling
-   end-to-end with `resume_auto` (approve/edit/reject).
+6. Level 3: deterministic faithfulness proxies + DeepEval judge anchors
+   (grounded ≥0.7 / fabricated ≤0.4).
+7. Level 3: DeepEval answer-quality tier over the curated eval dataset
+   (faithfulness 0.80 / relevancy 0.70 / context recall 0.80 / citation 0.80
+   floors) + contradiction handling end-to-end with `resume_auto`
+   (approve/edit/reject).
 8. Remove `tests/eval/`, README update, full-suite verification.
 
 ## Acceptance
@@ -319,8 +331,9 @@ append_related_section}.
   separation (grounded ≥ 0.7 / fabricated ≤ 0.4).
 - With a key, `uv run pytest tests/levels/level2/test_trajectory_real_llm.py -q` passes
   ≥ 8/10 of `TRAJECTORY_TASKS` and prints tool-selection accuracy + failed trajectories.
-- Turn-efficiency caps pinned: query ≤ 5, lint ≤ 4, fix ≤ 8, ingest ≤ 15 (executor
-  tunes to observed happy path; may tighten, never loosen).
+- Turn-efficiency caps pinned: query ≤ 5, lint ≤ 7, fix ≤ 8, ingest ≤ 15 (executor
+  tunes to observed happy path; may tighten, never loosen). Lint cap 7 = the lint
+  prompt's own hard budget (health + graph + scan + up to 3 reads + report).
 - `tests/eval/` no longer exists; README documents `tests/levels/` and the real-LLM tiers.
 
 ## Open questions

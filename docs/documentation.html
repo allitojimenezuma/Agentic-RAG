@@ -1618,14 +1618,17 @@
           </p>
 
           <h4>
-            Level 3 — RAG Metrics, Grounding &amp; Calibrated LLM Judges
+            Level 3 — RAG Metrics, Grounding &amp; DeepEval Answer Quality
           </h4>
           <p>
-            Measures search retrieval coverage (Context Recall @ K with
-            SHA-256 corpus neutrality checks), grounding fidelity (cite-or-die
-            gate and <code>Faithfulness</code> judge),
-            <code>Answer Relevancy</code>, and end-to-end contradiction
-            resolution workflows across all HITL resume variants.
+            Measures answer quality of the REAL query agent (grounding via the
+            cite-or-die gate + DeepEval <code>Faithfulness</code> /
+            <code>Answer Relevancy</code> / <code>Contextual Recall</code>
+            LLM-as-judge metrics), plus end-to-end contradiction resolution
+            workflows across all HITL resume variants. Retrieval coverage
+            (BM25 recall@8) lives in the corpus self-check
+            (<code>test_corpus_selfcheck.py</code>) — L3 judges answers, not
+            the retriever.
           </p>
 
           <h3 id="s10-2">
@@ -1748,7 +1751,7 @@
                 <td>
                   Asserts that agent happy-path runs stay strictly within
                   spec-pinned turn caps (<code>query ≤ 5</code>,
-                  <code>lint ≤ 4</code>, <code>fix ≤ 8</code>,
+                  <code>lint ≤ 7</code>, <code>fix ≤ 8</code>,
                   <code>ingest ≤ 15</code>).
                 </td>
               </tr>
@@ -1766,18 +1769,22 @@
                 <td>Level 3 (Hybrid)</td>
                 <td>
                   Combines a 0-LLM proxy (length bounds, key-term containment)
-                  and stub model round-trips with a calibrated real-LLM judge
-                  measuring answer directness vs refusal dodges.
+                  with a DeepEval real-LLM <code>AnswerRelevancyMetric</code>
+                  judge asserting anchor separation (direct answer ≥ 0.7 vs
+                  substantive off-topic answer ≤ 0.4, 3-sample average).
                 </td>
               </tr>
               <tr>
-                <td><code>level3/test_context_recall.py</code></td>
-                <td>Level 3 (0-LLM)</td>
+                <td><code>level3/test_answer_quality_real_llm.py</code></td>
+                <td>Level 3 (Real LLM)</td>
                 <td>
-                  Measures BM25 retrieval and 1-hop link expansion accuracy
-                  (Recall@8) against 15 curated and 6 hard queries; includes
-                  SHA-256 file hashing to prove search passes never mutate the
-                  corpus.
+                  Runs the real query agent over the curated eval dataset
+                  (gold answers in <code>tests/fixtures/eval_dataset.py</code>)
+                  and scores each answer with DeepEval Faithfulness,
+                  Answer Relevancy and Contextual Recall (aggregate floors
+                  0.80 / 0.70 / 0.80; citation-rate floor 0.80). The judge
+                  (tests/fixtures/deepeval_judge.py) works with any
+                  OpenAI-compatible proxy via a json_schema→json_object shim.
                 </td>
               </tr>
               <tr>
@@ -1797,8 +1804,9 @@
                 <td>
                   Tests deterministic grounding proxies (cite-or-die gate,
                   link-citation consistency, confidence inference) and calls a
-                  calibrated LLM judge to assert anchor separation (grounded ≥
-                  0.7 vs fabricated ≤ 0.4).
+                  DeepEval <code>FaithfulnessMetric</code> judge to assert
+                  anchor separation (grounded ≥ 0.7 vs fabricated ≤ 0.4,
+                  3-sample average).
                 </td>
               </tr>
             </tbody>
@@ -1828,7 +1836,7 @@ uv run pytest tests/levels/ -q
 # 3. Run individual evaluation levels
 uv run pytest tests/levels/level1 -q   # Level 1: Deterministic Quality Gates &amp; Safety Matrix
 uv run pytest tests/levels/level2 -q   # Level 2: Trajectory Contracts &amp; Orchestrator Discipline
-uv run pytest tests/levels/level3 -q   # Level 3: RAG Metrics &amp; Calibrated LLM Judges</code></pre>
+uv run pytest tests/levels/level3 -q   # Level 3: RAG Answer Quality &amp; DeepEval Judges</code></pre>
         </section>
 
         <!-- ============ 11. Glossary ============ -->

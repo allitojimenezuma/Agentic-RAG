@@ -1,42 +1,38 @@
-"""Level 3 — answer-relevancy tier: deterministic proxy + calibrated judge (T7).
+"""Level 3 — answer-relevancy tier: deterministic proxy + DeepEval judge (T7).
 
-Three layers:
+WHAT IT TESTS:
+- Two layers:
+  1. Deterministic relevancy proxy (ALWAYS runs, 0 LLM): asserts the text
+     properties of scripted (directly-relevant) answers that relevancy
+     depends on — non-empty, sane length bounds, and key-term containment
+     (a query's central term must appear in the answer: "What is MLX?" ->
+     the answer contains "MLX"). An off-topic answer must also be non-empty
+     and within bounds. The proxy pins the deterministic contract; it cannot
+     measure relevance itself.
+  2. Real-judge tier (@requires_llm): DeepEval ``AnswerRelevancyMetric``
+     with the project's judge (tests/fixtures/deepeval_judge.py) asserts
+     anchor separation — a direct answer must score >= GROUNDED_MIN (0.7),
+     an off-topic answer <= FABRICATED_MAX (0.4). The anchors are pinned by T1
+     and must never be loosened; a separation miss is a measured outcome of
+     the model under test and is reported as-is.
 
-1. Deterministic relevancy proxy (ALWAYS runs, 0 LLM): asserts the text
-   properties of scripted (directly-relevant) answers that relevancy
-   depends on — non-empty, sane length bounds, and key-term containment
-   (a query's central term must appear in the answer: "What is MLX?" ->
-   the answer contains "MLX"). An off-topic answer must also be non-empty
-   and within bounds. The proxy pins the deterministic contract; it cannot
-   measure relevance itself.
-2. Stub-model round-trip through ``eval_judge._judge`` (ALWAYS runs,
-   0 LLM): a scripted model returning ``{"score": 0.8, ...}`` parses to a
-   ``RelevancyScore(score=0.8)``; an out-of-bounds score (1.7) raises
-   ``RuntimeError`` whose message includes the raw output — never a silent
-   passing score.
-3. Real-judge tier (``@requires_llm``): ``judge_relevancy`` on the real
-   model asserts anchor separation — a direct answer must score >=
-   GROUNDED_MIN (0.7), an off-topic dodge <= FABRICATED_MAX (0.4). The
-   anchors are pinned by T1 and must never be loosened; a separation miss
-   is a measured outcome of the model under test and is reported as-is.
+HOW IT RUNS:
+- Layer 1: 0-LLM (always, offline). Layer 2: real LLM judge (@requires_llm,
+  skipped without OPENAI_API_KEY).
 
-No ``input()``, no network beyond the optional real-judge tier.
+WHY IT MATTERS:
+- Relevancy is "did the answer actually answer the question?" — the proxy
+  catches empty/off-key answers offline; the judge tier measures whether the
+  real model stays on-topic for direct questions vs evasive dodges.
+
+RUN: uv run pytest tests/levels/level3/test_answer_relevancy.py
 """
 
 from __future__ import annotations
 
 import pytest
-from langchain_core.messages import AIMessage
 
-from tests.fixtures.eval_judge import (
-    FABRICATED_MAX,
-    GROUNDED_MIN,
-    RELEVANCY_SYSTEM,
-    RelevancyScore,
-    _judge,
-    judge_relevancy,
-)
-from tests.fixtures.fake_llm import ScriptedChatModel
+from tests.fixtures.deepeval_judge import deepeval_judge
 from tests.levels.conftest import requires_llm
 
 # Deterministic proxy bounds (sane answer-length window).
@@ -57,7 +53,12 @@ KEY_TERM_CASES: list[tuple[str, str, str]] = [
     ),
 ]
 
-OFF_TOPIC_DODGE = "I don't have information about that topic."
+# Off-topic answer: substantively about a DIFFERENT topic than the question.
+# NOTE: a pure evasion ("I don't have information about that topic") is a known
+# AnswerRelevancyMetric blind spot — it generates questions FROM the answer, so
+# evasions score as relevant. The anchor uses a substantive off-topic answer,
+# which the metric scores ~0 (measured 2026-08-06).
+OFF_TOPIC_ANSWER = "Azure is Microsoft's cloud computing platform for hosting large language models."
 
 
 def _assert_relevancy_proxy(query: str, answer: str, key_term: str) -> None:
@@ -90,67 +91,67 @@ def test_scripted_grounded_answer_passes_relevancy_proxy(
 
 def test_off_topic_answer_is_nonempty_and_within_bounds() -> None:
     """Off-topic answers are still well-formed text (non-empty, sane length)."""
-    assert OFF_TOPIC_DODGE
-    assert MIN_LEN <= len(OFF_TOPIC_DODGE) <= MAX_LEN
+    assert OFF_TOPIC_ANSWER
+    assert MIN_LEN <= len(OFF_TOPIC_ANSWER) <= MAX_LEN
 
 
-# --- stub-model round-trip through _judge (ALWAYS runs, 0 LLM) -----------------
+# --- real-judge tier: anchor separation via DeepEval (requires_llm) -----------
+# The hand-rolled relevancy judge (tests/fixtures/eval_judge.py) was retired
+# 2026-08-06 after cross-calibration scored IDENTICALLY (direct 1.00/1.00);
+# the DeepEval AnswerRelevancyMetric replaces it. Anchors are pinned and must
+# never be loosened.
 
-
-def test_relevancy_stub_round_trip_parses_score() -> None:
-    """A scripted valid-JSON response parses to a RelevancyScore."""
-    stub = ScriptedChatModel(
-        responses=[
-            AIMessage(content='{"score": 0.8, "rationale": "direct"}')
-        ]
-    )
-    score = _judge(
-        stub,
-        RELEVANCY_SYSTEM,
-        "Question: What is MLX?\n\nAnswer: MLX is Apple's ML framework.",
-        RelevancyScore,
-    )
-    assert isinstance(score, RelevancyScore)
-    assert score.score == 0.8
-    assert score.rationale == "direct"
-
-
-def test_relevancy_out_of_bounds_score_raises_runtime_error_never_silent() -> None:
-    """A score outside [0, 1] fails validation -> RuntimeError with raw output."""
-    raw = '{"score": 1.7, "rationale": "way out of range"}'
-    stub = ScriptedChatModel(responses=[AIMessage(content=raw), AIMessage(content=raw)])
-    with pytest.raises(RuntimeError) as exc_info:
-        _judge(
-            stub,
-            RELEVANCY_SYSTEM,
-            "Question: What is MLX?\n\nAnswer: MLX.",
-            RelevancyScore,
-        )
-    message = str(exc_info.value)
-    assert "Raw output" in message
-    assert "1.7" in message
-
-
-# --- real-judge tier: anchor separation (requires_llm) --------------------------
+GROUNDED_MIN: float = 0.7  # T1 pin: a direct answer must score >= 0.7
+FABRICATED_MAX: float = 0.4  # T1 pin: an off-topic answer must score <= 0.4
 
 
 @requires_llm
 def test_real_judge_direct_answer_meets_grounded_min() -> None:
     """A directly-on-topic answer must score >= GROUNDED_MIN (0.7)."""
-    score = judge_relevancy("What is MLX?", "MLX is Apple's machine learning framework.")
-    assert score.score >= GROUNDED_MIN, (
-        f"direct answer scored {score.score:.2f} < pinned GROUNDED_MIN={GROUNDED_MIN} "
-        f"— anchor separation missed by the model under test (measured outcome, "
-        f"pins not loosened)"
+    from deepeval.metrics import AnswerRelevancyMetric
+    from deepeval.test_case import LLMTestCase
+
+    judge = deepeval_judge()
+    assert judge is not None, "requires_llm should have skipped without a key"
+    metric = AnswerRelevancyMetric(model=judge, threshold=0.0, async_mode=False)
+    scores = []
+    for _ in range(3):
+        metric.measure(
+            LLMTestCase(
+                input="What is MLX?",
+                actual_output="MLX is Apple's machine learning framework.",
+            )
+        )
+        scores.append(metric.score)
+    avg = sum(scores) / len(scores)
+    assert avg >= GROUNDED_MIN, (
+        f"direct answer averaged {avg:.2f} (samples {[round(s, 2) for s in scores]}) "
+        f"< pinned GROUNDED_MIN={GROUNDED_MIN} — anchor separation missed by the "
+        f"model under test (measured outcome, pins not loosened)"
     )
 
 
 @requires_llm
-def test_real_judge_off_topic_dodge_stays_below_fabricated_max() -> None:
-    """A refusal-dodge must score <= FABRICATED_MAX (0.4)."""
-    score = judge_relevancy("What is MLX?", OFF_TOPIC_DODGE)
-    assert score.score <= FABRICATED_MAX, (
-        f"off-topic dodge scored {score.score:.2f} > pinned FABRICATED_MAX={FABRICATED_MAX} "
-        f"— anchor separation missed by the model under test (measured outcome, "
-        f"pins not loosened)"
+def test_real_judge_off_topic_answer_stays_below_fabricated_max() -> None:
+    """A substantively off-topic answer must score <= FABRICATED_MAX (0.4)."""
+    from deepeval.metrics import AnswerRelevancyMetric
+    from deepeval.test_case import LLMTestCase
+
+    judge = deepeval_judge()
+    assert judge is not None, "requires_llm should have skipped without a key"
+    metric = AnswerRelevancyMetric(model=judge, threshold=0.0, async_mode=False)
+    scores = []
+    for _ in range(3):
+        metric.measure(
+            LLMTestCase(
+                input="What is MLX?",
+                actual_output=OFF_TOPIC_ANSWER,
+            )
+        )
+        scores.append(metric.score)
+    avg = sum(scores) / len(scores)
+    assert avg <= FABRICATED_MAX, (
+        f"off-topic answer averaged {avg:.2f} (samples {[round(s, 2) for s in scores]}) "
+        f"> pinned FABRICATED_MAX={FABRICATED_MAX} — anchor separation missed by "
+        f"the model under test (measured outcome, pins not loosened)"
     )

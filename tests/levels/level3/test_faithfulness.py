@@ -1,25 +1,39 @@
-"""Level 3 — deterministic faithfulness proxies over the grounding engine.
+"""Level 3 — deterministic faithfulness proxies + DeepEval real-judge anchors (T7).
 
-Zero LLM calls, zero network, fully headless. Runs ALWAYS (no skip marker).
-The query agent's answer is synthesized by ``build_final_answer`` from the
-model's own final message: ``[[Page]]`` links become citations validated
-against the per-turn navigated set (cite-or-die). These tests pin the
-deterministic core of that contract without any judge model:
+WHAT IT TESTS:
+- Deterministic tier (0 LLM, zero network, fully headless — runs ALWAYS).
+  The query agent's answer is synthesized by ``build_final_answer`` from the
+  model's own final message: ``[[Page]]`` links become citations validated
+  against the per-turn navigated set (cite-or-die). These tests pin the
+  deterministic core of that contract without any judge model:
+  1. cite-or-die: a fabricated ``[[link]]`` is dropped; only navigated pages
+     are citable;
+  2. link-citation consistency: every navigated ``[[link]]`` in the answer
+     text becomes a citation (first-seen order); no uncited navigated links;
+  3. confidence inference: navigated+cited -> "high", navigated but nothing
+     cited -> "medium", nothing navigated -> "low";
+  4. end-to-end NavCapture: a scripted query agent (wiki_search ->
+     wiki_read_page -> final answer) records the navigated slug, and every
+     citation built from the final answer resolves to a genuinely navigated
+     page.
+- Real-judge tier (@requires_llm): DeepEval ``FaithfulnessMetric`` with the
+  project's judge (tests/fixtures/deepeval_judge.py) asserts anchor
+  separation — a grounded answer must score >= GROUNDED_MIN (0.7), a
+  fabricated answer <= FABRICATED_MAX (0.4). Pins never loosened; a miss is
+  a measured model outcome reported as-is.
 
-1. cite-or-die: a fabricated ``[[link]]`` is dropped; only navigated pages are
-   citable.
-2. link-citation consistency: every navigated ``[[link]]`` in the answer text
-   becomes a citation (first-seen order); there are no uncited navigated links.
-3. confidence inference: navigated+cited -> "high", navigated but nothing
-   cited -> "medium", nothing navigated -> "low".
-4. end-to-end NavCapture: a scripted query agent (wiki_search ->
-   wiki_read_page -> final answer) records the navigated slug, and every
-   citation built from the final answer resolves to a genuinely navigated
-   page.
+HOW IT RUNS:
+- Deterministic tier: 0-LLM (always, offline). Real tier: skipped without
+  OPENAI_API_KEY. The NavCapture is a module-global in
+  ``agentic_rag.tools.grounding``; the autouse fixture below resets it around
+  every test so no capture leaks between tests.
 
-The NavCapture is a module-global in ``agentic_rag.tools.grounding``; the
-autouse fixture below resets it around every test so no capture leaks between
-tests.
+WHY IT MATTERS:
+- These proxies are the offline half of faithfulness: they guarantee the
+  answer-citation machinery itself is sound, so the real-model judge can only
+  measure model behavior, not engine bugs.
+
+RUN: uv run pytest tests/levels/level3/test_faithfulness.py
 """
 
 from __future__ import annotations
@@ -40,14 +54,7 @@ from agentic_rag.tools.grounding import (
 )
 from agentic_rag.tools.nav import wiki_read_page, wiki_search, wiki_summary
 from agentic_rag.tools.shared import init_shared_tools
-from tests.fixtures.eval_judge import (
-    FABRICATED_MAX,
-    FAITHFULNESS_SYSTEM,
-    GROUNDED_MIN,
-    FaithfulnessScore,
-    _judge,
-    judge_faithfulness,
-)
+from tests.fixtures.deepeval_judge import deepeval_judge
 from tests.fixtures.fake_llm import ScriptedChatModel
 from tests.levels.conftest import requires_llm
 
@@ -201,15 +208,18 @@ def test_end_to_end_nav_capture_citations_are_navigated(eval_wiki) -> None:
     assert [c.slug for c in qa.citations] == ["entities/mlx"]
 
 
-# --- calibrated judge: stub round-trip + real-model anchors (T7) -----------------
-# The judge harness lives in tests/fixtures/eval_judge.py. Deterministic tiers
-# exercise its strict-JSON + corrective-retry semantics with a ScriptedChatModel
-# stub (0 LLM, ALWAYS run); the @requires_llm tier calls judge_faithfulness on
-# the real model and asserts the pinned anchor separation.
+# --- calibrated judge: real-model anchor separation via DeepEval (T7) ---------
+# The hand-rolled judge (tests/fixtures/eval_judge.py) was retired 2026-08-06
+# after a cross-calibration run scored IDENTICALLY on the anchors (grounded
+# 1.00/1.00, fabricated 0.00/0.00, direct relevancy 1.00/1.00). Anchors are
+# pinned here and must never be loosened.
 
 MLX_PAGE_CONTEXT_PATH = (
     Path(__file__).parents[2] / "fixtures" / "eval_wiki" / "entities" / "mlx.md"
 )
+
+GROUNDED_MIN: float = 0.7  # T1 pin: a directly-grounded answer must score >= 0.7
+FABRICATED_MAX: float = 0.4  # T1 pin: a fabricated answer must score <= 0.4
 
 
 def _mlx_context() -> str:
@@ -217,64 +227,6 @@ def _mlx_context() -> str:
     return MLX_PAGE_CONTEXT_PATH.read_text(encoding="utf-8")
 
 
-def test_judge_stub_round_trip_parses_score() -> None:
-    """A scripted valid-JSON response parses to a FaithfulnessScore."""
-    stub = ScriptedChatModel(
-        responses=[
-            AIMessage(content='{"score": 0.9, "rationale": "directly supported"}')
-        ]
-    )
-    score = _judge(
-        stub,
-        FAITHFULNESS_SYSTEM,
-        "Question: What is MLX?\nAnswer: MLX is Apple's framework.\nContext: [1] MLX.",
-        FaithfulnessScore,
-    )
-    assert isinstance(score, FaithfulnessScore)
-    assert score.score == 0.9
-    assert score.rationale == "directly supported"
-
-
-def test_judge_corrective_retry_recovers_valid_json() -> None:
-    """First response unparseable -> ONE corrective retry parses the second."""
-    stub = ScriptedChatModel(
-        responses=[
-            AIMessage(content="not json at all"),
-            AIMessage(content='{"score": 0.3, "rationale": "recovered on retry"}'),
-        ]
-    )
-    score = _judge(
-        stub,
-        FAITHFULNESS_SYSTEM,
-        "Question: What is MLX?\nAnswer: unsupported.\nContext: [1] MLX.",
-        FaithfulnessScore,
-    )
-    assert score.score == 0.3
-    assert score.rationale == "recovered on retry"
-
-
-def test_judge_out_of_bounds_score_raises_runtime_error_never_silent() -> None:
-    """A score outside [0, 1] fails validation -> RuntimeError with raw output.
-
-    Two identical scripted responses so the corrective retry also yields the
-    invalid score and the RuntimeError carries the raw output (never a
-    silent passing score).
-    """
-    raw = '{"score": 1.7, "rationale": "invalid"}'
-    stub = ScriptedChatModel(responses=[AIMessage(content=raw), AIMessage(content=raw)])
-    with pytest.raises(RuntimeError) as exc_info:
-        _judge(
-            stub,
-            FAITHFULNESS_SYSTEM,
-            "Question: What is MLX?\nAnswer: MLX.\nContext: [1] MLX.",
-            FaithfulnessScore,
-        )
-    message = str(exc_info.value)
-    assert "Raw output" in message
-    assert "1.7" in message
-
-
-# --- real-judge tier: anchor separation (requires_llm) --------------------------
 QUESTION = "What is MLX?"
 GROUNDED_ANSWER = (
     "MLX is a machine learning framework developed by Apple for Apple "
@@ -286,20 +238,54 @@ FABRICATED_ANSWER = "MLX was developed by Google for TPU clusters."
 @requires_llm
 def test_real_judge_grounded_answer_meets_anchor_min() -> None:
     """A claim directly supported by the corpus context must score >= 0.7."""
-    score = judge_faithfulness(QUESTION, GROUNDED_ANSWER, [_mlx_context()])
-    assert score.score >= GROUNDED_MIN, (
-        f"grounded answer scored {score.score:.2f} < pinned "
-        f"GROUNDED_MIN={GROUNDED_MIN} — anchor separation missed by the model "
-        f"under test (measured outcome, pins not loosened)"
+    from deepeval.metrics import FaithfulnessMetric
+    from deepeval.test_case import LLMTestCase
+
+    judge = deepeval_judge()
+    assert judge is not None, "requires_llm should have skipped without a key"
+    metric = FaithfulnessMetric(model=judge, threshold=0.0, async_mode=False)
+    # Average 3 measurements: single-shot LLM-as-judge calls are noisy, the
+    # anchor is about the model's calibration band, not one sample.
+    scores = []
+    for _ in range(3):
+        metric.measure(
+            LLMTestCase(
+                input=QUESTION,
+                actual_output=GROUNDED_ANSWER,
+                retrieval_context=[_mlx_context()],
+            )
+        )
+        scores.append(metric.score)
+    avg = sum(scores) / len(scores)
+    assert avg >= GROUNDED_MIN, (
+        f"grounded answer averaged {avg:.2f} (samples {[round(s, 2) for s in scores]}) "
+        f"< pinned GROUNDED_MIN={GROUNDED_MIN} — anchor separation missed by the "
+        f"model under test (measured outcome, pins not loosened)"
     )
 
 
 @requires_llm
 def test_real_judge_fabricated_answer_stays_below_anchor_max() -> None:
     """A claim contradicted by the corpus context must score <= 0.4."""
-    score = judge_faithfulness(QUESTION, FABRICATED_ANSWER, [_mlx_context()])
-    assert score.score <= FABRICATED_MAX, (
-        f"fabricated answer scored {score.score:.2f} > pinned "
-        f"FABRICATED_MAX={FABRICATED_MAX} — anchor separation missed by the "
+    from deepeval.metrics import FaithfulnessMetric
+    from deepeval.test_case import LLMTestCase
+
+    judge = deepeval_judge()
+    assert judge is not None, "requires_llm should have skipped without a key"
+    metric = FaithfulnessMetric(model=judge, threshold=0.0, async_mode=False)
+    scores = []
+    for _ in range(3):
+        metric.measure(
+            LLMTestCase(
+                input=QUESTION,
+                actual_output=FABRICATED_ANSWER,
+                retrieval_context=[_mlx_context()],
+            )
+        )
+        scores.append(metric.score)
+    avg = sum(scores) / len(scores)
+    assert avg <= FABRICATED_MAX, (
+        f"fabricated answer averaged {avg:.2f} (samples {[round(s, 2) for s in scores]}) "
+        f"> pinned FABRICATED_MAX={FABRICATED_MAX} — anchor separation missed by the "
         f"model under test (measured outcome, pins not loosened)"
     )

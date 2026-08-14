@@ -70,6 +70,7 @@ def build_query_prompt(agents_md: str, wiki_index: str = "") -> str:
 
 # Grounding
 - ALWAYS cite every page you read to answer the question: append `[[slug]]` links to each claim you support with that page. Every `[[X]]` link must be a page you obtained from `wiki_search`/`wiki_read_page` this turn; citations for any other page are dropped automatically.
+- Your final answer MUST contain at least one `[[page]]` citation. If you cannot ground your answer in a page you navigated this turn, say the wiki does not cover the question — never answer without citations.
 - If the wiki doesn't cover the question, say so clearly.
 
 # Rules
