@@ -13,10 +13,10 @@ raw/ (immutable sources)
   │  read_source (MarkItDown)
   ▼
 4 LangChain agents  ── middleware: audit logging → path guardrails → token capture → HITL
-  ├─ ingest: read → submit_extraction → match_page (deterministic) → create/update pages
+  ├─ ingest: read → submit_extraction → wiki_command match (deterministic) → create/update pages
   │          → regenerate_index → append_log
-  ├─ query:  wiki_search → wiki_read_page → auto-built answer (cite-or-die citations)
-  ├─ lint:   run_health_check (0 LLM) + LLM semantic judgment → write_lint_report
+  ├─ query:  wiki_command (search/read) → auto-built answer (cite-or-die citations)
+  ├─ lint:   wiki_command health (0 LLM) + LLM semantic judgment → write_lint_report
   └─ fix:    health_check issues → pinned kind→tool map → in-wiki edits
         │
         ▼
@@ -46,9 +46,9 @@ Plus three cross-cutting modules at the package root: `config.py` (settings), `c
 | Add a tool an agent can call | `tools/` → register in the agent builder → add to `middleware/guardrails.py` `write_tools` if it writes |
 | Read/parse a wiki page file | `io/wiki_io.py` (atomic read/write/delete) + `io/markdown_parser.py` (links, headings, frontmatter) |
 | Load the wiki into memory | `wiki/model.py` → `load_wiki(path)` → `Wiki`/`Page` |
-| Search the wiki | `wiki/search.py` (BM25) — exposed to agents as `nav.wiki_search` |
-| Decide create vs update vs conflict | `wiki/match.py` → `match_page_tool` |
-| Audit wiki health | `wiki/health.py` → `health_check()` (0 LLM) — exposed as `lint_tools.run_health_check` |
+| Search the wiki | `wiki/search.py` (BM25) — exposed to agents via `nav.wiki_command` (`search` sub-command) |
+| Decide create vs update vs conflict | `wiki/match.py` → `wiki_command` `match` sub-command |
+| Audit wiki health | `wiki/health.py` → `health_check()` (0 LLM) — exposed via `wiki_command` `health` sub-command |
 | Rebuild `index.md` | `wiki/dedupe_index.py` → `regenerate_index` (index is **derived**, never hand-edited) |
 | Parse/write `index.md` or `log.md` | `io/index.py`, `io/log.py` (codecs) |
 | Understand cite-or-die citations | `tools/grounding.py` (`NavCapture`, `build_final_answer`, `validate_citations`) |

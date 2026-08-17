@@ -1,4 +1,9 @@
-"""Tools for the lint agent: deterministic health check + report writer."""
+"""Tools for the lint agent: the report writer.
+
+The deterministic structural audit lives behind the ``health`` sub-command of
+``tools.nav.wiki_command`` (0 LLM calls); this module holds the only write
+tool the lint agent has — the report file.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +12,7 @@ from datetime import date
 
 from langchain_core.tools import tool
 
-from agentic_rag.wiki.health import _render_report_markdown, health_check
+from agentic_rag.wiki.health import _render_report_markdown
 from agentic_rag.schemas.lint import LintReport
 from agentic_rag.tools.shared import get_wiki_path
 
@@ -27,15 +32,3 @@ def write_lint_report(report: LintReport | str) -> str:
     logger.debug("Writing lint report to %s", report_path)
     report_path.write_text(content, encoding="utf-8")
     return f"Lint report written to: lint-report-{today}.md"
-
-
-@tool
-def run_health_check() -> str:
-    """Run a deterministic structural health check of the wiki: orphan, missing-index, broken-link, missing-frontmatter, missing-related, empty, and stale pages. Zero LLM calls — instant and free. Call this FIRST in any lint run; it is the ground truth for structural findings."""
-    report = health_check(get_wiki_path())
-    lines = [f"Pages audited: {report.pages_audited} | Issues: {len(report.issues)}"]
-    lines.extend(
-        f"[{issue.severity}] {issue.kind}: {issue.slug} — {issue.detail}"
-        for issue in report.issues
-    )
-    return "\n".join(lines)

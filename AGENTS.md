@@ -93,7 +93,7 @@ Operations: `ingest`, `query`, `lint`, `create`, `update`, `delete`.
 6. **ALWAYS update index and log** after any page creation, update, or deletion.
 7. **NEVER call the same tool twice with the same arguments**. If a tool already returned a result, do not call it again with identical inputs — use the result you already have. Duplicate calls waste tokens and produce duplicate side effects.
 8. **NEVER create a page that already exists**. Check the current wiki index (provided in your system prompt) before calling `create_page`. If the page is already listed there, use `update_page` instead.
-9. **NEVER read the same page twice in one turn**. If you already called `wiki_read_page` on a slug, use the content you received — do not read it again.
+9. **NEVER read the same page twice in one turn**. If you already ran `wiki_command("read <slug>")` on a slug, use the content you received — do not read it again.
 
 ## Data Confidence
 

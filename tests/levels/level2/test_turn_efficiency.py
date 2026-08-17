@@ -5,17 +5,15 @@ ingest ≤ 15 (executor may tighten, never loosen). For each agent we script
 the deterministic happy path and assert the recorded tool-call count stays
 within its cap:
 
-- query:  wiki_search -> wiki_read_page -> final answer            (2 calls)
-- lint:   run_health_check -> write_lint_report                     (2 calls)
-- fix:    wiki_read_page -> add_frontmatter -> regenerate_index     (3 calls)
-- ingest: read_source -> submit_extraction -> match_page_tool ->
+- query:  wiki_command (search + read) -> final answer           (1 call)
+- lint:   wiki_command health -> write_lint_report                 (2 calls)
+- fix:    wiki_command read -> add_frontmatter -> regenerate_index (3 calls)
+- ingest: read_source -> submit_extraction -> wiki_command match ->
           create_page -> regenerate_index -> append_log             (6 calls)
 
-Lint cap is 7 (not 4) because the lint prompt's OWN hard budget allows up to
-3 wiki_read_page calls on top of run_health_check + wiki_link_graph +
-wiki_scan + write_lint_report — the cap matches the agent's designed
-workflow (2026-08-06, corrected alongside adding wiki_scan to the lint
-agent toolset).
+Lint cap is 7 because the lint prompt's OWN hard budget allows up to 3
+wiki_command reads on top of health + scan + links + write_lint_report —
+the cap matches the agent's designed workflow.
 
 The caps module constants are also asserted EXACTLY (5, 7, 8, 15) so a
 future loosening fails the suite. Every run uses ScriptedChatModel +
@@ -48,27 +46,19 @@ from agentic_rag.tools.ingest_tools import (
     read_source,
     update_page,
 )
-from agentic_rag.tools.lint_tools import run_health_check, write_lint_report
-from agentic_rag.tools.nav import (
-    regenerate_index,
-    wiki_link_graph,
-    wiki_read_page,
-    wiki_scan,
-    wiki_search,
-    wiki_summary,
-)
+from agentic_rag.tools.lint_tools import write_lint_report
+from agentic_rag.tools.nav import regenerate_index, wiki_command
 from agentic_rag.tools.shared import init_shared_tools
-from agentic_rag.wiki.match import match_page_tool
 from tests.fixtures.eval_corpus import copy_broken_wiki
 from tests.fixtures.fake_llm import ScriptedChatModel
 
 # Spec-pinned turn-efficiency caps — tighten never loosen.
 CAPS: dict[str, int] = {"query": 5, "lint": 7, "fix": 8, "ingest": 15}
 
-QUERY_TOOLS = [wiki_search, wiki_read_page, wiki_summary]
-LINT_TOOLS = [run_health_check, wiki_link_graph, wiki_read_page, wiki_scan, write_lint_report]
+QUERY_TOOLS = [wiki_command]
+LINT_TOOLS = [wiki_command, write_lint_report]
 FIX_TOOLS = [
-    wiki_read_page,
+    wiki_command,
     add_frontmatter,
     fix_link,
     regenerate_index,
@@ -76,7 +66,7 @@ FIX_TOOLS = [
 INGEST_TOOLS = [
     read_source,
     submit_extraction,
-    match_page_tool,
+    wiki_command,
     create_page,
     update_page,
     flag_contradiction,
@@ -134,7 +124,7 @@ class TestTurnEfficiency:
     """Scripted happy-path runs stay within their per-agent cap."""
 
     def test_query_happy_path_within_cap(self, eval_wiki):
-        """query: wiki_search -> wiki_read_page -> final (2 ≤ 5)."""
+        """query: wiki_command search + read -> final (2 ≤ 5)."""
         init_shared_tools(str(eval_wiki))
         model = ScriptedChatModel(
             responses=[
@@ -142,8 +132,8 @@ class TestTurnEfficiency:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="wiki_search",
-                            args={"query": "MLX"},
+                            name="wiki_command",
+                            args={"command": 'search "MLX" && read entities/mlx'},
                             id="tc-1",
                         )
                     ],
@@ -152,8 +142,8 @@ class TestTurnEfficiency:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="wiki_read_page",
-                            args={"slug": "entities/mlx"},
+                            name="wiki_command",
+                            args={"command": "read entities/mlx"},
                             id="tc-2",
                         )
                     ],
@@ -171,17 +161,17 @@ class TestTurnEfficiency:
         result = _run(agent, "What is MLX?", config)
 
         names = [c["name"] for c in _all_tool_calls(result)]
-        assert names == ["wiki_search", "wiki_read_page"]
+        assert names == ["wiki_command", "wiki_command"]
         assert len(names) <= CAPS["query"]
 
     def test_lint_happy_path_within_cap(self, eval_wiki):
-        """lint: run_health_check -> write_lint_report (2 ≤ 7)."""
+        """lint: wiki_command health -> write_lint_report (2 ≤ 7)."""
         init_shared_tools(str(eval_wiki))
         model = ScriptedChatModel(
             responses=[
                 AIMessage(
                     content="",
-                    tool_calls=[ToolCall(name="run_health_check", args={}, id="tc-1")],
+                    tool_calls=[ToolCall(name="wiki_command", args={"command": "health"}, id="tc-1")],
                 ),
                 AIMessage(
                     content="",
@@ -206,11 +196,11 @@ class TestTurnEfficiency:
         result = _run(agent, "Run a full health check.", config)
 
         names = [c["name"] for c in _all_tool_calls(result)]
-        assert names == ["run_health_check", "write_lint_report"]
+        assert names == ["wiki_command", "write_lint_report"]
         assert len(names) <= CAPS["lint"]
 
     def test_fix_happy_path_within_cap(self, tmp_path):
-        """fix: wiki_read_page -> add_frontmatter -> regenerate_index (3 ≤ 8)."""
+        """fix: wiki_command read -> add_frontmatter -> regenerate_index (3 ≤ 8)."""
         wiki = copy_broken_wiki(tmp_path)
         init_shared_tools(str(wiki))
         model = ScriptedChatModel(
@@ -219,8 +209,8 @@ class TestTurnEfficiency:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="wiki_read_page",
-                            args={"slug": "entities/broken-fm"},
+                            name="wiki_command",
+                            args={"command": "read entities/broken-fm"},
                             id="tc-1",
                         )
                     ],
@@ -262,11 +252,11 @@ class TestTurnEfficiency:
         )
 
         names = [c["name"] for c in _all_tool_calls(result)]
-        assert names == ["wiki_read_page", "add_frontmatter", "regenerate_index"]
+        assert names == ["wiki_command", "add_frontmatter", "regenerate_index"]
         assert len(names) <= CAPS["fix"]
 
     def test_ingest_happy_path_within_cap(self, eval_env):
-        """ingest: read_source -> submit_extraction -> match_page_tool ->
+        """ingest: read_source -> submit_extraction -> wiki_command match ->
         create_page -> regenerate_index -> append_log (6 ≤ 15)."""
         wiki_path, raw_path = eval_env
         init_shared_tools(str(wiki_path))
@@ -310,8 +300,8 @@ class TestTurnEfficiency:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="match_page_tool",
-                            args={"name": "Samplecorp", "page_type": "entity"},
+                            name="wiki_command",
+                            args={"command": 'match "Samplecorp" --type entity'},
                             id="tc-3",
                         )
                     ],
@@ -370,7 +360,7 @@ class TestTurnEfficiency:
         assert names == [
             "read_source",
             "submit_extraction",
-            "match_page_tool",
+            "wiki_command",
             "create_page",
             "regenerate_index",
             "append_log",

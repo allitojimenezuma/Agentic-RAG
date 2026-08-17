@@ -56,15 +56,12 @@ from tests.levels.level2.trajectory_contract import (
 )
 
 # --- Pinned tool inventories (docs/spec.md "L2 real-LLM tier") ----------------
-QUERY_TOOLS = ["wiki_search", "wiki_read_page", "wiki_summary"]
+QUERY_TOOLS = ["wiki_command"]
 
 INGEST_TOOLS = [
     "read_source",
     "submit_extraction",
-    "match_page_tool",
-    "wiki_read_page",
-    "wiki_scan",
-    "wiki_link_graph",
+    "wiki_command",
     "create_page",
     "update_page",
     "flag_contradiction",
@@ -73,17 +70,16 @@ INGEST_TOOLS = [
     "delete_wiki_page",
 ]
 
-LINT_TOOLS = ["run_health_check", "wiki_link_graph", "wiki_read_page", "wiki_scan", "write_lint_report"]
+LINT_TOOLS = ["wiki_command", "write_lint_report"]
 
 FIX_TOOLS = [
-    "wiki_read_page",
+    "wiki_command",
     "edit_wiki_page",
     "add_frontmatter",
     "fix_link",
     "append_related_section",
     "regenerate_index",
     "delete_wiki_page",
-    "wiki_link_graph",
 ]
 
 # "write_tools=fix writes" from the spec table — every fix tool that mutates
@@ -98,9 +94,9 @@ FIX_WRITES = [
 
 INGEST_PREREQS = [
     ("read_source", "submit_extraction"),
-    ("submit_extraction", "match_page_tool"),
-    ("match_page_tool", "create_page"),
-    ("match_page_tool", "update_page"),
+    ("submit_extraction", "wiki_command"),
+    ("wiki_command", "create_page"),
+    ("wiki_command", "update_page"),
 ]
 
 # {RAW} is a per-run placeholder for the ABSOLUTE raw-source path — read_source
@@ -111,19 +107,19 @@ TRAJECTORY_TASKS: list[TrajectoryContract] = [
         agent="query",
         message="What is MLX?",
         allowed=QUERY_TOOLS,
-        prerequisites=[("wiki_search", "wiki_read_page")],
-        required=["wiki_read_page"],
+        prerequisites=[("wiki_command", "wiki_command")],
+        required=["wiki_command"],
         max_calls=5,
-        expected_first_tool="wiki_search",
+        expected_first_tool="wiki_command",
     ),
     TrajectoryContract(
         agent="query",
         message="How does MLX relate to Apple Silicon?",
         allowed=QUERY_TOOLS,
-        prerequisites=[("wiki_search", "wiki_read_page")],
-        required=["wiki_read_page"],
+        prerequisites=[("wiki_command", "wiki_command")],
+        required=["wiki_command"],
         max_calls=5,
-        expected_first_tool="wiki_search",
+        expected_first_tool="wiki_command",
     ),
     TrajectoryContract(
         agent="ingest",
@@ -133,7 +129,7 @@ TRAJECTORY_TASKS: list[TrajectoryContract] = [
         required=[
             "read_source",
             "submit_extraction",
-            "match_page_tool",
+            "wiki_command",
             "regenerate_index",
             "append_log",
         ],
@@ -161,10 +157,10 @@ TRAJECTORY_TASKS: list[TrajectoryContract] = [
             "missing links, and data gaps."
         ),
         allowed=LINT_TOOLS,
-        prerequisites=[("run_health_check", "write_lint_report")],
-        required=["run_health_check"],
+        prerequisites=[("wiki_command", "write_lint_report")],
+        required=["wiki_command"],
         max_calls=7,
-        expected_first_tool="run_health_check",
+        expected_first_tool="wiki_command",
     ),
     TrajectoryContract(
         agent="fix",
@@ -175,7 +171,7 @@ TRAJECTORY_TASKS: list[TrajectoryContract] = [
         write_tools=FIX_WRITES,
         terminal_after=["regenerate_index"],
         max_calls=8,
-        expected_first_tool="wiki_read_page",
+        expected_first_tool="wiki_command",
     ),
     TrajectoryContract(
         agent="fix",
@@ -186,7 +182,7 @@ TRAJECTORY_TASKS: list[TrajectoryContract] = [
         write_tools=FIX_WRITES,
         terminal_after=["regenerate_index"],
         max_calls=8,
-        expected_first_tool="wiki_read_page",
+        expected_first_tool="wiki_command",
     ),
     TrajectoryContract(
         agent="fix",
@@ -197,7 +193,7 @@ TRAJECTORY_TASKS: list[TrajectoryContract] = [
         write_tools=FIX_WRITES,
         terminal_after=["regenerate_index"],
         max_calls=8,
-        expected_first_tool="wiki_read_page",
+        expected_first_tool="wiki_command",
     ),
 ]
 

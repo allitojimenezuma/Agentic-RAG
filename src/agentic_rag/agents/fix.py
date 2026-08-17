@@ -17,7 +17,7 @@ from agentic_rag.tools.fix_tools import (
     fix_link,
 )
 from agentic_rag.tools.ingest_tools import delete_wiki_page
-from agentic_rag.tools.nav import regenerate_index, wiki_read_page, wiki_link_graph
+from agentic_rag.tools.nav import regenerate_index, wiki_command
 from agentic_rag.tools.shared import get_index_summary, init_shared_tools
 
 logger = logging.getLogger(__name__)
@@ -37,14 +37,13 @@ def build_fix_agent(settings) -> object:
     wiki_index = get_index_summary(settings.wiki_path)
 
     tools = [
-        wiki_read_page,
+        wiki_command,
         edit_wiki_page,
         add_frontmatter,
         fix_link,
         append_related_section,
         regenerate_index,
         delete_wiki_page,
-        wiki_link_graph
     ]
 
     middleware = [

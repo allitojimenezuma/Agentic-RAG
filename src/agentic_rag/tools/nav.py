@@ -1,16 +1,34 @@
-"""Navigation tools over the Wiki model + BM25 search.
+"""Navigation for agents: one pinned, read-only command dispatcher.
 
-Consolidates navigation into four deterministic, token-efficient tools:
-``wiki_search`` (ranked pages + bounded link expansion), ``wiki_read_page``
-(section-scoped reading), ``wiki_summary`` (compact page catalog) and
-``wiki_link_graph`` (deterministic inbound/outbound summary, moved here from
-``lint_tools.wiki_link_summary``). The ``_WIKI_PATH`` global from
-``tools.shared`` is reused (no second global).
+The agents explore the wiki through a SINGLE tool, ``wiki_command``, instead
+of a zoo of similar navigation tools (old surface: ``wiki_search``,
+``wiki_read_page``, ``wiki_summary``, ``wiki_scan``, ``wiki_link_graph``,
+``match_page_tool``, ``run_health_check``). The command string follows a
+pinned grammar; every sub-command dispatches to the deterministic engine
+functions (``load_wiki``, ``search``, ``match_page``, ``health_check``). There
+is no shell, no ``subprocess``, no redirection — the surface is read-only BY
+CONSTRUCTION, and mutations happen only through the typed write tools
+(``create_page``/``update_page``/... in other modules).
+
+Compound commands (``&&`` or newlines) let the agent run several reads in one
+tool call, saving turns and context.
+
+Grammar (also printed by the ``help`` sub-command):
+
+    scan [--max-chars N]
+    search "<query>" [--k N] [--type TYPE] [--tags a,b]
+    read <slug> [--section "Heading"]
+    links [--slug S]
+    match "<name>" --type TYPE
+    health
+    help
 """
 
 from __future__ import annotations
 
 import logging
+import re
+import shlex
 from pathlib import Path
 
 from langchain_core.tools import tool
@@ -19,37 +37,161 @@ from agentic_rag.io.markdown_parser import extract_links, parse_frontmatter, slu
 from agentic_rag.io.wiki_io import list_pages, read_page as _read_page
 from agentic_rag.tools.shared import get_wiki_path
 from agentic_rag.wiki.dedupe_index import regenerate_index as _regenerate_index
+from agentic_rag.wiki.health import health_check
+from agentic_rag.wiki.match import match_page
 from agentic_rag.wiki.model import DIR_TO_TYPE, Page, Wiki, load_wiki
 from agentic_rag.wiki.search import search
 
 logger = logging.getLogger(__name__)
 
+# Hard cap on the dispatcher output so a broad command never floods the
+# agent's context window.
+_MAX_OUTPUT_CHARS = 12_000
+
+_GRAMMAR = """Read-only wiki commands (join several with && or newlines):
+- scan [--max-chars N]        overview of every content page
+- search "<query>" [--k N] [--type TYPE] [--tags a,b]   BM25-ranked pages
+- read <slug> [--section S]   full page markdown, or one section
+- links [--slug S]            inbound/outbound link summary
+- match "<name>" --type TYPE  create vs update vs conflict decision
+- health                      deterministic structural audit (0 LLM calls)
+- help                        this reference"""
+
 
 @tool
-def regenerate_index() -> str:
-    """Regenerate the wiki index.md from the pages on disk. Call this after creating or updating pages (replaces update_index)."""
-    logger.debug("Regenerating wiki index")
-    _regenerate_index(get_wiki_path())
-    return "Index regenerated."
+def wiki_command(command: str) -> str:
+    """Run read-only wiki commands. One string, multiple commands joined by '&&' or newlines. Sub-commands: scan, search "<query>", read <slug>, links, match "<name>" --type <type>, health, help. Call 'wiki_command("help")' for the full grammar. Read-only by construction — the wiki can only be changed through the write tools."""
+    return run_wiki_commands(command)
 
 
-@tool
-def wiki_search(
-    query: str, k: int = 8, types: str | None = None, tags: str | None = None
-) -> str:
-    """Search the wiki for pages relevant to a query. Returns ranked page slugs with BM25 scores and the sections that matched, plus a bounded set of linked pages. Use this to find relevant pages before reading them. Optionally filter by comma-separated page types (entity, concept, source, comparison) or tags."""
-    logger.debug("Searching wiki for: %s (k=%d, types=%s, tags=%s)", query, k, types, tags)
-    type_list = _split_csv(types)
-    tag_list = _split_csv(tags)
+def run_wiki_commands(command: str) -> str:
+    """Parse and execute a pinned wiki-command string. Never raises.
+
+    Each sub-command runs independently; a failing sub-command yields an
+    ``Error: ...`` line inline and execution continues with the next one.
+    """
+    outputs: list[str] = []
+    for segment in _split_commands(command):
+        try:
+            args = shlex.split(segment)
+        except ValueError as exc:  # unbalanced quotes
+            outputs.append(f"Error: could not parse {segment!r}: {exc}")
+            continue
+        if not args:
+            continue
+        outputs.append(_dispatch(args))
+
+    text = "\n\n".join(outputs) if outputs else "No commands given."
+    if len(text) > _MAX_OUTPUT_CHARS:
+        text = text[:_MAX_OUTPUT_CHARS] + "\n… (output truncated)"
+    return text
+
+
+def _split_commands(text: str) -> list[str]:
+    """Split a command string on ``&&`` and newlines; drop empties."""
+    return [part.strip() for part in re.split(r"\n|&&", text) if part.strip()]
+
+
+def _dispatch(argv: list[str]) -> str:
+    """Route one parsed command line to its handler. Never raises."""
+    name = argv[0]
+    try:
+        handler = {
+            "scan": _cmd_scan,
+            "search": _cmd_search,
+            "read": _cmd_read,
+            "links": _cmd_links,
+            "match": _cmd_match,
+            "health": _cmd_health,
+            "help": _cmd_help,
+        }[name]
+        return handler(argv[1:])
+    except KeyError:
+        return f"Error: unknown command {name!r}. Run wiki_command('help') for the grammar."
+    except Exception as exc:  # defensive — one command must never kill the batch
+        logger.warning("wiki_command %r failed: %s", argv, exc, exc_info=True)
+        return f"Error: command {name!r} failed: {exc}"
+
+
+def _parse_kv(args: list[str], aliases: dict[str, str]) -> tuple[list[str], dict[str, str]]:
+    """Split ``--key value`` style flags out of a positional arg list.
+
+    Returns (positionals, {canonical_key: value}). Unknown flags are errors.
+    """
+    positionals: list[str] = []
+    flags: dict[str, str] = {}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg.startswith("--") and arg[2:] in aliases:
+            key = aliases[arg[2:]]
+            if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                raise ValueError(f"flag {arg} requires a non-flag value")
+            flags[key] = args[i + 1]
+            i += 2
+        elif arg.startswith("--"):
+            raise ValueError(f"unknown flag {arg}")
+        else:
+            positionals.append(arg)
+            i += 1
+    return positionals, flags
+
+
+# --- Sub-command handlers -----------------------------------------------------
+
+def _cmd_scan(args: list[str]) -> str:
+    """Per-page overview: slug, type, title, preview, link counts, date."""
+    positionals, flags = _parse_kv(args, {"max-chars": "max_chars"})
+    if positionals:
+        raise ValueError(f"unexpected argument {positionals[0]!r}")
+    max_chars = int(flags.get("max_chars", "200"))
+
+    wiki = load_wiki(get_wiki_path())
+    content_pages = [p for p in wiki.pages if not p.rel_path.name.startswith("lint-report-")]
+    if not content_pages:
+        return "No wiki pages found."
+
+    content_slugs = {p.slug for p in content_pages}
+    inbound: dict[str, set[str]] = {}
+    for page in content_pages:
+        for target in page.outbound_links:
+            if target in content_slugs:
+                inbound.setdefault(target, set()).add(page.slug)
+
+    lines: list[str] = []
+    for page in sorted(content_pages, key=lambda p: p.slug):
+        preview = _preview_text(page, max_chars)
+        updated = page.fm.updated.isoformat() if page.fm.updated else "-"
+        lines.append(
+            f'- {page.slug} ({page.fm.type}) - {page.fm.title} — "{preview}" — '
+            f"out: {len(page.outbound_links)} | in: {len(inbound.get(page.slug, ()))} | updated: {updated}"
+        )
+    return "\n".join(lines)
+
+
+def _cmd_search(args: list[str]) -> str:
+    """BM25 search with bounded link expansion; records navigated slugs."""
+    aliases = {"k": "k", "type": "types", "tags": "tags"}
+    positionals, flags = _parse_kv(args, aliases)
+    if len(positionals) != 1:
+        raise ValueError("usage: search \"<query>\" [--k N] [--type TYPE] [--tags a,b]")
+    query = positionals[0]
+
+    from agentic_rag.tools.grounding import record_navigated
+
+    try:
+        k = int(flags.get("k", "8"))
+    except ValueError:
+        raise ValueError("usage: --k must be an integer") from None
+    type_list = _split_csv(flags.get("types"))
+    tag_list = _split_csv(flags.get("tags"))
+
     wiki = load_wiki(get_wiki_path())
     hits = search(wiki, query, k=k, types=type_list, tags=tag_list)
     if not hits:
         return f"No relevant pages found for '{query}'."
 
-    from agentic_rag.tools.grounding import record_navigated
-
     record_navigated(h.slug for h in hits)
-
     direct = [h for h in hits if h.matched_via != "expand-link"]
     linked = [h for h in hits if h.matched_via == "expand-link"]
     lines: list[str] = []
@@ -62,19 +204,24 @@ def wiki_search(
     return "\n".join(lines)
 
 
-@tool
-def wiki_read_page(slug: str, section: str | None = None) -> str:
-    """Read a wiki page by slug. Without a section, returns the full raw markdown including frontmatter. With a section name, returns only that section's text (heading line excluded). Use this to get detailed information about any entity, concept, or source."""
-    logger.debug("Reading wiki page: %s (section=%s)", slug, section)
+def _cmd_read(args: list[str]) -> str:
+    """Read one page (full markdown or one section); records the navigated slug."""
     from agentic_rag.tools.grounding import record_navigated
 
+    positionals, flags = _parse_kv(args, {"section": "section"})
+    if not positionals:
+        raise ValueError("usage: read <slug> [--section \"Heading\"]")
+    slug = positionals[0]
+    section = flags.get("section")
+
+    wiki_path = get_wiki_path()
     try:
         if section is None:
-            content = _read_page(get_wiki_path(), slug)
-            record_navigated([_resolved_slug(get_wiki_path(), slug)])
+            content = _read_page(wiki_path, slug)
+            record_navigated([_resolved_slug(wiki_path, slug)])
             return content
 
-        wiki = load_wiki(get_wiki_path())
+        wiki = load_wiki(wiki_path)
         page = _find_page(wiki, slug)
         if page is None:
             return _page_not_found_error(slug)
@@ -86,9 +233,102 @@ def wiki_read_page(slug: str, section: str | None = None) -> str:
         headings = "; ".join(s.heading for s in page.sections if s.heading) or "none"
         return f"Section '{section}' not found on page '{slug}'. Available headings: {headings}"
     except FileNotFoundError:
-        # Never crash the agent run on a bad slug — return a recoverable error
-        # (with a suggestion when a page with the same basename exists).
         return _page_not_found_error(slug)
+
+
+def _cmd_links(args: list[str]) -> str:
+    """Inbound/outbound link summary for the whole wiki or one page."""
+    positionals, flags = _parse_kv(args, {"slug": "slug"})
+    if positionals:
+        raise ValueError(f"unexpected argument {positionals[0]!r}")
+    only_slug = flags.get("slug")
+
+    lines = _link_graph_lines()
+    if only_slug is None:
+        return "\n".join(lines)
+
+    # One-page view: the block between that page's "### slug" marker and the
+    # next "###" marker (or the summary separator).
+    start = next(
+        (i for i, line in enumerate(lines) if line.startswith(f"### {only_slug} ")),
+        None,
+    )
+    if start is None:
+        return f"Error: no page with slug '{only_slug}'."
+    block: list[str] = [lines[start]]
+    for line in lines[start + 1 :]:
+        if line.startswith("### ") or line.startswith("---"):
+            break
+        block.append(line)
+    return "\n".join(block).strip() or f"Error: no page with slug '{only_slug}'."
+
+
+def _cmd_match(args: list[str]) -> str:
+    """Deterministic create/update/conflict decision for a page name."""
+    positionals, flags = _parse_kv(args, {"type": "type"})
+    if not positionals or not flags.get("type"):
+        raise ValueError('usage: match "<name>" --type entity|concept|source|comparison')
+    wiki = load_wiki(get_wiki_path())
+    result = match_page(wiki, positionals[0], flags["type"])
+    return f"{result.decision}: {', '.join(result.slugs)} — {result.detail}"
+
+
+def _cmd_health(args: list[str]) -> str:
+    """Deterministic structural audit — zero LLM calls."""
+    positionals, flags = _parse_kv(args, {})
+    if positionals:
+        raise ValueError(f"unexpected argument {positionals[0]!r}")
+    report = health_check(get_wiki_path())
+    lines = [f"Pages audited: {report.pages_audited} | Issues: {len(report.issues)}"]
+    lines.extend(
+        f"[{issue.severity}] {issue.kind}: {issue.slug} — {issue.detail}"
+        for issue in report.issues
+    )
+    if not report.issues:
+        lines.append("No issues — the wiki is structurally clean.")
+    return "\n".join(lines)
+
+
+def _cmd_help(args: list[str]) -> str:
+    return _GRAMMAR
+
+
+# --- Helpers ------------------------------------------------------------------
+
+def _preview_text(page: Page, max_chars: int) -> str:
+    """First-section preview: whitespace collapsed, truncated with '…'."""
+    if not page.sections or not page.sections[0].text:
+        return "(no content)"
+    text = " ".join(page.sections[0].text.split())
+    if not text:
+        return "(no content)"
+    if len(text) > max_chars:
+        return text[:max_chars] + "…"
+    return text
+
+
+def _split_csv(value: str | None) -> list[str] | None:
+    """Comma-separated tool arg -> stripped list (None if empty)."""
+    if not value:
+        return None
+    parts = [item.strip() for item in value.split(",") if item.strip()]
+    return parts or None
+
+
+def _resolved_slug(wiki_path: Path, slug: str) -> str:
+    """Resolve a slug to its canonical page slug."""
+    try:
+        from agentic_rag.io.wiki_io import _resolve_page_path
+
+        resolved = _resolve_page_path(wiki_path, slug)
+        return str(resolved.relative_to(wiki_path)).removesuffix(".md")
+    except FileNotFoundError:
+        return slug
+
+
+def _find_page(wiki: Wiki, slug: str) -> Page | None:
+    """Resolve a slug against the in-memory model (exact, then basename)."""
+    return wiki.by_slug.get(_resolved_slug(get_wiki_path(), slug))
 
 
 def _page_not_found_error(slug: str) -> str:
@@ -103,131 +343,45 @@ def _page_not_found_error(slug: str) -> str:
         )
     return (
         f"Error: Wiki page not found: {slug}. "
-        "Check the slug — use wiki_scan() or wiki_search() to list pages."
+        "Check the slug — use wiki_command('scan') to list pages."
     )
 
 
-@tool
-def wiki_summary() -> str:
-    """List all wiki pages, one compact line per page: slug (type) - title, with the last update date. Use this to get an overview of what the wiki covers."""
-    logger.debug("Building wiki summary")
-    wiki = load_wiki(get_wiki_path())
-    if not wiki.pages:
-        return "No wiki pages found."
-
-    lines: list[str] = []
-    for page in sorted(wiki.pages, key=lambda p: p.slug):
-        updated = f" | updated: {page.fm.updated.isoformat()}" if page.fm.updated else ""
-        lines.append(f"- {page.slug} ({page.fm.type}) - {page.fm.title}{updated}")
-    return "\n".join(lines)
-
-
-@tool
-def wiki_scan(max_chars: int = 200) -> str:
-    """Get a one-call overview of ALL content pages: slug, type, title, a preview of each page's first section, inbound/outbound link counts, and last update date. Use this INSTEAD of reading every page to survey the wiki — it replaces per-page reads for overview purposes. Deterministic and free (0 LLM calls)."""
-    logger.debug("Scanning wiki (max_chars=%d)", max_chars)
-    wiki = load_wiki(get_wiki_path())
-    content_pages = [
-        p for p in wiki.pages if not p.rel_path.name.startswith("lint-report-")
-    ]
-    if not content_pages:
-        return "No wiki pages found."
-
-    # Inbound: from content pages' RESOLVED outbound links only (mirrors lint/health.py).
-    content_slugs = {p.slug for p in content_pages}
-    inbound: dict[str, set[str]] = {}
-    for page in content_pages:
-        for target in page.outbound_links:
-            if target in content_slugs:
-                inbound.setdefault(target, set()).add(page.slug)
-
-    lines: list[str] = []
-    for page in sorted(content_pages, key=lambda p: p.slug):
-        preview = _preview_text(page, max_chars)
-        updated = page.fm.updated.isoformat() if page.fm.updated else "-"
-        out_n = len(page.outbound_links)
-        in_n = len(inbound.get(page.slug, ()))
-        lines.append(
-            f'- {page.slug} ({page.fm.type}) - {page.fm.title} — "{preview}" — '
-            f"out: {out_n} | in: {in_n} | updated: {updated}"
-        )
-    logger.debug("Scanned %d content pages", len(content_pages))
-    return "\n".join(lines)
-
-
-def _preview_text(page: Page, max_chars: int) -> str:
-    """First-section preview: whitespace collapsed to single spaces, truncated to
-    ``max_chars`` with a ``…`` suffix when cut; ``(no content)`` if no section text."""
-    if not page.sections or not page.sections[0].text:
-        return "(no content)"
-    text = " ".join(page.sections[0].text.split())
-    if not text:
-        return "(no content)"
-    if len(text) > max_chars:
-        return text[:max_chars] + "…"
-    return text
-
-
-@tool
-def wiki_link_graph() -> str:
-    """Get a summary of ALL pages with their inbound and outbound links in one call.
-    Returns each page's slug, type, outbound links (what it links to), and inbound links (what links to it)."""
+def _link_graph_lines() -> list[str]:
+    """Compute the full inbound/outbound link summary (shared with 'links')."""
     wiki_path = get_wiki_path()
-    logger.info("Building link summary for %s", wiki_path)
     pages = list_pages(wiki_path)
     if not pages:
-        logger.debug("No pages found in %s", wiki_path)
-        return "No wiki pages found."
-    logger.debug("Found %d pages to analyze", len(pages))
+        return ["No wiki pages found."]
 
-    # Build slug set for link resolution (must be complete BEFORE resolving links)
-    page_slugs = set()
-    for p in pages:
-        page_slugs.add(str(p.relative_to(wiki_path)).removesuffix(".md"))
-    page_data = {}  # slug -> {outbound: set, type: str, title: str}
+    page_slugs = {str(p.relative_to(wiki_path)).removesuffix(".md") for p in pages}
+    page_data: dict[str, dict] = {}
 
     def _resolve_link(target: str) -> str | None:
-        """Resolve a link target (display name) to an actual page slug.
-
-        Handles both ASCII slugs (slugify output) and Unicode filenames
-        (e.g. málaga.md) by trying both normalized forms.
-        """
-        # Exact match
         if target in page_slugs:
             return target
-
-        # Try slugified match (ASCII normalized)
         s = slugify(target)
         for ps in page_slugs:
-            short = ps.rsplit("/", 1)[-1] if "/" in ps else ps
+            short = ps.rsplit("/", 1)[-1]
             if short == s or ps.endswith("/" + s):
                 return ps
-
-        # Try Unicode-preserving match: lowercase + replace spaces with hyphens
-        # but keep unicode chars (e.g. "Málaga" -> "málaga")
         t = target.lower().replace(" ", "-")
         for ps in page_slugs:
-            short = ps.rsplit("/", 1)[-1] if "/" in ps else ps
+            short = ps.rsplit("/", 1)[-1]
             if short == t or ps.endswith("/" + t):
                 return ps
-
         return None
 
     for page_path in pages:
         slug = str(page_path.relative_to(wiki_path)).removesuffix(".md")
         content = page_path.read_text(encoding="utf-8")
-
-        # Extract links (works with or without frontmatter)
-        links = extract_links(content)
-        outbound = set()
-        for link in links:
-            resolved = _resolve_link(link.target)
-            if resolved and resolved != slug:
-                outbound.add(resolved)
-
-        # Try to parse frontmatter for type/title; fallback to directory + first heading
+        outbound = {
+            resolved
+            for link in extract_links(content)
+            if (resolved := _resolve_link(link.target)) and resolved != slug
+        }
         page_type = "unknown"
-        title = slug.rsplit("/", 1)[-1] if "/" in slug else slug
+        title = slug.rsplit("/", 1)[-1]
         if content.startswith("---"):
             try:
                 fm = parse_frontmatter(content)
@@ -236,41 +390,34 @@ def wiki_link_graph() -> str:
             except Exception:
                 pass
         else:
-            # Infer type from directory: entities/foo -> entity, concepts/foo -> concept
             if "/" in slug:
-                dir_name = slug.split("/")[0]
-                page_type = DIR_TO_TYPE.get(dir_name, dir_name.rstrip("s"))
-            # Infer title from first heading
+                page_type = DIR_TO_TYPE.get(slug.split("/", 1)[0], page_type)
             for line in content.split("\n"):
                 if line.startswith("# "):
                     title = line[2:].strip()
                     break
+        page_data[slug] = {"outbound": outbound, "type": page_type, "title": title}
 
-        page_data[slug] = {
-            "outbound": outbound,
-            "type": page_type,
-            "title": title,
-        }
-
-    # Compute inbound links
     inbound = {slug: set() for slug in page_slugs}
     for slug, data in page_data.items():
         for target in data["outbound"]:
             if target in inbound:
                 inbound[target].add(slug)
 
-    # Format output
     lines: list[str] = []
     for slug in sorted(page_slugs):
         data = page_data[slug]
         in_links = sorted(inbound.get(slug, set()))
         out_links = sorted(data["outbound"])
         lines.append(f"### {slug} ({data['type']})")
-        lines.append(f"  Outbound ({len(out_links)}): {', '.join(out_links) if out_links else 'none'}")
-        lines.append(f"  Inbound  ({len(in_links)}): {', '.join(in_links) if in_links else 'none — ORPHAN?'}")
+        lines.append(
+            f"  Outbound ({len(out_links)}): {', '.join(out_links) if out_links else 'none'}"
+        )
+        lines.append(
+            f"  Inbound  ({len(in_links)}): {', '.join(in_links) if in_links else 'none — ORPHAN?'}"
+        )
         lines.append("")
 
-    # Summary stats
     orphans = [s for s in page_slugs if not inbound.get(s)]
     lines.append("--- SUMMARY ---")
     lines.append(f"Total pages: {len(page_slugs)}")
@@ -278,36 +425,12 @@ def wiki_link_graph() -> str:
     lines.append(f"Orphans (no inbound links): {len(orphans)}")
     if orphans:
         lines.append(f"  {', '.join(sorted(orphans))}")
-
-    logger.info(
-        "Link summary: %d pages, %d links, %d orphans",
-        len(page_slugs),
-        sum(len(d['outbound']) for d in page_data.values()),
-        len(orphans),
-    )
-    return "\n".join(lines)
+    return lines
 
 
-def _split_csv(value: str | None) -> list[str] | None:
-    """Split a comma-separated tool arg into a stripped list (None if empty)."""
-    if not value:
-        return None
-    parts = [item.strip() for item in value.split(",") if item.strip()]
-    return parts or None
-
-
-def _resolved_slug(wiki_path: Path, slug: str) -> str:
-    """Resolve a slug to its canonical page slug (delegates to ``wiki_io._resolve_page_path``)."""
-    try:
-        from agentic_rag.io.wiki_io import _resolve_page_path
-
-        resolved = _resolve_page_path(wiki_path, slug)
-        return str(resolved.relative_to(wiki_path)).removesuffix(".md")
-    except FileNotFoundError:
-        return slug  # unreachable: read_page already raised if the page is missing
-
-
-def _find_page(wiki: Wiki, slug: str) -> Page | None:
-    """Resolve a slug against the model like ``wiki_io._resolve_page_path``:
-    exact relative-path slug first, then recursive basename match."""
-    return wiki.by_slug.get(_resolved_slug(get_wiki_path(), slug))
+@tool
+def regenerate_index() -> str:
+    """Regenerate the wiki index.md from the pages on disk. Call this after creating or updating pages (replaces update_index)."""
+    logger.debug("Regenerating wiki index")
+    _regenerate_index(get_wiki_path())
+    return "Index regenerated."

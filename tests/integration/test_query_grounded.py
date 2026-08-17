@@ -21,7 +21,7 @@ from typer.testing import CliRunner
 from agentic_rag.agents.factory import build_agent
 from agentic_rag.agents.prompts import build_query_prompt
 from agentic_rag.tools.grounding import build_final_answer, new_nav_capture
-from agentic_rag.tools.nav import wiki_read_page, wiki_search, wiki_summary
+from agentic_rag.tools.nav import wiki_command
 from agentic_rag.tools.shared import init_shared_tools
 from agentic_rag.cli import app
 from tests.fixtures.fake_llm import ScriptedChatModel
@@ -74,14 +74,14 @@ def env_with_api_key(tmp_path: Path, grounded_wiki: Path):
 
 
 def _build_grounded_agent(wiki: Path):
-    """Grounded scripted agent: navigates mlx via wiki_search, then writes a
-    final answer citing BOTH the navigated slug and a fabricated one."""
+    """Grounded scripted agent: navigates mlx via wiki_command search, then
+    writes a final answer citing BOTH the navigated slug and a fabricated one."""
     init_shared_tools(str(wiki))
     model = ScriptedChatModel(
         responses=[
             AIMessage(
                 content="",
-                tool_calls=[ToolCall(name="wiki_search", args={"query": "mlx"}, id="tc-1")],
+                tool_calls=[ToolCall(name="wiki_command", args={"command": 'search "mlx"'}, id="tc-1")],
             ),
             AIMessage(
                 content=(
@@ -93,7 +93,7 @@ def _build_grounded_agent(wiki: Path):
     )
     agent = build_agent(
         model=model,
-        tools=[wiki_search, wiki_read_page, wiki_summary],
+        tools=[wiki_command],
         system_prompt=build_query_prompt("# Test schema"),
     )
     agent._nav_capture = new_nav_capture()

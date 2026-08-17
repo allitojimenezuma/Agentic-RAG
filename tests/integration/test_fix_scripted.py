@@ -26,7 +26,7 @@ from agentic_rag.tools.fix_tools import (
     fix_link,
 )
 from agentic_rag.tools.ingest_tools import delete_wiki_page
-from agentic_rag.tools.nav import regenerate_index, wiki_link_graph, wiki_read_page
+from agentic_rag.tools.nav import regenerate_index, wiki_command
 from agentic_rag.tools.shared import init_shared_tools
 from tests.fixtures.fake_llm import ScriptedChatModel
 
@@ -40,14 +40,13 @@ LEGACY_TOOL_NAMES = {
 }
 
 FIX_TOOLS = [
-    wiki_read_page,
+    wiki_command,
     edit_wiki_page,
     add_frontmatter,
     fix_link,
     append_related_section,
     regenerate_index,
     delete_wiki_page,
-    wiki_link_graph,
 ]
 
 
@@ -107,8 +106,8 @@ class TestFixAgentContract:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="wiki_read_page",
-                            args={"slug": "entities/mlx"},
+                            name="wiki_command",
+                            args={"command": "read entities/mlx"},
                             id="tc-2",
                         )
                     ],
@@ -150,7 +149,7 @@ class TestFixAgentContract:
             )
 
         # One issue -> one fix tool call -> one verification read
-        assert called_names == ["add_frontmatter", "wiki_read_page"]
+        assert called_names == ["add_frontmatter", "wiki_command"]
 
         # The fix actually landed on disk
         content = (fixable_wiki / "entities" / "mlx.md").read_text(encoding="utf-8")
@@ -158,9 +157,10 @@ class TestFixAgentContract:
         assert "slug: entities/mlx" in content
 
     def test_broken_link_fixed_with_fix_link_then_verified(self, tmp_path):
-        """fix_link -> wiki_read_page verification; no execute_command."""
+        """fix_link -> wiki_command verification; no execute_command."""
         wiki = tmp_path / "wiki"
         (wiki / "concepts").mkdir(parents=True)
+        (wiki / "entities").mkdir()
         (wiki / "index.md").write_text("# Wiki Index\n")
         (wiki / "log.md").write_text("# Wiki Log\n")
         (wiki / "concepts" / "ai.md").write_text(
@@ -168,6 +168,11 @@ class TestFixAgentContract:
             "AI is the study of intelligent systems.\n\n"
             "## Related\n\n"
             "- [[MissingPage]]"
+        )
+        # The replacement target must exist — fix_link refuses to create a NEW
+        # dangling link.
+        (wiki / "entities" / "mlx.md").write_text(
+            "# MLX\n\nMachine learning framework by Apple.\n"
         )
         init_shared_tools(str(wiki))
 
@@ -191,8 +196,8 @@ class TestFixAgentContract:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="wiki_read_page",
-                            args={"slug": "concepts/ai"},
+                            name="wiki_command",
+                            args={"command": "read concepts/ai"},
                             id="tc-2",
                         )
                     ],
@@ -231,7 +236,7 @@ class TestFixAgentContract:
                 f"Legacy tool '{name}' was called by fix agent"
             )
 
-        assert called_names == ["fix_link", "wiki_read_page"]
+        assert called_names == ["fix_link", "wiki_command"]
 
         content = (wiki / "concepts" / "ai.md").read_text(encoding="utf-8")
         assert "[[MissingPage]]" not in content
@@ -260,7 +265,7 @@ class TestFixAgentContract:
             "fix_link",
             "append_related_section",
             "regenerate_index",
-            "wiki_read_page",
+            "wiki_command",
         ]:
             assert required in prompt
 

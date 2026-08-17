@@ -128,7 +128,7 @@ The agent will:
 
 1. **Read the source** — convert to markdown with MarkItDown (`read_source`).
 2. **Submit structured extraction** — pure, deterministic JSON of entities, concepts, and contradictions (`submit_extraction`). No writes happen here.
-3. **Match each name** — `match_page_tool` decides deterministically between `exact`/`similar` (→ `update_page`), `none` (→ `create_page`), or `conflict` (→ `flag_contradiction`, human approval).
+3. **Match each name** — `wiki_command("match \"<name>\" --type <type>")` decides deterministically between `exact`/`similar` (→ `update_page`), `none` (→ `create_page`), or `conflict` (→ `flag_contradiction`, human approval).
 4. **Update `## Related` links** on pages touched by the extraction.
 5. **Write a source summary** page under `sources/<slug>.md`.
 6. **Rebuild the derived index** (`regenerate_index`) and **append the log entry** (`append_log`).
@@ -144,8 +144,7 @@ agentic-rag query "What is MLX?"
 
 The agent will:
 
-1. **Search** — `wiki_search` (BM25, k=8, with bounded link expansion).
-2. **Navigate** — `wiki_read_page` on the hits, following `[[cross-references]]` as needed (`wiki_summary` for overviews).
+1. **Search + navigate** — one read-only `wiki_command` call (pinned grammar: `search "<q>"`, `read <slug>`, `scan`, `links`, `health`, `match`, joinable with `&&`) — BM25 search with bounded link expansion, section-scoped reads, and link-graph context, all deterministic.
 3. **Finalize a grounded answer** — finalization is automatic: there is no finalization tool. The model's final message is synthesized into a `QueryAnswer` with `[[Page]]` links extracted as citations, and `validate_citations` (NavCapture) **drops any citation whose slug was never navigated** — cite-or-die.
 4. **Render** — the CLI prints Answer, Confidence, Citations, and Suggestion.
 
@@ -158,7 +157,7 @@ agentic-rag lint
 
 The agent will:
 
-1. **Run the deterministic health check** — `run_health_check` (0 LLM calls) audits the wiki for 7 issue kinds: `orphan`, `missing-index`, `broken-link`, `missing-frontmatter`, `missing-related`, `empty`, `stale`. Severity map: `missing-frontmatter` = critical; `orphan`/`missing-index`/`broken-link`/`empty` = high; `missing-related`/`stale` = medium. `lint-report-*` pages are excluded from the audit.
+1. **Run the deterministic health check** — `wiki_command("health")` (0 LLM calls) audits the wiki for 7 issue kinds: `orphan`, `missing-index`, `broken-link`, `missing-frontmatter`, `missing-related`, `empty`, `stale`. Severity map: `missing-frontmatter` = critical; `orphan`/`missing-index`/`broken-link`/`empty` = high; `missing-related`/`stale` = medium. `lint-report-*` pages are excluded from the audit.
 2. **Apply semantic judgment** — the lint agent checks for duplicate coverage (the part only an LLM can judge).
 3. **Write the report** — `write_lint_report` renders a structured `LintReport` (or a plain string, back-compat) to `wiki/lint-report-YYYY-MM-DD.md`.
 
@@ -311,11 +310,11 @@ agentic_rag/
 │   │   └── fix.py          # build_fix_agent()
 │   ├── tools/              # LangChain @tool layer — the agents' action surface
 │   │   ├── shared.py       # init_shared_tools / get_wiki_path / get_index_summary
-│   │   ├── nav.py          # wiki_search, wiki_read_page, wiki_summary, wiki_scan, wiki_link_graph, regenerate_index
+│   │   ├── nav.py          # wiki_command — the pinned read-only command dispatcher (scan/search/read/links/match/health) + regenerate_index
 │   │   ├── grounding.py    # cite-or-die finalization (NavCapture, build_final_answer, validate_citations)
 │   │   ├── extraction.py   # submit_extraction — structured extraction boundary (ingest)
 │   │   ├── ingest_tools.py # read_source, create/update/delete page, append_log, flag_contradiction
-│   │   ├── lint_tools.py   # run_health_check, write_lint_report
+│   │   ├── lint_tools.py   # write_lint_report (health_check runs via wiki_command)
 │   │   └── fix_tools.py    # edit_wiki_page, add_frontmatter, fix_link, append_related_section
 │   ├── wiki/               # Deterministic wiki engine (0 LLM calls)
 │   │   ├── model.py        # Wiki/Page/Section models + load_wiki (synthesized frontmatter)
@@ -373,7 +372,7 @@ Certain operations require human approval:
 
 ### Cite-or-die Grounding (Query)
 
-The query agent has **no finalization tool**. `build_final_answer` auto-builds the `QueryAnswer` from the model's final message: every inline `[[Page]]` link becomes a citation, validated against the turn's `NavCapture` — a per-invocation set of slugs the agent actually navigated via `wiki_search`/`wiki_read_page`. Citations for pages never visited are dropped (cite-or-die), and confidence is inferred: `high` when navigated pages are cited, `medium` when pages were navigated but none are cited, `low` when nothing was navigated. The same finalizer drives the CLI and the Streamlit UI, so both render identically.
+The query agent has **no finalization tool**. `build_final_answer` auto-builds the `QueryAnswer` from the model's final message: every inline `[[Page]]` link becomes a citation, validated against the turn's `NavCapture` — a per-invocation set of slugs the agent actually navigated via `wiki_command` search/read. Citations for pages never visited are dropped (cite-or-die), and confidence is inferred: `high` when navigated pages are cited, `medium` when pages were navigated but none are cited, `low` when nothing was navigated. The same finalizer drives the CLI and the Streamlit UI, so both render identically.
 
 ### Atomic Writes
 

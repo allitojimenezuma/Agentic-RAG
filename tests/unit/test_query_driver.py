@@ -23,7 +23,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 import agentic_rag.tools.grounding as grounding
 from agentic_rag.schemas.query import QueryAnswer
-from agentic_rag.tools.nav import wiki_read_page, wiki_search
+from agentic_rag.tools.nav import wiki_command
 from agentic_rag.tools.shared import init_shared_tools
 from frontend.query_driver import (
     AnswerToken,
@@ -66,7 +66,7 @@ def _build_query_agent(responses: list[AIMessage]) -> object:
     model = ScriptedChatModel(responses=responses)
     return create_agent(
         model=model,
-        tools=[wiki_search, wiki_read_page],
+        tools=[wiki_command],
         system_prompt="You are a query agent. Answer from the wiki.",
         checkpointer=MemorySaver(),  # mirrors build_agent; needed for get_state
     )
@@ -80,7 +80,7 @@ async def _collect(agent, message: str) -> list:
 
 
 class TestStreamQueryScriptedTurn:
-    """Acceptance: scripted turn (wiki_search -> free-text final answer)."""
+    """Acceptance: scripted turn (wiki_command -> free-text final answer)."""
 
     async def test_event_order_and_auto_built_final(self, wiki_with_mlx):
         init_shared_tools(str(wiki_with_mlx))
@@ -89,7 +89,7 @@ class TestStreamQueryScriptedTurn:
                 AIMessage(
                     content="",
                     tool_calls=[
-                        ToolCall(name="wiki_search", args={"query": "What is MLX?"}, id="tc-1")
+                        ToolCall(name="wiki_command", args={"command": 'search "What is MLX?"'}, id="tc-1")
                     ],
                 ),
                 AIMessage(
@@ -106,14 +106,14 @@ class TestStreamQueryScriptedTurn:
         kinds = [e.kind for e in events]
         assert kinds == ["tool_start", "tool_end", "answer_token", "final"]
 
-        # ToolStart for wiki_search, with best-effort args.
+        # ToolStart for wiki_command, with best-effort args.
         starts = [e for e in events if e.kind == "tool_start"]
-        assert [e.name for e in starts] == ["wiki_search"]
-        assert starts[0].args == {"query": "What is MLX?"}
+        assert [e.name for e in starts] == ["wiki_command"]
+        assert starts[0].args == {'command': 'search "What is MLX?"'}
 
-        # ToolEnd for wiki_search.
+        # ToolEnd for wiki_command.
         ends = [e for e in events if e.kind == "tool_end"]
-        assert [e.name for e in ends] == ["wiki_search"]
+        assert [e.name for e in ends] == ["wiki_command"]
         assert "entities/mlx" in ends[0].output
 
         # The final message streams live as AnswerTokens.
@@ -142,7 +142,7 @@ class TestStreamQueryScriptedTurn:
                 AIMessage(
                     content="",
                     tool_calls=[
-                        ToolCall(name="wiki_search", args={"query": "MLX"}, id="tc-1")
+                        ToolCall(name="wiki_command", args={"command": 'search "MLX"'}, id="tc-1")
                     ],
                 ),
                 AIMessage(
@@ -152,7 +152,7 @@ class TestStreamQueryScriptedTurn:
         )
 
         events = await _collect(agent, "What is MLX?")
-        # During turn 1 the capture was populated by wiki_search.
+        # During turn 1 the capture was populated by wiki_command.
         assert grounding._NAV_CAPTURE is not None
         assert "entities/mlx" in grounding._NAV_CAPTURE.navigated
         assert [c.slug for c in events[-1].answer.citations] == ["entities/mlx"]
@@ -200,7 +200,7 @@ class TestStreamQueryMultiChunk:
 
     async def test_tool_end_output_truncated_to_500(self):
         long_output = "x" * 1200
-        tool_msg = ToolMessage(content=long_output, name="wiki_search", tool_call_id="t-1")
+        tool_msg = ToolMessage(content=long_output, name="wiki_command", tool_call_id="t-1")
         fake = _FakeAgent(
             chunks=[tool_msg, AIMessage(content="[done]")],
             final_messages=[tool_msg],
@@ -210,7 +210,7 @@ class TestStreamQueryMultiChunk:
 
         ends = [e for e in events if e.kind == "tool_end"]
         assert len(ends) == 1
-        assert ends[0].name == "wiki_search"
+        assert ends[0].name == "wiki_command"
         assert len(ends[0].output) == 500
         assert ends[0].output == long_output[:500]
 
@@ -245,20 +245,20 @@ class TestStreamQueryMultiChunk:
                 AIMessageChunk(
                     content="",
                     tool_call_chunks=[
-                        {"index": 0, "id": "call-1", "name": "wiki_search", "args": '{"query": "mlx"}'}
+                        {"index": 0, "id": "call-1", "name": "wiki_command", "args": '{"command": "search mlx"}'}
                     ],
                 ),
                 ToolMessage(
-                    content="Found: entities/mlx", name="wiki_search", tool_call_id="call-1"
+                    content="Found: entities/mlx", name="wiki_command", tool_call_id="call-1"
                 ),
                 AIMessageChunk(
                     content="",
                     tool_call_chunks=[
-                        {"index": 0, "id": "call-2", "name": "wiki_read_page", "args": '{"slug": "entities/mlx"}'}
+                        {"index": 0, "id": "call-2", "name": "wiki_command", "args": '{"command": "read entities/mlx"}'}
                     ],
                 ),
                 ToolMessage(
-                    content="MLX page…", name="wiki_read_page", tool_call_id="call-2"
+                    content="MLX page…", name="wiki_command", tool_call_id="call-2"
                 ),
                 AIMessage(content="Done ([[entities/mlx]])."),
             ],
@@ -268,10 +268,10 @@ class TestStreamQueryMultiChunk:
         events = [event async for event in stream_query(fake, "q", "t-seq", 30)]
 
         starts = [e for e in events if e.kind == "tool_start"]
-        assert [e.name for e in starts] == ["wiki_search", "wiki_read_page"]
+        assert [e.name for e in starts] == ["wiki_command", "wiki_command"]
         assert [e.args for e in starts] == [
-            {"query": "mlx"},
-            {"slug": "entities/mlx"},
+            {'command': 'search mlx'},
+            {'command': 'read entities/mlx'},
         ]
         # ToolEnd pairs with the right ToolStart via the streaming call id.
         ends = [e for e in events if e.kind == "tool_end"]
@@ -286,7 +286,7 @@ class TestStreamQueryMultiChunk:
                 AIMessageChunk(
                     content="",
                     tool_call_chunks=[
-                        {"index": 0, "id": "call-1", "name": "wiki_search", "args": '{"query": "Mál'}
+                        {"index": 0, "id": "call-1", "name": "wiki_command", "args": '{"command": "search Mál'}
                     ],
                 ),
                 AIMessageChunk(
@@ -296,7 +296,7 @@ class TestStreamQueryMultiChunk:
                     ],
                 ),
                 ToolMessage(
-                    content="Found", name="wiki_search", tool_call_id="call-1"
+                    content="Found", name="wiki_command", tool_call_id="call-1"
                 ),
                 AIMessage(content="Answer ([[entities/mlx]])."),
             ],
@@ -306,8 +306,8 @@ class TestStreamQueryMultiChunk:
         events = [event async for event in stream_query(fake, "q", "t-multi", 30)]
 
         starts = [e for e in events if e.kind == "tool_start"]
-        assert [e.name for e in starts] == ["wiki_search"]
-        assert starts[0].args == {"query": "Málaga"}
+        assert [e.name for e in starts] == ["wiki_command"]
+        assert starts[0].args == {"command": "search Málaga"}
         assert starts[0].call_id == "call-1"
         assert [e.kind for e in events] == [
             "tool_start",
@@ -324,11 +324,11 @@ class TestStreamQueryMultiChunk:
                 AIMessageChunk(
                     content="",
                     tool_call_chunks=[
-                        {"index": 0, "id": "call-1", "name": "wiki_search", "args": "not json"}
+                        {"index": 0, "id": "call-1", "name": "wiki_command", "args": "not json"}
                     ],
                 ),
                 ToolMessage(
-                    content="Found", name="wiki_search", tool_call_id="call-1"
+                    content="Found", name="wiki_command", tool_call_id="call-1"
                 ),
                 AIMessage(content="Answer."),
             ],
@@ -344,21 +344,21 @@ class TestStreamQueryMultiChunk:
             "final",
         ]
         start = next(e for e in events if e.kind == "tool_start")
-        assert start.name == "wiki_search"
+        assert start.name == "wiki_command"
         assert start.args == {}
 
     async def test_free_text_after_tool_calls_streams_as_answer(self):
         """The model's free text AFTER navigation is the answer (no finalization
         tool): it streams live and the FinalAnswer reflects it."""
         tool_msg = ToolMessage(
-            content="Found 1 relevant: entities/mlx", name="wiki_search", tool_call_id="t-1"
+            content="Found 1 relevant: entities/mlx", name="wiki_command", tool_call_id="t-1"
         )
         fake = _FakeAgent(
             chunks=[
                 AIMessage(
                     content="",
                     tool_calls=[
-                        ToolCall(name="wiki_search", args={"query": "mlx"}, id="t-1")
+                        ToolCall(name="wiki_command", args={"command": 'search "mlx"'}, id="t-1")
                     ],
                 ),
                 tool_msg,

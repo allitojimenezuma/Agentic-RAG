@@ -10,8 +10,8 @@ from agentic_rag.agents.factory import build_agent
 from agentic_rag.agents.llm import get_model
 from agentic_rag.agents.prompts import build_lint_prompt
 from agentic_rag.schemas.agents_md import load_agents_md
-from agentic_rag.tools.lint_tools import run_health_check, write_lint_report
-from agentic_rag.tools.nav import wiki_link_graph, wiki_read_page, wiki_scan
+from agentic_rag.tools.lint_tools import write_lint_report
+from agentic_rag.tools.nav import wiki_command
 from agentic_rag.tools.shared import get_index_summary, init_shared_tools
 
 
@@ -21,6 +21,7 @@ def build_lint_agent(settings) -> object:
 
     The current wiki index is injected into the system prompt so the model
     has full page inventory before running the deterministic health check.
+    Navigation/health go through the single read-only ``wiki_command`` tool.
 
     Args:
         settings: Settings instance with openai_model, agents_md_path.
@@ -28,13 +29,7 @@ def build_lint_agent(settings) -> object:
     init_shared_tools(settings.wiki_path)
     agents_md = load_agents_md(settings.agents_md_path)
     wiki_index = get_index_summary(settings.wiki_path)
-    tools = [
-        run_health_check,
-        wiki_link_graph,
-        wiki_read_page,
-        wiki_scan,
-        write_lint_report,
-    ]
+    tools = [wiki_command, write_lint_report]
     middleware = [
         HumanInTheLoopMiddleware(
             interrupt_on={

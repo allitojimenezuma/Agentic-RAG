@@ -88,31 +88,35 @@ class TestGetIndexSummary:
         assert "Index not found" in result
 
 
-# --- Navigation error handling (nav.wiki_read_page returns errors, never raises) ---
+# --- Navigation error handling (wiki_command read returns errors, never raises) ---
 
 
-class TestNavWikiReadPageErrors:
-    """nav.wiki_read_page must RETURN error strings (never raise) so the agent can recover."""
+class TestNavReadErrors:
+    """wiki_command('read ...') must RETURN error strings (never raise) so the agent can recover."""
 
     def test_missing_page_returns_error_not_raise(self, wiki_path: Path) -> None:
         init_shared_tools(wiki_path)
-        from agentic_rag.tools.nav import wiki_read_page as nav_read
-        result = nav_read.invoke({"slug": "nonexistent"})
+        from agentic_rag.tools.nav import wiki_command
+        result = wiki_command.invoke({"command": "read nonexistent"})
         assert "Error: Wiki page not found: nonexistent" in result
-        assert "wiki_scan" in result
+        assert "wiki_command('scan')" in result
 
     def test_wrong_directory_suggests_correct_slug(self, wiki_path: Path) -> None:
         init_shared_tools(wiki_path)
         _create_test_page(wiki_path, "entities/spec-driven-subagent-harness")
-        from agentic_rag.tools.nav import wiki_read_page as nav_read
-        result = nav_read.invoke({"slug": "concepts/spec-driven-subagent-harness"})
+        from agentic_rag.tools.nav import wiki_command
+        result = wiki_command.invoke(
+            {"command": "read concepts/spec-driven-subagent-harness"}
+        )
         assert "Error: Wiki page not found: concepts/spec-driven-subagent-harness" in result
         assert "entities/spec-driven-subagent-harness" in result
 
     def test_section_path_missing_page_returns_error(self, wiki_path: Path) -> None:
         init_shared_tools(wiki_path)
-        from agentic_rag.tools.nav import wiki_read_page as nav_read
-        result = nav_read.invoke({"slug": "nonexistent", "section": "History"})
+        from agentic_rag.tools.nav import wiki_command
+        result = wiki_command.invoke(
+            {"command": 'read nonexistent --section "History"'}
+        )
         assert result.startswith("Error: Wiki page not found: nonexistent")
 
     def test_read_source_missing_file_returns_error(self, wiki_path: Path, tmp_path: Path) -> None:

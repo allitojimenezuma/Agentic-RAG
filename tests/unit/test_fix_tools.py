@@ -86,6 +86,8 @@ class TestAddFrontmatter:
 class TestFixLink:
     def test_replaces_plain_and_alias_forms(self, tmp_path: Path) -> None:
         init_shared_tools(str(tmp_path))
+        # Target page must exist — fix_link refuses to create a NEW dangling link.
+        _write_with_frontmatter(tmp_path, "concepts/new", "# New\n\nContent.")
         _write_with_frontmatter(
             tmp_path, "entities/python",
             "# Python\n\nSee [[old]] and [[old|alias text]] and [[old]] again.",
@@ -94,25 +96,24 @@ class TestFixLink:
         result = fix_link.invoke({
             "slug": "entities/python",
             "old_target": "old",
-            "new_target": "new",
+            "new_target": "concepts/new",
         })
-        assert "Replaced 2" in result
+        assert "Replaced 3" in result
 
         raw = (tmp_path / "entities/python.md").read_text(encoding="utf-8")
-        assert "[[new]]" in raw
-        assert "[[new|alias text]]" in raw
-        # Only one occurrence of each form is replaced.
-        assert "[[old]]" in raw
-        assert "[[old|" not in raw
+        assert "[[concepts/new]]" in raw
+        assert "[[concepts/new|alias text]]" in raw
+        assert "[[old]]" not in raw
 
     def test_returns_zero_when_no_links(self, tmp_path: Path) -> None:
         init_shared_tools(str(tmp_path))
         _write_raw(tmp_path, "entities/python", "# Python\n\nNo links here.")
+        _write_with_frontmatter(tmp_path, "concepts/new", "# New\n\nContent.")
 
         result = fix_link.invoke({
             "slug": "entities/python",
             "old_target": "missing",
-            "new_target": "new",
+            "new_target": "concepts/new",
         })
         assert "No links to 'missing' found" in result
 

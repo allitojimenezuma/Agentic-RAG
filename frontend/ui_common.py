@@ -298,7 +298,7 @@ class _ChipTracker:
 
     def on_end(self, event: ToolEnd) -> None:
         # Exact pairing via the streaming call id: repeated same-name calls
-        # (e.g. wiki_read_page twice) complete in order instead of the last
+        # (e.g. the same tool twice) complete in order instead of the last
         # chip winning by name.
         for chip in reversed(self._running):
             if not chip["done"] and event.call_id and chip["call_id"] == event.call_id:

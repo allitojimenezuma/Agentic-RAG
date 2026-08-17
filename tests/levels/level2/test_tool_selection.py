@@ -3,12 +3,11 @@
 Pins the per-agent tool whitelists, causal ordering, the fix kind→tool map,
 and the HITL resume contract from docs/spec.md "Interfaces" + "Conventions":
 
-- query:  scripted runs may only call {wiki_search, wiki_read_page,
-  wiki_summary} — NEVER write tools.
+- query:  scripted runs may only call {wiki_command} — NEVER write tools.
 - ingest: happy path must be read_source -> submit_extraction (exactly once)
-  -> match_page_tool -> create_page -> regenerate_index -> append_log, with
+  -> wiki_command(match) -> create_page -> regenerate_index -> append_log, with
   regenerate_index + append_log as the LAST two tool calls.
-- lint:   run_health_check exactly once and BEFORE write_lint_report; never a
+- lint:   wiki_command(health) exactly once and BEFORE write_lint_report; never a
   foreign write tool from the write-tools pin.
 - fix:    kind→tool map is pinned (missing-frontmatter->add_frontmatter,
   broken-link->fix_link, missing-related->append_related_section,
@@ -53,31 +52,20 @@ from agentic_rag.tools.ingest_tools import (
     read_source,
     update_page,
 )
-from agentic_rag.tools.lint_tools import run_health_check, write_lint_report
-from agentic_rag.tools.nav import (
-    regenerate_index,
-    wiki_link_graph,
-    wiki_read_page,
-    wiki_scan,
-    wiki_search,
-    wiki_summary,
-)
+from agentic_rag.tools.lint_tools import write_lint_report
+from agentic_rag.tools.nav import regenerate_index, wiki_command
 from agentic_rag.tools.shared import init_shared_tools
-from agentic_rag.wiki.match import match_page_tool
 from tests.fixtures.eval_corpus import copy_broken_wiki
 from tests.fixtures.eval_hitl import resume_auto
 from tests.fixtures.fake_llm import ScriptedChatModel
 
 # --- Pinned tool inventories (docs/spec.md "L2 real-LLM tier") ---------------
-QUERY_TOOL_NAMES = {"wiki_search", "wiki_read_page", "wiki_summary"}
+QUERY_TOOL_NAMES = {"wiki_command"}
 
 INGEST_TOOL_NAMES = {
     "read_source",
     "submit_extraction",
-    "match_page_tool",
-    "wiki_read_page",
-    "wiki_scan",
-    "wiki_link_graph",
+    "wiki_command",
     "create_page",
     "update_page",
     "flag_contradiction",
@@ -86,17 +74,16 @@ INGEST_TOOL_NAMES = {
     "delete_wiki_page",
 }
 
-LINT_TOOL_NAMES = {"run_health_check", "wiki_link_graph", "wiki_read_page", "wiki_scan", "write_lint_report"}
+LINT_TOOL_NAMES = {"wiki_command", "write_lint_report"}
 
 FIX_TOOL_NAMES = {
-    "wiki_read_page",
+    "wiki_command",
     "edit_wiki_page",
     "add_frontmatter",
     "fix_link",
     "append_related_section",
     "regenerate_index",
     "delete_wiki_page",
-    "wiki_link_graph",
 }
 
 # Write-tools set (path guard) — no agent may cross its boundary.
@@ -108,15 +95,13 @@ WRITE_TOOL_NAMES = {
     "add_frontmatter",
     "fix_link",
     "append_related_section",
+    "edit_wiki_page",
 }
 
 INGEST_TOOLS = [
     read_source,
     submit_extraction,
-    match_page_tool,
-    wiki_read_page,
-    wiki_scan,
-    wiki_link_graph,
+    wiki_command,
     create_page,
     update_page,
     flag_contradiction,
@@ -125,17 +110,16 @@ INGEST_TOOLS = [
     delete_wiki_page,
 ]
 
-LINT_TOOLS = [run_health_check, wiki_link_graph, wiki_read_page, wiki_scan, write_lint_report]
+LINT_TOOLS = [wiki_command, write_lint_report]
 
 FIX_TOOLS = [
-    wiki_read_page,
+    wiki_command,
     edit_wiki_page,
     add_frontmatter,
     fix_link,
     append_related_section,
     regenerate_index,
     delete_wiki_page,
-    wiki_link_graph,
 ]
 
 
@@ -184,10 +168,10 @@ def _run(agent, user_content: str, config: dict) -> dict:
 
 # --- query: read-only whitelist ------------------------------------------------
 class TestQueryToolWhitelist:
-    """Query agent may ONLY navigate (wiki_search -> wiki_read_page), never write."""
+    """Query agent may ONLY navigate (wiki_command), never write."""
 
     def test_scripted_run_calls_only_nav_tools(self, eval_wiki):
-        """wiki_search -> wiki_read_page -> final answer; nothing else."""
+        """wiki_command(search + read) -> final answer; nothing else."""
         init_shared_tools(str(eval_wiki))
         model = ScriptedChatModel(
             responses=[
@@ -195,8 +179,8 @@ class TestQueryToolWhitelist:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="wiki_search",
-                            args={"query": "MLX"},
+                            name="wiki_command",
+                            args={"command": 'search "MLX"'},
                             id="tc-1",
                         )
                     ],
@@ -205,8 +189,8 @@ class TestQueryToolWhitelist:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="wiki_read_page",
-                            args={"slug": "entities/mlx"},
+                            name="wiki_command",
+                            args={"command": "read entities/mlx"},
                             id="tc-2",
                         )
                     ],
@@ -216,7 +200,7 @@ class TestQueryToolWhitelist:
         )
         agent = build_agent(
             model=model,
-            tools=[wiki_search, wiki_read_page, wiki_summary],
+            tools=[wiki_command],
             system_prompt=build_query_prompt("# Test schema"),
         )
 
@@ -227,14 +211,13 @@ class TestQueryToolWhitelist:
         assert set(names) <= QUERY_TOOL_NAMES
         # never a write tool from the write-tools pin
         assert set(names).isdisjoint(WRITE_TOOL_NAMES)
-        # search precedes the page read
-        assert names[0] == "wiki_search"
-        assert names.index("wiki_search") < names.index("wiki_read_page")
+        # consolidated read-only navigation (search + read via wiki_command)
+        assert names == ["wiki_command", "wiki_command"]
 
 
 # --- ingest: causal order + terminal invariants --------------------------------
 class TestIngestToolInvariants:
-    """Ingest happy path: read_source -> submit_extraction -> match_page_tool
+    """Ingest happy path: read_source -> submit_extraction -> wiki_command(match)
     -> create_page -> regenerate_index -> append_log, with terminal writes last."""
 
     def test_happy_path_order_and_last_two_tools(self, eval_env):
@@ -282,8 +265,8 @@ class TestIngestToolInvariants:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="match_page_tool",
-                            args={"name": "Samplecorp", "page_type": "entity"},
+                            name="wiki_command",
+                            args={"command": 'match "Samplecorp" --type entity'},
                             id="tc-3",
                         )
                     ],
@@ -344,8 +327,8 @@ class TestIngestToolInvariants:
         # Causal order of FIRST occurrences.
         for earlier, later in [
             ("read_source", "submit_extraction"),
-            ("submit_extraction", "match_page_tool"),
-            ("match_page_tool", "create_page"),
+            ("submit_extraction", "wiki_command"),
+            ("wiki_command", "create_page"),
             ("create_page", "regenerate_index"),
             ("regenerate_index", "append_log"),
         ]:
@@ -368,19 +351,19 @@ class TestIngestToolInvariants:
         assert "ingest |" in log_text and "sample.md" in log_text
 
 
-# --- lint: run_health_check first, report last, no foreign writes --------------
+# --- lint: health first, report last, no foreign writes -----------------------
 class TestLintToolInvariants:
-    """Lint agent: run_health_check exactly once, before write_lint_report."""
+    """Lint agent: wiki_command(health) exactly once, before write_lint_report."""
 
     def test_scripted_run_order_and_no_foreign_writes(self, eval_wiki):
-        """run_health_check -> write_lint_report; lint never touches foreign writes."""
+        """wiki_command(health) -> write_lint_report; lint never touches foreign writes."""
         init_shared_tools(str(eval_wiki))
         model = ScriptedChatModel(
             responses=[
                 AIMessage(
                     content="",
                     tool_calls=[
-                        ToolCall(name="run_health_check", args={}, id="tc-1")
+                        ToolCall(name="wiki_command", args={"command": "health"}, id="tc-1")
                     ],
                 ),
                 AIMessage(
@@ -407,8 +390,8 @@ class TestLintToolInvariants:
 
         names = [c["name"] for c in _all_tool_calls(result)]
         assert set(names) <= LINT_TOOL_NAMES
-        assert names.count("run_health_check") == 1
-        assert names.index("run_health_check") < names.index("write_lint_report")
+        assert names.count("wiki_command") == 1
+        assert names.index("wiki_command") < names.index("write_lint_report")
         # Never a write tool from the path-guard pin other than lint's own report.
         assert set(names).isdisjoint(WRITE_TOOL_NAMES - {"write_lint_report"})
 
@@ -539,7 +522,7 @@ class TestHitlResume:
     """flag_contradiction / delete_wiki_page interrupt; resume_auto approves."""
 
     def test_contradiction_interrupts_then_resume_approve_appends_log(self, eval_env):
-        """read_source -> submit_extraction -> match_page_tool ->
+        """read_source -> submit_extraction -> wiki_command(match) ->
         flag_contradiction (INTERRUPT) -> resume approve -> regenerate_index +
         append_log; the page is kept and the log gains an entry."""
         wiki_path, raw_path = eval_env
@@ -603,8 +586,8 @@ class TestHitlResume:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="match_page_tool",
-                            args={"name": "MLX", "page_type": "entity"},
+                            name="wiki_command",
+                            args={"command": 'match "MLX" --type entity'},
                             id="tc-3",
                         )
                     ],

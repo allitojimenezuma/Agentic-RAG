@@ -2,7 +2,8 @@
 
 Replaces the old ``search_index(name)`` + ``read_wiki_page(slug)`` round-trip
 guessing with one Python call over ``wiki.by_slug`` + BM25 ``search``. Pure
-decision logic (0 LLM calls) plus a thin ``@tool`` wrapper.
+decision logic (0 LLM calls), exposed to agents via the ``match`` sub-command
+of ``tools.nav.wiki_command``.
 """
 
 from __future__ import annotations
@@ -10,12 +11,10 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
-from langchain_core.tools import tool
 from pydantic import BaseModel
 
 from agentic_rag.io.markdown_parser import slugify
-from agentic_rag.tools.shared import get_wiki_path
-from agentic_rag.wiki.model import Wiki, load_wiki
+from agentic_rag.wiki.model import Wiki
 from agentic_rag.wiki.search import search
 
 logger = logging.getLogger(__name__)
@@ -103,12 +102,3 @@ def _type_dir_exists(wiki: Wiki, page_type: str) -> bool:
     if directory is None:
         return False
     return any(slug.startswith(directory + "/") for slug in wiki.by_slug)
-
-
-@tool
-def match_page_tool(name: str, page_type: str) -> str:
-    """Match a page name against the wiki to decide create vs update vs conflict. Returns '<decision>: <slugs> — <detail>' where decision is one of 'exact' (use update_page), 'similar' (use update_page), 'conflict' (use flag_contradiction), or 'none' (use create_page). Call this before create_page/update_page."""
-    logger.debug("Matching page: %s (type=%s)", name, page_type)
-    wiki = load_wiki(get_wiki_path())
-    result = match_page(wiki, name, page_type)
-    return f"{result.decision}: {', '.join(result.slugs)} — {result.detail}"

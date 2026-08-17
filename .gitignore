@@ -20,5 +20,8 @@ htmlcov/
 # Generated artifacts (scripts/knowledge_graph.py output)
 knowledge_graph.html
 
+# Local symlink to the human-maintained overview doc in ~/Proyectos/Projects_Docs/
+LangChain-RAG.html
+
 # macOS
 .DS_Store

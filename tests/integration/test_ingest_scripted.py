@@ -25,9 +25,8 @@ from agentic_rag.tools.ingest_tools import (
     read_source,
     update_page,
 )
-from agentic_rag.tools.nav import regenerate_index, wiki_read_page
+from agentic_rag.tools.nav import regenerate_index, wiki_command
 from agentic_rag.tools.shared import init_shared_tools
-from agentic_rag.wiki.match import match_page_tool
 from tests.fixtures.fake_llm import ScriptedChatModel
 
 LEGACY_TOOL_NAMES = {
@@ -41,8 +40,7 @@ LEGACY_TOOL_NAMES = {
 INGEST_TOOLS = [
     read_source,
     submit_extraction,
-    match_page_tool,
-    wiki_read_page,
+    wiki_command,
     create_page,
     update_page,
     flag_contradiction,
@@ -121,8 +119,8 @@ class TestIngestAgentContract:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="match_page_tool",
-                            args={"name": "MLX", "page_type": "entity"},
+                            name="wiki_command",
+                            args={"command": 'match "MLX" --type entity'},
                             id="tc-2",
                         )
                     ],
@@ -196,7 +194,7 @@ class TestIngestAgentContract:
 
         # Expected order of the scripted flow
         assert called_names[0] == "submit_extraction"
-        assert "match_page_tool" in called_names
+        assert "wiki_command" in called_names
         assert "create_page" in called_names
         assert "update_page" not in called_names
         assert "regenerate_index" in called_names
@@ -241,8 +239,7 @@ class TestIngestAgentContract:
         # And must reference the required new tools
         for required in [
             "submit_extraction",
-            "match_page_tool",
-            "wiki_read_page",
+            "wiki_command",
             "regenerate_index",
             "append_log",
         ]:

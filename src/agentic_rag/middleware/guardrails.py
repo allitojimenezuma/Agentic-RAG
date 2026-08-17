@@ -26,6 +26,7 @@ def _path_guard_error(request) -> str | None:
         "add_frontmatter",
         "fix_link",
         "append_related_section",
+        "edit_wiki_page",
     }
     if tool_name in write_tools:
         for key in ("slug", "path", "file_path", "source_path"):

@@ -1,6 +1,6 @@
 """Cite-or-die finalization + per-invocation navigation capture.
 
-The nav tools (``wiki_search``, ``wiki_read_page``) record every slug they
+The nav surface (``wiki_command``: search/read/scan/links) records every slug it
 return into the module-level ``NavCapture`` via ``record_navigated``. The
 query agent has NO finalization tool: ``build_final_answer`` synthesizes the
 ``QueryAnswer`` from the model's own final message, extracting ``[[Page]]``

@@ -52,7 +52,7 @@ from agentic_rag.tools.grounding import (
     citations_from_links,
     new_nav_capture,
 )
-from agentic_rag.tools.nav import wiki_read_page, wiki_search, wiki_summary
+from agentic_rag.tools.nav import wiki_command
 from agentic_rag.tools.shared import init_shared_tools
 from tests.fixtures.deepeval_judge import deepeval_judge
 from tests.fixtures.fake_llm import ScriptedChatModel
@@ -174,12 +174,12 @@ def test_end_to_end_nav_capture_citations_are_navigated(eval_wiki) -> None:
         responses=[
             AIMessage(
                 content="",
-                tool_calls=[ToolCall(name="wiki_search", args={"query": "mlx"}, id="tc-1")],
+                tool_calls=[ToolCall(name="wiki_command", args={"command": 'search "mlx"'}, id="tc-1")],
             ),
             AIMessage(
                 content="",
                 tool_calls=[
-                    ToolCall(name="wiki_read_page", args={"slug": "entities/mlx"}, id="tc-2")
+                    ToolCall(name="wiki_command", args={"command": "read entities/mlx"}, id="tc-2")
                 ],
             ),
             AIMessage(content="MLX is Apple's ML framework ([[entities/mlx]])."),
@@ -187,7 +187,7 @@ def test_end_to_end_nav_capture_citations_are_navigated(eval_wiki) -> None:
     )
     agent = build_agent(
         model=model,
-        tools=[wiki_search, wiki_read_page, wiki_summary],
+        tools=[wiki_command],
         system_prompt=build_query_prompt("# Test schema"),
     )
     agent._nav_capture = new_nav_capture()

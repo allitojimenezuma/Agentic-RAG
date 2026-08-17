@@ -16,8 +16,8 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, ToolCall
 
 from agentic_rag.agents.prompts import build_lint_prompt
-from agentic_rag.tools.lint_tools import run_health_check, write_lint_report
-from agentic_rag.tools.nav import wiki_link_graph, wiki_read_page, wiki_scan
+from agentic_rag.tools.lint_tools import write_lint_report
+from agentic_rag.tools.nav import wiki_command
 from agentic_rag.tools.shared import init_shared_tools
 from tests.fixtures.fake_llm import ScriptedChatModel
 
@@ -51,7 +51,7 @@ def wiki_with_orphan(tmp_path: Path) -> Path:
     return wiki
 
 
-CURRENT_LINT_TOOLS = [run_health_check, wiki_link_graph, wiki_read_page, wiki_scan, write_lint_report]
+CURRENT_LINT_TOOLS = [wiki_command, write_lint_report]
 
 
 class TestLintAgentBasic:
@@ -85,8 +85,8 @@ class TestLintFlow:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="run_health_check",
-                            args={},
+                            name="wiki_command",
+                            args={"command": "health"},
                             id="tc-1",
                         )
                     ],
@@ -134,9 +134,9 @@ class TestLintFlow:
         assert "orphan-concept" in report_content
 
     def test_health_check_reports_orphan(self, wiki_with_orphan):
-        """run_health_check surfaces the orphan with zero LLM calls."""
+        """wiki_command health surfaces the orphan with zero LLM calls."""
         wp = str(wiki_with_orphan)
         init_shared_tools(wp)
-        result = run_health_check.invoke({})
+        result = wiki_command.invoke({"command": "health"})
         assert "Pages audited: 2" in result
         assert "[high] orphan: concepts/orphan-concept" in result

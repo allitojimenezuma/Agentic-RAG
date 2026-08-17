@@ -44,12 +44,9 @@ from agentic_rag.tools.ingest_tools import (
 )
 from agentic_rag.tools.nav import (
     regenerate_index,
-    wiki_link_graph,
-    wiki_read_page,
-    wiki_scan,
+    wiki_command,
 )
 from agentic_rag.tools.shared import init_shared_tools
-from agentic_rag.wiki.match import match_page_tool
 from tests.fixtures.eval_hitl import resume_auto
 from tests.fixtures.fake_llm import ScriptedChatModel
 from tests.levels.conftest import eval_env
@@ -58,10 +55,7 @@ from tests.levels.conftest import eval_env
 INGEST_TOOLS = [
     read_source,
     submit_extraction,
-    match_page_tool,
-    wiki_read_page,
-    wiki_scan,
-    wiki_link_graph,
+    wiki_command,
     create_page,
     update_page,
     flag_contradiction,
@@ -151,8 +145,8 @@ def _pre_resume_responses(raw_path: Path) -> list[AIMessage]:
             content="",
             tool_calls=[
                 ToolCall(
-                    name="match_page_tool",
-                    args={"name": "MLX", "page_type": "entity"},
+                    name="wiki_command",
+                    args={"command": 'match "MLX" --type entity'},
                     id="tc-3",
                 )
             ],

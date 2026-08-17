@@ -1,4 +1,4 @@
-"""Unit tests for the deterministic match_page matcher and its @tool wrapper."""
+"""Unit tests for the deterministic match_page matcher."""
 
 from __future__ import annotations
 
@@ -10,8 +10,7 @@ import pytest
 from agentic_rag.io.markdown_parser import serialize_frontmatter
 from agentic_rag.io.wiki_io import write_page
 from agentic_rag.schemas.wiki import Frontmatter
-from agentic_rag.tools.shared import init_shared_tools
-from agentic_rag.wiki.match import MatchResult, match_page, match_page_tool
+from agentic_rag.wiki.match import MatchResult, match_page
 from agentic_rag.wiki.model import Wiki, load_wiki
 
 DEFAULT_WIKI_PATH = Path("./wiki")
@@ -155,45 +154,3 @@ def test_types_filter_applied_when_type_dir_exists(tmp_path: Path) -> None:
         slugs=["sources/mlx-notes"],
         detail="BM25 match — update existing",
     )
-
-
-def test_match_page_tool_format(wiki: Wiki, tmp_path: Path) -> None:
-    """Tool returns '<decision>: <slugs joined ', '> — <detail>'."""
-    init_shared_tools(tmp_path)
-    try:
-        assert (
-            match_page_tool.invoke({"name": "MLX", "page_type": "entity"})
-            == "exact: entities/mlx — exact slug match"
-        )
-        assert (
-            match_page_tool.invoke(
-                {"name": "Apple machine learning framework", "page_type": "entity"}
-            )
-            == "similar: entities/mlx — BM25 match — update existing"
-        )
-        out = match_page_tool.invoke(
-            {"name": "Nonexistent Thing", "page_type": "entity"}
-        )
-        assert out.startswith("none:")
-        assert out.endswith("— no existing page — create new")
-    finally:
-        init_shared_tools(DEFAULT_WIKI_PATH)
-
-
-def test_match_page_tool_conflict_format(
-    wiki_conflict: Wiki, tmp_path: Path
-) -> None:
-    """Tool renders both candidate slugs for a conflict."""
-    init_shared_tools(tmp_path)
-    try:
-        result = match_page(load_wiki(tmp_path), "Apple machine learning", "entity")
-        assert result.decision == "conflict"
-        out = match_page_tool.invoke(
-            {"name": "Apple machine learning", "page_type": "entity"}
-        )
-        assert out == (
-            f"conflict: {', '.join(result.slugs)}"
-            " — multiple candidates — flag contradiction"
-        )
-    finally:
-        init_shared_tools(DEFAULT_WIKI_PATH)

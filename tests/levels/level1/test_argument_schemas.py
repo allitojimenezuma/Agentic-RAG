@@ -46,8 +46,8 @@ from agentic_rag.tools.ingest_tools import (
     read_source,
     update_page,
 )
+from agentic_rag.tools.nav import wiki_command
 from agentic_rag.tools.shared import init_shared_tools
-from agentic_rag.wiki.match import match_page_tool
 from tests.fixtures.fake_llm import ScriptedChatModel
 
 
@@ -140,15 +140,17 @@ class TestDirectToolErrorStrings:
         assert isinstance(result, str)
         assert result.startswith("Error: could not read source '/nonexistent/path.md'")
 
-    def test_match_page_tool_returns_decision_string(self, eval_wiki):
-        """match_page_tool always returns a '<decision>: ...' string, never raises."""
+    def test_match_command_returns_decision_string(self, eval_wiki):
+        """wiki_command match always returns a '<decision>: ...' string, never raises."""
         init_shared_tools(str(eval_wiki))
-        exact = match_page_tool.invoke({"name": "MLX", "page_type": "entity"})
+        exact = wiki_command.invoke(
+            {"command": 'match "MLX" --type entity'}
+        )
         assert isinstance(exact, str)
         assert exact.startswith("exact:")
 
-        none = match_page_tool.invoke(
-            {"name": "Brand New Entity", "page_type": "entity"}
+        none = wiki_command.invoke(
+            {"command": 'match "Brand New Entity" --type entity'}
         )
         assert isinstance(none, str)
         assert none.startswith("none:")

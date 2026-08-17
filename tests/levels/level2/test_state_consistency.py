@@ -41,10 +41,9 @@ from agentic_rag.tools.ingest_tools import (
     read_source,
     update_page,
 )
-from agentic_rag.tools.nav import regenerate_index
+from agentic_rag.tools.nav import regenerate_index, wiki_command
 from agentic_rag.tools.shared import init_shared_tools
 from agentic_rag.wiki.dedupe_index import regenerate_index as regenerate_index_engine
-from agentic_rag.wiki.match import match_page_tool
 from agentic_rag.wiki.model import load_wiki
 from tests.fixtures.fake_llm import ScriptedChatModel
 
@@ -221,8 +220,8 @@ class TestStateConsistency:
                     content="",
                     tool_calls=[
                         ToolCall(
-                            name="match_page_tool",
-                            args={"name": "Newcorp", "page_type": "entity"},
+                            name="wiki_command",
+                            args={"command": 'match "Newcorp" --type entity'},
                             id="tc-3",
                         )
                     ],
@@ -267,7 +266,7 @@ class TestStateConsistency:
             tools=[
                 read_source,
                 submit_extraction,
-                match_page_tool,
+                wiki_command,
                 create_page,
                 update_page,
                 regenerate_index,
