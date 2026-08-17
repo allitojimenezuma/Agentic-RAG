@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agentic RAG — The Agent Layer</title>
+  <title>Agentic RAG — The Agent Layer · Interview Guide</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -444,6 +444,246 @@
       margin-top: 30px;
     }
 
+    /* ---- interview prep components ---- */
+    #progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--good));
+      z-index: 100;
+    }
+    .to-top {
+      position: fixed;
+      bottom: 22px;
+      right: 22px;
+      z-index: 99;
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: var(--accent-soft);
+      border: 1px solid var(--border);
+      color: var(--accent);
+      font-size: 1.1rem;
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .to-top.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 18px 0 4px;
+    }
+    .kpi {
+      background: #0e1728;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 10px;
+      text-align: center;
+    }
+    .kpi .kpi-num {
+      display: block;
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: var(--accent);
+      line-height: 1.2;
+    }
+    .kpi .kpi-label {
+      display: block;
+      margin-top: 6px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .kpi .kpi-sub {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .pitch {
+      background:
+        linear-gradient(180deg, rgba(45, 212, 191, 0.07), rgba(45, 212, 191, 0) 60%),
+        var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--good);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px 22px;
+      margin-bottom: 14px;
+    }
+    .pitch h2 {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
+      border: none;
+      padding: 0;
+    }
+    .pitch p {
+      font-size: 0.95rem;
+      margin: 6px 0;
+    }
+    .talk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 12px;
+      margin: 14px 0 4px;
+    }
+    .talk-card {
+      background: #0e1728;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .talk-card h4 {
+      margin: 0 0 6px;
+      color: var(--accent);
+    }
+    .talk-card p {
+      margin: 0;
+      font-size: 0.88rem;
+    }
+    details.qa {
+      background: #0e1728;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    details.qa > summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 12px 16px;
+      font-weight: 600;
+      color: #dbe7ff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+    }
+    details.qa > summary::-webkit-details-marker {
+      display: none;
+    }
+    details.qa > summary::after {
+      content: "▾";
+      color: var(--accent);
+      font-size: 0.8rem;
+      flex-shrink: 0;
+      transition: transform 0.15s ease;
+    }
+    details.qa[open] > summary::after {
+      transform: rotate(180deg);
+    }
+    details.qa > summary:hover {
+      background: var(--accent-soft);
+    }
+    details.qa .qa-body {
+      padding: 4px 16px 14px;
+      border-top: 1px solid var(--border);
+      font-size: 0.92rem;
+    }
+    details.qa .qa-body p {
+      margin: 8px 0;
+    }
+    .qa-group-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 20px 0 6px;
+    }
+    .expand-all {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .expand-all:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .quiz-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0e1728;
+      padding: 12px 16px;
+      margin: 10px 0;
+    }
+    .quiz-q {
+      font-weight: 600;
+      color: #dbe7ff;
+      font-size: 0.95rem;
+      margin: 0;
+    }
+    .quiz-reveal {
+      display: none;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+      font-size: 0.9rem;
+    }
+    .quiz-item.show .quiz-reveal {
+      display: block;
+    }
+    .btn-quiz {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent-soft);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-quiz:hover {
+      background: var(--accent-soft);
+    }
+    .qa-tag {
+      display: inline-block;
+      border-radius: 5px;
+      padding: 0 7px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-right: 6px;
+      vertical-align: 1px;
+    }
+    .t-arch {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .t-safe {
+      background: #12332e;
+      color: #5eead4;
+    }
+    .t-eval {
+      background: #3a2c10;
+      color: #fcd34d;
+    }
+    .t-ops {
+      background: #3a1620;
+      color: #fca5a5;
+    }
+
     @media (max-width: 860px) {
       .layout {
         grid-template-columns: 1fr;
@@ -466,6 +706,8 @@
 </head>
 
 <body>
+  <div id="progress"></div>
+  <button id="toTop" class="to-top" title="Back to top" type="button">↑</button>
   <div class="wrap">
     <header class="hero">
       <h1>Agentic RAG — The Agent Layer</h1>
@@ -485,7 +727,8 @@
         <span class="chip">cite-or-die grounding</span>
         <span class="chip">no shell in fix</span>
         <span class="chip">0-LLM tool layer underneath</span>
-        <span class="chip">3-level eval suite · 206 tests</span>
+        <span class="chip">3-level eval suite · 490 tests</span>
+        <span class="chip">interview-ready guide ↓</span>
       </div>
     </header>
 
@@ -531,18 +774,56 @@
           <code>Command(resume=…)</code> flow.
         </li>
         <li>
-          <strong>Three-level eval suite.</strong> 206 tests in
-          <code>tests/levels/</code> — mechanical rules, agent behavior, and
-          answer quality — run on a neutral corpus, with real-LLM tests that
-          skip without a key.
+          <strong>Three-level eval suite.</strong> 86 test functions in
+          <code>tests/levels/</code> (53 mechanical rules + 15 agent behavior +
+          18 answer quality) — 490 collected cases across unit + eval when
+          parametrization counts — run on a neutral corpus, with real-LLM
+          tiers that skip without a key.
         </li>
       </ul>
     </section>
+
+    <!-- ============ Interview prep: pitch + key numbers ============ -->
+    <section class="pitch" id="pitch" aria-label="The 60-second pitch">
+      <h2>The 60-second pitch — how to open the interview</h2>
+      <p>
+        <strong>"Agentic RAG is a retrieval system that treats knowledge as a compounding
+        artifact instead of a pile of chunks."</strong> Raw documents are ingested once by a
+        LangChain agent into an interlinked markdown wiki — entities, concepts, contradictions
+        — and every later query is a small, grounded navigation over that curated graph instead
+        of a fresh retrieval over raw text. The interesting engineering is in the boundaries:
+        four narrowly-scoped agents (<code>ingest</code>, <code>query</code>, <code>lint</code>,
+        <code>fix</code>) share one injected schema (<code>AGENTS.md</code>) and one
+        <strong>deterministic Python engine</strong> that makes every structural decision — name
+        matching, health audit, index rebuild — with <strong>zero LLM calls</strong>. The model
+        only adds judgment. Safety and honesty are enforced in code, not by prompting: the query
+        agent has no finalization tool, so citing a page it never navigated is structurally
+        impossible (cite-or-die); every write is path-guarded and atomic; destructive actions
+        pause for human approval via LangGraph interrupts. A three-level evaluation pyramid —
+        mechanical rules, scripted agent behavior, LLM-as-judge answer quality — keeps all of
+        it testable offline.
+      </p>
+    </section>
+    <div class="kpi-strip" aria-label="Key numbers">
+      <div class="kpi"><span class="kpi-num">4</span><span class="kpi-label">agents</span><span class="kpi-sub">ingest · query · lint · fix</span></div>
+      <div class="kpi"><span class="kpi-num">20</span><span class="kpi-label">scoped tools</span><span class="kpi-sub">12 / 3 / 5 / 8 per agent</span></div>
+      <div class="kpi"><span class="kpi-num">0</span><span class="kpi-label">LLM calls</span><span class="kpi-sub">in the decision layer</span></div>
+      <div class="kpi"><span class="kpi-num">490</span><span class="kpi-label">collected tests</span><span class="kpi-sub">unit + 3-level eval</span></div>
+      <div class="kpi"><span class="kpi-num">30 / 200</span><span class="kpi-label">recursion limits</span><span class="kpi-sub">query vs ingest</span></div>
+      <div class="kpi"><span class="kpi-num">3</span><span class="kpi-label">middleware</span><span class="kpi-sub">audit · guard · tokens</span></div>
+    </div>
+    <div class="talk-grid" aria-label="One-liners for each agent">
+      <div class="talk-card"><h4>ingest — "compiles once"</h4><p>Reads a source, extracts structured entities/concepts/contradictions in one pure pass, then a <em>deterministic</em> matcher decides create / update / conflict. Contradictions pause for a human.</p></div>
+      <div class="talk-card"><h4>query — "cite or die"</h4><p>Read-only. Searches with BM25, navigates pages, answers with inline <code>[[links]]</code> validated against what it actually navigated this turn. Citations it never earned are dropped by code.</p></div>
+      <div class="talk-card"><h4>lint — "audit, then judge"</h4><p>A 0-LLM health check finds 7 structural issue kinds; the model adds only semantic judgment (duplicate coverage) and writes the report.</p></div>
+      <div class="talk-card"><h4>fix — "pinned fixes, no shell"</h4><p>Consumes the lint report and maps each issue kind to exactly one tool. There is no shell tool; delete is the only HITL-gated operation.</p></div>
+    </div>
 
     <div class="layout">
       <nav class="toc">
         <h2>Contents</h2>
         <ol>
+          <li><a href="#pitch">The 60-second pitch &amp; key numbers</a></li>
           <li><a href="#s1">Why agents instead of one pipeline?</a></li>
           <li><a href="#s2">The agent factory</a></li>
           <li><a href="#s3">The agent loop &amp; middleware</a></li>
@@ -558,11 +839,14 @@
               <li><a href="#s10-1">Level 1 — the rules</a></li>
               <li><a href="#s10-2">Level 2 — how the agents behave</a></li>
               <li><a href="#s10-3">Level 3 — is the output any good?</a></li>
-              <li><a href="#s10-4">How it works</a></li>
-              <li><a href="#s10-5">Running the tests</a></li>
+              <li><a href="#s10-3">Harness &amp; headless execution</a></li>
+              <li><a href="#s10-4">Running the tests</a></li>
             </ol>
           </li>
           <li><a href="#s11">Glossary</a></li>
+          <li><a href="#s12">Design decisions &amp; tradeoffs</a></li>
+          <li><a href="#s13">Interview Q&amp;A — what you'll be asked</a></li>
+          <li><a href="#s14">Self-check quiz</a></li>
         </ol>
       </nav>
 
@@ -612,14 +896,14 @@
               <tr>
                 <td><code>lint</code></td>
                 <td>Structural audit + semantic review → lint report</td>
-                <td>4 (audit + read + report)</td>
+                <td>5 (audit + read + report)</td>
                 <td>Only the report file</td>
                 <td>None in practice (read-only tools)</td>
               </tr>
               <tr>
                 <td><code>fix</code></td>
                 <td>Resolve lint issues with pinned kind→tool fixes</td>
-                <td>7 (read + fix + index)</td>
+                <td>8 (read + fix + index)</td>
                 <td>Yes — pages, index</td>
                 <td>delete (approve / reject)</td>
               </tr>
@@ -664,17 +948,25 @@
     return agent</code></pre>
           <figure>
             <div class="mermaid">
-              flowchart TB subgraph IN["Inputs"] M["model — ChatOpenAI
-              (temperature 0),<br />any OpenAI-compatible provider"] T["tools
-              — per-agent scoped list"] SP["system_prompt — role + AGENTS.md +
-              wiki index"] end subgraph MW["Always-on middleware"]
-              A1["audit_logging_middleware"] A2["path_guard_middleware"]
-              A3["token_capture_middleware (@after_model)"] end subgraph
-              X["Agent-specific"] H["HumanInTheLoopMiddleware — delete /
-              contradiction"] end IN --> AG["create_agent(...)<br />checkpointer
-              = MemorySaver()"] MW --> AG X --> AG AG --> OUT["compiled
-              agent<br />+ _token_tracker attached"]
-            </div>
+flowchart TB
+    subgraph IN["Inputs"]
+        M["model — ChatOpenAI (temperature 0),<br/>any OpenAI-compatible provider"]
+        T["tools — per-agent scoped list"]
+        SP["system_prompt — role + AGENTS.md + wiki index"]
+    end
+    subgraph MW["Always-on middleware"]
+        A1["audit_logging_middleware"]
+        A2["path_guard_middleware"]
+        A3["token_capture_middleware (@after_model)"]
+    end
+    subgraph X["Agent-specific"]
+        H["HumanInTheLoopMiddleware — delete / contradiction"]
+    end
+    IN --> AG["create_agent(...)<br/>checkpointer = MemorySaver()"]
+    MW --> AG
+    X --> AG
+    AG --> OUT["compiled agent<br/>+ _token_tracker attached"]
+          </div>
             <figcaption>
               Figure 1 — build_agent assembly: one factory, one middleware
               order, one checkpointer; agents differ only in tools, prompt,
@@ -723,16 +1015,16 @@
           </p>
           <figure>
             <div class="mermaid">
-              flowchart LR M["model call"] --> TC["token_capture_middleware —
-              @after_model hook<br />reads token_usage from the response"] M
-              --> TOOL["model emits a tool call"] TOOL -->
-              A["audit_logging_middleware — logs name, args, result,
-              duration"] A --> P["path_guard_middleware — rejects raw/ ,<br />absolute
-              paths , '..' on write tools"] P --> H{"dangerous tool?"} H --
-              "delete_wiki_page · flag_contradiction" -->
-              HT["HumanInTheLoopMiddleware —<br />approve / reject / edit"] H
-              -- no --> EX["execute tool"] HT --> EX
-            </div>
+flowchart LR
+    M["model call"] --> TC["token_capture_middleware — @after_model hook<br/>reads token_usage from the response"]
+    M --> TOOL["model emits a tool call"]
+    TOOL --> A["audit_logging_middleware — logs name, args, result, duration"]
+    A --> P["path_guard_middleware — rejects raw/,<br/>absolute paths, '..' on write tools"]
+    P --> H{"dangerous tool?"}
+    H -- "delete_wiki_page · flag_contradiction" --> HT["HumanInTheLoopMiddleware —<br/>approve / reject / edit"]
+    H -- no --> EX["execute tool"]
+    HT --> EX
+          </div>
             <figcaption>
               Figure 2 — Middleware pipeline applied to every agent: token
               capture runs after each model call; audit, path guard, and HITL
@@ -904,20 +1196,32 @@
           </p>
           <figure>
             <div class="mermaid">
-              sequenceDiagram participant CLI as CLI participant A as Ingest
-              Agent participant R as raw/ participant M as match_page
-              (deterministic) participant W as wiki/ CLI->>A: ingest
-              path-or-text A->>R: read_source (MarkItDown) A->>A:
-              submit_extraction → Entity / Concept / Contradiction JSON (pure,
-              no writes) loop each extracted name A->>M: match_page_tool(name,
-              page_type) alt exact or similar M-->>A: decision — update
-              existing page A->>W: update_page else none M-->>A: decision — no
-              existing page A->>W: create_page else conflict M-->>A: decision
-              — multiple candidates A->>W: flag_contradiction (HITL: approve /
-              edit / reject) end end A->>W: update ## Related links on touched
-              pages A->>W: write sources/&lt;slug&gt;.md summary page A->>W:
-              regenerate_index (derived) + append_log
-            </div>
+sequenceDiagram
+    participant CLI as CLI
+    participant A as Ingest Agent
+    participant R as raw/
+    participant M as match_page (deterministic)
+    participant W as wiki/
+    CLI->>A: ingest path-or-text
+    A->>R: read_source (MarkItDown)
+    A->>A: submit_extraction → Entity / Concept / Contradiction JSON (pure, no writes)
+    loop each extracted name
+        A->>M: match_page_tool(name, page_type)
+        alt exact or similar
+            M-->>A: decision — update existing page
+            A->>W: update_page
+        else none
+            M-->>A: decision — no existing page
+            A->>W: create_page
+        else conflict
+            M-->>A: decision — multiple candidates
+            A->>W: flag_contradiction (HITL: approve / edit / reject)
+        end
+    end
+    A->>W: update ## Related links on touched pages
+    A->>W: write sources/&lt;slug&gt;.md summary page
+    A->>W: regenerate_index (derived) + append_log
+          </div>
             <figcaption>
               Figure 3 — Ingest sequence: extraction is submitted as pure
               structured JSON; matching is deterministic; only the
@@ -952,18 +1256,17 @@
           </p>
           <figure>
             <div class="mermaid">
-              flowchart LR Q["question"] --> S["wiki_search — BM25, k=8, link
-              expansion<br />records navigated slugs"] S --> R["wiki_read_page
-              on hits<br />records navigated slugs"] R --> N{"need more
-              context?"} N -- yes --> R N -- no --> A["model writes the final
-              answer with inline [[Page]] links"] A --> E["build_final_answer
-              — auto-synthesizes QueryAnswer:<br />answer + citations
-              extracted from the links"] E --> V{"NavCapture gate — was each
-              cited slug<br />navigated this turn?"} V -- "slug never
-              navigated" --> DROP["citation dropped (cite-or-die)"] V -- "all
-              cited slugs visited" --> OUT["render Answer + Confidence +
-              Citations"]
-            </div>
+flowchart LR
+    Q["question"] --> S["wiki_search — BM25, k=8, link expansion<br/>records navigated slugs"]
+    S --> R["wiki_read_page on hits<br/>records navigated slugs"]
+    R --> N{"need more context?"}
+    N -- yes --> R
+    N -- no --> A["model writes the final answer with inline [[Page]] links"]
+    A --> E["build_final_answer — auto-synthesizes QueryAnswer:<br/>answer + citations extracted from the links"]
+    E --> V{"NavCapture gate — was each cited slug<br/>navigated this turn?"}
+    V -- "slug never navigated" --> DROP["citation dropped (cite-or-die)"]
+    V -- "all cited slugs visited" --> OUT["render Answer + Confidence + Citations"]
+          </div>
             <figcaption>
               Figure 4 — Query flow with cite-or-die: navigation is recorded
               into a fresh per-invocation NavCapture; the answer is built from
@@ -1003,22 +1306,30 @@
           <h4>Tools</h4>
           <p class="tool-list">
             <code>run_health_check</code> <code>wiki_link_graph</code>
-            <code>wiki_read_page</code>
+            <code>wiki_read_page</code> <code>wiki_scan</code>
             <code>write_lint_report</code>
           </p>
           <figure>
             <div class="mermaid">
-              flowchart TB subgraph DET["Deterministic — run_health_check (0
-              LLM calls)"] K1["orphan — high"] K2["missing-index — high"]
-              K3["broken-link — high"] K4["missing-frontmatter — critical"]
-              K5["missing-related — medium"] K6["empty — high"] K7["stale —
-              medium"] end subgraph SEM["LLM part — semantic judgment"]
-              AG["Lint agent reviews wiki_scan previews<br />+ wiki_link_graph
-              context"] DUP["duplicate coverage detection"] BUD["hard budget:
-              ≤3 wiki_read_page calls"] end DET --> RP["LintReport (structured
-              issues)"] SEM --> RP RP --> WR["write_lint_report →
-              wiki/lint-report-YYYY-MM-DD.md"]
-            </div>
+flowchart TB
+    subgraph DET["Deterministic — run_health_check (0 LLM calls)"]
+        K1["orphan — high"]
+        K2["missing-index — high"]
+        K3["broken-link — high"]
+        K4["missing-frontmatter — critical"]
+        K5["missing-related — medium"]
+        K6["empty — high"]
+        K7["stale — medium"]
+    end
+    subgraph SEM["LLM part — semantic judgment"]
+        AG["Lint agent reviews wiki_scan previews<br/>+ wiki_link_graph context"]
+        DUP["duplicate coverage detection"]
+        BUD["hard budget: ≤3 wiki_read_page calls"]
+    end
+    DET --> RP["LintReport (structured issues)"]
+    SEM --> RP
+    RP --> WR["write_lint_report → wiki/lint-report-YYYY-MM-DD.md"]
+          </div>
             <figcaption>
               Figure 5 — Lint pipeline: seven deterministic issue kinds feed a
               structured LintReport; the agent contributes only semantic
@@ -1046,19 +1357,21 @@
             <code>wiki_read_page</code> <code>edit_wiki_page</code>
             <code>add_frontmatter</code> <code>fix_link</code>
             <code>append_related_section</code> <code>regenerate_index</code>
-            <code>delete_wiki_page</code>
+            <code>delete_wiki_page</code> <code>wiki_link_graph</code>
           </p>
           <figure>
             <div class="mermaid">
-              flowchart LR CLI["agentic-rag fix latest"] --> HC["health_check
-              — 0 LLM"] HC --> MSG["one line per issue — [kind] slug: detail"]
-              MSG --> AG["Fix Agent"] AG -- "missing-frontmatter" -->
-              T1["add_frontmatter"] AG -- "broken-link" --> T2["fix_link"] AG
-              -- "missing-related" --> T3["append_related_section"] AG --
-              "missing-index" --> T4["regenerate_index"] AG -- "orphan / empty
-              / stale" --> RPT["report only — needs human judgment"] AG --
-              "delete_wiki_page" --> HT["HITL — human approval required"]
-            </div>
+flowchart LR
+    CLI["agentic-rag fix latest"] --> HC["health_check — 0 LLM"]
+    HC --> MSG["one line per issue — [kind] slug: detail"]
+    MSG --> AG["Fix Agent"]
+    AG -- "missing-frontmatter" --> T1["add_frontmatter"]
+    AG -- "broken-link" --> T2["fix_link"]
+    AG -- "missing-related" --> T3["append_related_section"]
+    AG -- "missing-index" --> T4["regenerate_index"]
+    AG -- "orphan / empty / stale" --> RPT["report only — needs human judgment"]
+    AG -- "delete_wiki_page" --> HT["HITL — human approval required"]
+          </div>
             <figcaption>
               Figure 6 — Fix flow: the CLI runs the deterministic health
               check, and the agent maps each issue kind to exactly one tool.
@@ -1153,7 +1466,7 @@
                 <td><code>wiki_scan</code></td>
                 <td>●</td>
                 <td></td>
-                <td></td>
+                <td>●</td>
                 <td></td>
                 <td>
                   Full-picture previews: first-section text, inbound/outbound
@@ -1165,7 +1478,7 @@
                 <td>●</td>
                 <td></td>
                 <td>●</td>
-                <td></td>
+                <td>●</td>
                 <td>
                   All pages with inbound/outbound links + orphan summary.
                 </td>
@@ -1573,7 +1886,7 @@
 
           <div class="note">
             <strong>Codebase Unit Test Baseline (<code>tests/unit/</code>):</strong>
-            25 files containing 320+ fast, offline unit tests that cover pure
+            26 files containing 307 fast, offline unit tests that cover pure
             Python components in isolation — including MarkItDown source
             loaders, markdown parsers, index/log file managers, individual
             tool implementations, middleware logic, token trackers, and
@@ -1827,7 +2140,7 @@
           </p>
 
           <h3 id="s10-4">Running the Test Suites</h3>
-          <pre><code># 1. Run the codebase unit test baseline (25 files, 320+ tests)
+          <pre><code># 1. Run the codebase unit test baseline (26 files, 307 tests)
 uv run pytest tests/unit/ -q
 
 # 2. Run the full agent evaluation suite (real-LLM tests auto-skip if OPENAI_API_KEY is unset)
@@ -1978,6 +2291,427 @@ uv run pytest tests/levels/level3 -q   # Level 3: RAG Answer Quality &amp; DeepE
           </table>
         </section>
 
+        <!-- ============ 12. Design decisions & tradeoffs ============ -->
+        <section class="card" id="s12">
+          <h2>12. Design decisions &amp; tradeoffs</h2>
+          <p>
+            Interviewers probe <em>why</em> more than <em>what</em>. These are the decisions
+            that define the system — the alternative considered and the reasoning that picked
+            the current design:
+          </p>
+          <table>
+            <thead>
+              <tr><th>Decision</th><th>Alternative considered</th><th>Why this one</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>The wiki is the artifact</strong> — sources compiled once into interlinked pages</td>
+                <td>Classic vector-store chunks re-retrieved on every query</td>
+                <td>Knowledge compounds instead of being re-derived; contradictions are caught once at ingest; queries read a small curated graph instead of raw text.</td>
+              </tr>
+              <tr>
+                <td><strong>Four scoped agents</strong>, minimum tools each</td>
+                <td>One "god-agent" holding every tool</td>
+                <td>Least privilege: the union of all permissions is the worst security posture for an LLM. A misbehaving query agent structurally cannot write.</td>
+              </tr>
+              <tr>
+                <td><strong>Deterministic <code>match_page</code></strong> (create / update / conflict)</td>
+                <td>Let the LLM judge whether names match</td>
+                <td>Structural decisions should be pure functions: testable, stable, and impossible to hallucinate. LLM judgment is reserved for extraction and semantics.</td>
+              </tr>
+              <tr>
+                <td><strong>No finalization tool</strong> — the answer is built from the model's message</td>
+                <td>A <code>submit_answer</code> structured-output tool</td>
+                <td>If the tool doesn't exist, the agent structurally cannot cite a page it never navigated. Honesty by construction, not by prompting.</td>
+              </tr>
+              <tr>
+                <td><strong>HITL as middleware interrupts</strong> (<code>Command(resume=…)</code>)</td>
+                <td>A separate approval API / pending-actions database</td>
+                <td>Reuses LangGraph's interrupt/resume; the same payload drives the CLI and the Streamlit UI — one flow, two frontends.</td>
+              </tr>
+              <tr>
+                <td><strong>Filesystem wiki</strong> (markdown + YAML frontmatter)</td>
+                <td>SQLite / vector DB as the knowledge store</td>
+                <td>Git-diffable, human-readable, no migrations, and atomic rename for free. The LLM writes normal markdown — nothing to serialize or re-embed.</td>
+              </tr>
+              <tr>
+                <td><strong>BM25 + bounded link expansion</strong></td>
+                <td>Embedding retrieval</td>
+                <td>Deterministic, offline, zero cost, no index drift. The curated wiki is small and dense; embeddings add a model dependency for marginal recall.</td>
+              </tr>
+              <tr>
+                <td><strong>Pydantic extraction boundary</strong> (<code>submit_extraction</code>)</td>
+                <td>Free-form ingest writes</td>
+                <td>Forces a validated Entity / Concept / Contradiction contract before any page write — schema-checked, testable, and well-typed input for match decisions.</td>
+              </tr>
+              <tr>
+                <td><strong>Streamlit in-process UI</strong></td>
+                <td>FastAPI microservice + separate frontend</td>
+                <td>Fastest path to a real UI that drives the <em>same</em> agents (the middleware's async hooks exist precisely for <code>astream()</code>). Honest tradeoff: single-process, not built for concurrent scale.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="note">
+            <strong>How to use this table:</strong> don't memorize it — practice the
+            "alternative → why not" shape. Interviewers reward it because it shows you
+            evaluated options rather than stumbled into a design.
+          </div>
+        </section>
+
+        <!-- ============ 13. Interview Q&A ============ -->
+        <section class="card" id="s13">
+          <h2>13. Interview Q&amp;A — what you'll actually be asked</h2>
+          <p>
+            Click a question to reveal a model answer built from this project's real code.
+            Treat each answer as a <em>shape</em> to adapt, not a script to recite. Use
+            "Expand all" to read a group straight through.
+          </p>
+
+          <h3 class="qa-group-title">Architecture &amp; motivation</h3>
+          <div id="qa-arch">
+            <button class="expand-all" type="button" data-target="#qa-arch">Expand all</button>
+            <details class="qa">
+              <summary><span class="qa-tag t-arch">architecture</span>Why build an agentic RAG instead of classic chunk-based RAG?</summary>
+              <div class="qa-body">
+                <p>
+                  Classic RAG re-embeds and re-retrieves raw chunks on every query: nothing is
+                  learned between queries, cross-document contradictions resurface constantly,
+                  and answer quality depends on chunk layout. This project inverts that — a source
+                  is ingested <em>once</em> into a curated, interlinked wiki of entities, concepts,
+                  and source summaries; queries become small navigations over that graph and only
+                  synthesis is per-query. The tradeoff is ingest latency and complexity: you pay
+                  more up front for better answers and a knowledge base that compounds.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-arch">architecture</span>Why four separate agents instead of one?</summary>
+              <div class="qa-body">
+                <p>
+                  Ingest, query, lint, and fix are different <em>kinds</em> of work with different
+                  permissions, budgets, and outputs. One agent holding every tool would need the
+                  union of all permissions — the worst security posture for an LLM. Instead each
+                  agent is assembled with the minimum tool surface for its job: query gets exactly
+                  three read-only tools, fix has no shell and only wiki tools, lint can only write
+                  its report. Scope-per-agent turns "the model might misbehave" into a bounded problem.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-arch">architecture</span>What problem does the persistent wiki solve that chunk-based RAG doesn't?</summary>
+              <div class="qa-body">
+                <p>
+                  Three things. <strong>Compounding knowledge</strong>: pages update and links grow, so
+                  the wiki gets better instead of just bigger. <strong>Contradictions</strong>: conflicting
+                  claims are detected at ingest and flagged for a human, instead of resurfacing in every
+                  answer. <strong>Cost per query</strong>: retrieval-and-understanding happens once at
+                  ingest; queries run a deterministic BM25 search over curated pages, not an embedding
+                  lookup over raw text.
+                </p>
+              </div>
+            </details>
+          </div>
+
+          <h3 class="qa-group-title">Agents &amp; LangChain mechanics</h3>
+          <div id="qa-agents">
+            <button class="expand-all" type="button" data-target="#qa-agents">Expand all</button>
+            <details class="qa">
+              <summary><span class="qa-tag t-ops">langchain</span>Walk me through how a query goes from question to grounded answer.</summary>
+              <div class="qa-body">
+                <p>
+                  The CLI builds the query agent with a fresh <code>NavCapture</code> — a per-invocation
+                  record of slugs actually navigated. The agent calls <code>wiki_search</code> (BM25,
+                  k=8, with bounded link expansion), then <code>wiki_read_page</code> on the hits; each
+                  call records the slug. It writes its final answer as a plain message with inline
+                  <code>[[Page]]</code> links. <code>build_final_answer</code> extracts those links as
+                  citations and <code>validate_citations</code> drops any whose slug is not in the
+                  NavCapture. Confidence is inferred, not claimed: <span class="badge b-green">high</span>
+                  when navigated pages are cited, <span class="badge b-amber">medium</span> when pages were
+                  navigated but none cited, <span class="badge b-red">low</span> when nothing was navigated.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-ops">langchain</span>What is <code>create_agent()</code> and why does it fit here?</summary>
+              <div class="qa-body">
+                <p>
+                  <code>create_agent()</code> is LangChain's v1.x API for building a compiled LangGraph
+                  agent: model + tools + system prompt + middleware + checkpointer. It gives us the
+                  standard model/tool loop with middleware hooks (<code>wrap_tool_call</code>,
+                  <code>before_model</code>/<code>after_model</code>) and LangGraph's interrupt/resume for
+                  HITL. Our factory wraps it so every agent gets the same three always-on middlewares
+                  (audit logging, path guard, token capture) plus agent-specific HITL, a
+                  <code>MemorySaver</code> checkpointer, and an attached token tracker.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-safe">safety</span>How do you stop the model from hallucinating citations?</summary>
+              <div class="qa-body">
+                <p>
+                  By construction, not by prompting. There is <strong>no finalization tool</strong> — the
+                  <code>QueryAnswer</code> is built from the model's own final message by
+                  <code>build_final_answer</code>. Citations are inline <code>[[Page]]</code> links, and
+                  <code>validate_citations</code> drops any whose slug is absent from the turn's
+                  <code>NavCapture</code>, which only <code>wiki_search</code> and
+                  <code>wiki_read_page</code> populate. It is therefore structurally impossible to cite a
+                  page the agent did not actually read this turn. The prompt also tells it to say clearly
+                  when the wiki doesn't cover the question.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-ops">langchain</span>What middleware does every agent run, and in what order?</summary>
+              <div class="qa-body">
+                <p>
+                  <code>audit_logging_middleware</code> logs every tool call (name, args, result, duration);
+                  <code>path_guard_middleware</code> rejects <code>raw/</code>, absolute, and <code>..</code>
+                  paths on write tools; <code>token_capture_middleware</code> is an <code>@after_model</code>
+                  hook that reads <code>token_usage</code> from each response onto a session
+                  <code>TokenTracker</code>. Agent-specific HITL goes last. Both sync
+                  (<code>invoke</code>/<code>stream</code>) and async (<code>astream</code>) hooks are
+                  implemented, so one middleware set serves the CLI and the Streamlit UI.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-safe">safety</span>How does human-in-the-loop work under the hood?</summary>
+              <div class="qa-body">
+                <p>
+                  <code>HumanInTheLoopMiddleware</code> wraps tool calls and interrupts the run before a
+                  dangerous tool executes. The result carries <code>__interrupt__</code> with pending
+                  <code>action_requests</code>; the caller resumes with a LangGraph
+                  <code>Command(resume={"decisions": [{"type": "approve"}]})</code>. The CLI prompts
+                  approve/edit/reject; the Streamlit UI builds the identical payload in
+                  <code>agent_driver.build_decisions</code>. Ingest interrupts on
+                  <code>delete_wiki_page</code> and <code>flag_contradiction</code> (approve/edit/reject);
+                  lint and fix on <code>delete_wiki_page</code> only.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-safe">safety</span>How can an LLM write files without breaking the system?</summary>
+              <div class="qa-body">
+                <p>
+                  Three layers. First, disk is only reachable through 20 scoped tools with Pydantic
+                  schemas. Second, <code>path_guard_middleware</code> rejects any write-tool argument
+                  containing <code>raw/</code>, starting with <code>/</code>, or containing <code>..</code>;
+                  <code>read_source</code> is the only exempt tool because it legitimately reads raw
+                  sources. Third, <code>io/wiki_io.py</code> writes atomically (temp file + rename) and
+                  validates slugs, and <code>index.md</code> is a derived view rebuilt by
+                  <code>regenerate_index</code> — so a torn or inconsistent write can't corrupt canonical state.
+                </p>
+              </div>
+            </details>
+          </div>
+
+          <h3 class="qa-group-title">Determinism &amp; the decision layer</h3>
+          <div id="qa-det">
+            <button class="expand-all" type="button" data-target="#qa-det">Expand all</button>
+            <details class="qa">
+              <summary><span class="qa-tag t-arch">design</span>Why is most of the system deterministic — zero LLM calls?</summary>
+              <div class="qa-body">
+                <p>
+                  Structural decisions should not be probabilistic. Matching an extracted name to an
+                  existing page (<code>match_page</code>), auditing wiki health (7 issue kinds), rebuilding
+                  the index, and parsing the log are all pure Python with stable ordering — testable
+                  offline in milliseconds. The LLM contributes only what needs judgment: extraction,
+                  duplicate-coverage semantics, and wording. "Deterministic core, LLM judgment at the
+                  edges" is what makes the system testable without a network or a model.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-arch">design</span>How does ingest decide create vs update vs conflict?</summary>
+              <div class="qa-body">
+                <p>
+                  <code>match_page</code> is a pure function. If <code>slugify(name)</code> is an existing
+                  slug or the unique basename of one → <code>exact</code>, update. Otherwise it runs BM25
+                  with k=5 filtered to the page type and counts only <em>direct</em> hits
+                  (<code>matched_via ≠ "expand-link"</code>): 0 → <code>none</code>, create; 1 →
+                  <code>similar</code>, update; ≥2 → <code>conflict</code>, flag for a human. No score
+                  thresholds — the rule is structural, so it's deterministic and unit-testable.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-arch">design</span>What is the extraction boundary and why does it exist?</summary>
+              <div class="qa-body">
+                <p>
+                  <code>submit_extraction</code> validates an <code>ExtractionResult</code> of entities,
+                  concepts, and contradictions and returns it as JSON — <strong>no writes happen</strong>.
+                  It forces a structured, schema-checked contract between the model's understanding and
+                  the wiki's pages before any create/update. That makes the ingest trajectory testable,
+                  gives match decisions well-typed input, and keeps the model from improvising page
+                  structures.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-arch">design</span>How do you keep <code>index.md</code> from drifting from the pages?</summary>
+              <div class="qa-body">
+                <p>
+                  It's a <em>derived view</em>: <code>regenerate_index</code> rebuilds it wholesale from the
+                  in-memory <code>Wiki</code> model. The ingest prompt explicitly forbids calling an
+                  <code>update_index</code> tool — the agent ends with
+                  <code>regenerate_index</code> + <code>append_log</code>. Because nothing hand-edits it,
+                  drift is structurally impossible.
+                </p>
+              </div>
+            </details>
+          </div>
+
+          <h3 class="qa-group-title">Evaluation</h3>
+          <div id="qa-eval">
+            <button class="expand-all" type="button" data-target="#qa-eval">Expand all</button>
+            <details class="qa">
+              <summary><span class="qa-tag t-eval">testing</span>How do you test an agent when the model is nondeterministic?</summary>
+              <div class="qa-body">
+                <p>
+                  Three tiers. <strong>Level 1</strong> is 0-LLM: schema conformance, link integrity, the
+                  path-guard matrix (7 write tools × 5 attack patterns), and DAG contract validation.
+                  <strong>Level 2</strong> uses a <code>ScriptedChatModel</code> — a fixture that replays a
+                  predetermined tool-call script — to assert causal order, turn caps (query ≤ 5, lint ≤ 7,
+                  fix ≤ 8, ingest ≤ 15), disk-state consistency, and headless HITL resume. <strong>Level 3</strong>
+                  runs the real model on curated eval questions and scores answers with DeepEval
+                  LLM-as-judge metrics. Real-LLM tiers auto-skip without an API key, so CI stays green offline.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-eval">testing</span>What LLM-as-judge metrics do you use and why those?</summary>
+              <div class="qa-body">
+                <p>
+                  <code>Faithfulness</code> — the answer is entailed by the retrieved context (our cite-or-die
+                  gate makes fabricated answers structurally unlikely). <code>AnswerRelevancy</code> — the
+                  answer actually addresses the question. <code>ContextualRecall</code> — the gold answer's
+                  key claims appear in the context, i.e. the pages the agent navigated. Floors: 0.80 / 0.70 /
+                  0.80, plus a citation-rate floor of 0.80. Each metric has anchor-separation tests — a
+                  grounded answer must score ≥ 0.7 while a fabricated one ≤ 0.4 — proving the judge
+                  discriminates. The judge runs through an OpenAI-compatible proxy with a
+                  <code>json_schema → json_object</code> shim.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-eval">testing</span>How do you test human-in-the-loop flows without a human?</summary>
+              <div class="qa-body">
+                <p>
+                  <code>resume_auto()</code> in <code>tests/fixtures/eval_hitl.py</code> resumes every
+                  interrupt programmatically, so no CLI <code>input()</code> ever blocks in CI. Level 3's
+                  contradiction test exercises all three resume variants — <code>approve</code>,
+                  <code>reject</code>, <code>edit</code> — and asserts the merged wording in the resulting
+                  disk artifacts.
+                </p>
+              </div>
+            </details>
+          </div>
+
+          <h3 class="qa-group-title">Production concerns</h3>
+          <div id="qa-prod">
+            <button class="expand-all" type="button" data-target="#qa-prod">Expand all</button>
+            <details class="qa">
+              <summary><span class="qa-tag t-ops">ops</span>How do you manage token cost?</summary>
+              <div class="qa-body">
+                <p>
+                  Every agent carries a <code>TokenTracker</code>; <code>token_capture_middleware</code>
+                  records usage per response so the CLI logs summaries. When the base URL is the OpenCode Go
+                  gateway, requests are instrumented for prompt caching: a stable per-agent cache key
+                  (<code>wiki-query</code>, <code>wiki-ingest</code>, …), 24h retention,
+                  <code>cache_control</code> breakpoints on the system prompt and last messages, and a session
+                  header. Cache reads are 5–120× cheaper than input tokens on that gateway. Providers whose
+                  API rejects <code>cache_control</code> markers are skipped automatically.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-ops">ops</span>What would you change to scale this to many users?</summary>
+              <div class="qa-body">
+                <p>
+                  Honest answer: the architecture is deliberately single-user-friendly — a filesystem wiki,
+                  in-process agents, a fresh <code>MemorySaver</code> per invocation. To scale, I'd move the
+                  wiki to a database or object store keeping the same derived-index discipline, expose the
+                  agents as a stateless service behind a queue (the middlewares already provide async hooks),
+                  and leave cite-or-die and the deterministic core unchanged — those are the load-bearing
+                  ideas, and they don't depend on the storage backend.
+                </p>
+              </div>
+            </details>
+            <details class="qa">
+              <summary><span class="qa-tag t-arch">design</span>What separates this from a naive "LLM + tools" demo?</summary>
+              <div class="qa-body">
+                <p>
+                  Three things: the <strong>deterministic engine</strong> under the agents (match, search,
+                  health, index are not LLM-judged); the <strong>enforcement of honesty and safety in
+                  code</strong> (cite-or-die, path guard, atomic writes, HITL interrupts); and the
+                  <strong>evaluation pyramid</strong> (scripted trajectories, turn caps, and LLM-as-judge
+                  metrics with pinned floors). A demo stops at "the model called a tool"; this project puts
+                  the engineering in the boundaries around the agent.
+                </p>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <!-- ============ 14. Self-check quiz ============ -->
+        <section class="card" id="s14">
+          <h2>14. Self-check quiz</h2>
+          <p>
+            Test yourself the way an interviewer would — recall first, then reveal. If you
+            can answer these from memory, you know the project.
+          </p>
+          <div class="quiz-item">
+            <p class="quiz-q">1. How many tools does each agent get?</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> ingest 12 · query 3 (all read-only) · lint 5 · fix 8.</p></div>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q">2. Which agents can write pages?</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> ingest and fix. Lint writes only its report; query is read-only.</p></div>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q">3. What happens to a citation whose slug was never navigated this turn?</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> It's dropped by <code>validate_citations</code> against the turn's <code>NavCapture</code> — cite-or-die.</p></div>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q">4. Name the always-on middlewares in order.</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> audit_logging → path_guard → token_capture, with agent-specific HITL appended last.</p></div>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q">5. Which operations always pause for human approval?</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> <code>delete_wiki_page</code> everywhere it exists; <code>flag_contradiction</code> in ingest (approve / edit / reject).</p></div>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q">6. What are the recursion limits?</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> 30 for query (config default); 200 for ingest, which legitimately spans many create/update super-steps.</p></div>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q">7. Where does the query confidence score come from?</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> Navigation + citation state, not the model's claim: high if navigated pages are cited, medium if navigated but none cited, low if nothing was navigated.</p></div>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q">8. Which agent has no shell tool and can only act through wiki tools?</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> fix — its kind→tool map is pinned (<code>missing-frontmatter</code> → <code>add_frontmatter</code>, …).</p></div>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q">9. How is <code>index.md</code> updated?</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> Never hand-edited — <code>regenerate_index</code> rebuilds it as a derived view; the ingest prompt forbids an <code>update_index</code> tool.</p></div>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q">10. What does the path guard reject?</p>
+            <button class="btn-quiz" type="button">Show answer</button>
+            <div class="quiz-reveal"><p><strong>Answer:</strong> Any write-tool argument containing <code>raw/</code>, starting with <code>/</code>, or containing <code>..</code>. <code>read_source</code> is exempt.</p></div>
+          </div>
+        </section>
+
         <footer>
           Agentic RAG · agent layer documentation · code references verified
           against
@@ -2029,6 +2763,65 @@ uv run pytest tests/levels/level3 -q   # Level 3: RAG Answer Quality &amp; DeepE
       },
       securityLevel: "loose",
     });
+  </script>
+  <script>
+    // Scroll progress bar + back-to-top
+    const progress = document.getElementById("progress");
+    const toTop = document.getElementById("toTop");
+    const onScroll = () => {
+      const h = document.documentElement;
+      const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+      if (progress) progress.style.width = pct + "%";
+      if (toTop) toTop.classList.toggle("show", h.scrollTop > 600);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    if (toTop) toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+
+    // Expand / collapse all Q&A within a group
+    document.querySelectorAll(".expand-all").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const group = document.querySelector(btn.dataset.target);
+        if (!group) return;
+        const all = group.querySelectorAll("details.qa");
+        const anyClosed = Array.from(all).some((d) => !d.open);
+        all.forEach((d) => (d.open = anyClosed));
+        btn.textContent = anyClosed ? "Collapse all" : "Expand all";
+      });
+    });
+
+    // Quiz reveal
+    document.querySelectorAll(".quiz-item .btn-quiz").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const item = btn.closest(".quiz-item");
+        item.classList.toggle("show");
+        btn.textContent = item.classList.contains("show") ? "Hide answer" : "Show answer";
+      });
+    });
+
+    // Active TOC highlight
+    const tocLinks = document.querySelectorAll('nav.toc a[href^="#"]');
+    if (tocLinks.length && "IntersectionObserver" in window) {
+      const map = new Map();
+      tocLinks.forEach((a) => {
+        const el = document.getElementById(a.getAttribute("href").slice(1));
+        if (el) map.set(el, a);
+      });
+      const obs = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            const link = map.get(e.target);
+            if (!link) return;
+            if (e.isIntersecting) {
+              tocLinks.forEach((l) => l.style.removeProperty("color"));
+              link.style.color = "var(--accent)";
+            }
+          });
+        },
+        { rootMargin: "-20% 0px -70% 0px" }
+      );
+      map.forEach((_, el) => obs.observe(el));
+    }
   </script>
   <noscript>
     <p style="text-align: center; color: #94a3b8">

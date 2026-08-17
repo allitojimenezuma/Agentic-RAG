@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agentic RAG — The Wiki Engine</title>
+<title>Agentic RAG — The Wiki Engine · Interview Guide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -207,6 +207,226 @@
   .tool-list { font-size: .9rem; }
   .tool-list code { display: inline-block; margin: 2px 3px 2px 0; }
   footer { text-align: center; color: var(--muted); font-size: .82rem; margin-top: 30px; }
+  /* ---- interview prep components ---- */
+  #progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--good));
+    z-index: 100;
+  }
+  .to-top {
+    position: fixed;
+    bottom: 22px;
+    right: 22px;
+    z-index: 99;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 1.1rem;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+  }
+  .to-top.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin: 18px 0 4px;
+  }
+  .kpi {
+    background: #0e1728;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .kpi .kpi-num {
+    display: block;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1.2;
+  }
+  .kpi .kpi-label {
+    display: block;
+    margin-top: 6px;
+    font-size: .7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .kpi .kpi-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: .72rem;
+    color: var(--muted);
+  }
+  .pitch {
+    background:
+      linear-gradient(180deg, rgba(45, 212, 191, .07), rgba(45, 212, 191, 0) 60%),
+      var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--good);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 22px;
+    margin-bottom: 14px;
+  }
+  .pitch h2 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    border: none;
+    padding: 0;
+  }
+  .pitch p {
+    font-size: .95rem;
+    margin: 6px 0;
+  }
+  details.qa {
+    background: #0e1728;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 10px 0;
+    overflow: hidden;
+  }
+  details.qa > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 12px 16px;
+    font-weight: 600;
+    color: #dbe7ff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    font-size: .95rem;
+  }
+  details.qa > summary::-webkit-details-marker {
+    display: none;
+  }
+  details.qa > summary::after {
+    content: "▾";
+    color: var(--accent);
+    font-size: .8rem;
+    flex-shrink: 0;
+    transition: transform .15s ease;
+  }
+  details.qa[open] > summary::after {
+    transform: rotate(180deg);
+  }
+  details.qa > summary:hover {
+    background: var(--accent-soft);
+  }
+  details.qa .qa-body {
+    padding: 4px 16px 14px;
+    border-top: 1px solid var(--border);
+    font-size: .92rem;
+  }
+  details.qa .qa-body p {
+    margin: 8px 0;
+  }
+  .qa-group-title {
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin: 20px 0 6px;
+  }
+  .expand-all {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: .78rem;
+    font-weight: 600;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all .15s ease;
+  }
+  .expand-all:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .quiz-item {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #0e1728;
+    padding: 12px 16px;
+    margin: 10px 0;
+  }
+  .quiz-q {
+    font-weight: 600;
+    color: #dbe7ff;
+    font-size: .95rem;
+    margin: 0;
+  }
+  .quiz-reveal {
+    display: none;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    font-size: .9rem;
+  }
+  .quiz-item.show .quiz-reveal {
+    display: block;
+  }
+  .btn-quiz {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: .78rem;
+    font-weight: 600;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent-soft);
+    cursor: pointer;
+    transition: all .15s ease;
+  }
+  .btn-quiz:hover {
+    background: var(--accent-soft);
+  }
+  .qa-tag {
+    display: inline-block;
+    border-radius: 5px;
+    padding: 0 7px;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-right: 6px;
+    vertical-align: 1px;
+  }
+  .t-arch {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .t-safe {
+    background: #12332e;
+    color: #5eead4;
+  }
+  .t-eval {
+    background: #3a2c10;
+    color: #fcd34d;
+  }
+  .t-ops {
+    background: #3a1620;
+    color: #fca5a5;
+  }
+
   @media (max-width: 860px) {
     .layout { grid-template-columns: 1fr; }
     nav.toc { position: static; max-height: none; }
@@ -216,6 +436,8 @@
 </style>
 </head>
 <body>
+<div id="progress"></div>
+<button id="toTop" class="to-top" title="Back to top" type="button">↑</button>
 <div class="wrap">
   <header class="hero">
     <h1>The Wiki Engine — How the Code Manages the Wiki</h1>
@@ -234,6 +456,9 @@
       <span class="chip">BM25 + bounded link expansion</span>
       <span class="chip">7 health-check kinds</span>
       <span class="chip">atomic writes everywhere</span>
+      <span class="chip">no embeddings</span>
+      <span class="chip">pure functions, stable order</span>
+      <span class="chip">interview-ready guide ↓</span>
     </div>
   </header>
 
@@ -253,6 +478,29 @@
       <li><strong>Safety is in the IO layer.</strong> Every write is atomic (temp file + rename), slugs are validated against path traversal, and the agents' path-guard middleware can only write inside <code>wiki/</code>.</li>
     </ul>
   </section>
+
+  <!-- ============ Interview prep: pitch + key numbers ============ -->
+  <section class="pitch" id="pitch" aria-label="The 60-second pitch">
+    <h2>The 60-second pitch — the engine in one breath</h2>
+    <p>
+      <strong>"The part of the project that never talks to a model."</strong>
+      This is the deterministic Python layer that makes a folder of markdown files behave
+      like a wiki: it owns slugging, <code>[[link]]</code> resolution, BM25 search, the
+      create/update/conflict decision, the derived index, the append-only log, the health
+      audit, and atomic IO. Every function is pure and stably ordered — so the agents on
+      top are "LLM-flavored," but the engine itself is "LLM-proof": whatever the model
+      writes, the engine degrades gracefully and the health check reports the truth. That
+      split is the reason the whole system is testable offline in milliseconds.
+    </p>
+  </section>
+  <div class="kpi-strip" aria-label="Key numbers">
+    <div class="kpi"><span class="kpi-num">0</span><span class="kpi-label">LLM calls</span><span class="kpi-sub">the whole engine</span></div>
+    <div class="kpi"><span class="kpi-num">7</span><span class="kpi-label">health kinds</span><span class="kpi-sub">critical / high / medium</span></div>
+    <div class="kpi"><span class="kpi-num">k=8</span><span class="kpi-label">BM25 hits</span><span class="kpi-sub">+ bounded expansion</span></div>
+    <div class="kpi"><span class="kpi-num">0.1</span><span class="kpi-label">expansion score</span><span class="kpi-sub">direct hits always win</span></div>
+    <div class="kpi"><span class="kpi-num">~160</span><span class="kpi-label">summary chars</span><span class="kpi-sub">word-boundary truncation</span></div>
+    <div class="kpi"><span class="kpi-num">atomic</span><span class="kpi-label">writes</span><span class="kpi-sub">temp file + rename</span></div>
+  </div>
 
   <div class="layout">
     <nav class="toc">
@@ -274,6 +522,9 @@
         <li><a href="#s14">AGENTS.md — the schema as config</a></li>
         <li><a href="#s15">How the agents consume the engine</a></li>
         <li><a href="#s16">Testability</a></li>
+        <li><a href="#s17">Design decisions &amp; tradeoffs</a></li>
+        <li><a href="#s18">Interview Q&amp;A</a></li>
+        <li><a href="#s19">Self-check quiz</a></li>
       </ol>
     </nav>
 
@@ -888,6 +1139,285 @@ except BaseException:
         </p>
       </section>
 
+      <!-- ============ 17. Design decisions & tradeoffs ============ -->
+      <section class="card" id="s17">
+        <h2>17. Design decisions &amp; tradeoffs</h2>
+        <p>
+          The engine's value is in the choices it <em>didn't</em> make. Know these as
+          "alternative → why not":
+        </p>
+        <table>
+          <thead>
+            <tr><th>Decision</th><th>Alternative considered</th><th>Why this one</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Filesystem + frontmatter as source of truth</strong></td>
+              <td>Database or vector store</td>
+              <td>Diffable, inspectable, human-editable, no migrations; the index is derived so it can't drift from the pages.</td>
+            </tr>
+            <tr>
+              <td><strong>One canonical <code>Wiki</code> model</strong></td>
+              <td>Per-module parsers</td>
+              <td>Search, match, index, and health share a single parse — one set of semantics, one place to fix a parsing bug.</td>
+            </tr>
+            <tr>
+              <td><strong>BM25 + bounded link expansion</strong></td>
+              <td>Embedding similarity</td>
+              <td>Deterministic and offline; the curated wiki is small and dense; one-hop expansion adds graph context without a second retriever.</td>
+            </tr>
+            <tr>
+              <td><strong>3-step link resolution</strong> (exact → slugified → unicode)</td>
+              <td>Strict slug-only <code>[[links]]</code></td>
+              <td>Display names and accented titles resolve: <code>[[Málaga]]</code> reaches <code>entities/málaga.md</code>; raw targets that fail are flagged as broken links, not crashes.</td>
+            </tr>
+            <tr>
+              <td><strong>Synthesize missing frontmatter</strong></td>
+              <td>Crash / reject malformed pages</td>
+              <td>The engine survives the LLM's worst output — and the health check still truthfully reports <code>missing-frontmatter</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>Atomic temp-file + rename</strong></td>
+              <td>In-place writes</td>
+              <td>A crash leaves the old file or the new file, never a torn one; the same pattern covers the derived index.</td>
+            </tr>
+            <tr>
+              <td><strong><code>index.md</code> is a derived view</strong></td>
+              <td>Hand-maintained index</td>
+              <td>Cannot drift from pages; agents are forbidden from calling an <code>update_index</code> tool — rebuild is the only operation.</td>
+            </tr>
+            <tr>
+              <td><strong>Append-only, parseable log</strong></td>
+              <td>Free-form log</td>
+              <td>A machine-readable prefix lets <code>tail_log</code> slice entries and makes the log auditable.</td>
+            </tr>
+            <tr>
+              <td><strong>Relative staleness</strong> (90 days behind the newest page)</td>
+              <td>Wall-clock staleness</td>
+              <td>A dormant-but-consistent wiki doesn't flag everything stale; the reference point is the corpus itself.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ============ 18. Interview Q&A ============ -->
+      <section class="card" id="s18">
+        <h2>18. Interview Q&amp;A — the engine under the microscope</h2>
+        <p>
+          Click to reveal model answers grounded in the real code. These are the questions
+          that separate "used RAG" from "understands RAG."
+        </p>
+
+        <h3 class="qa-group-title">Identity &amp; retrieval</h3>
+        <div id="qa-ident">
+          <button class="expand-all" type="button" data-target="#qa-ident">Expand all</button>
+          <details class="qa">
+            <summary><span class="qa-tag t-arch">retrieval</span>How does a name become a page path?</summary>
+            <div class="qa-body">
+              <p>
+                <code>slugify()</code> normalizes it: NFKD → ASCII → lowercase → non-alphanumerics to
+                hyphens → collapse/strip hyphens (<code>"3D Gaussian Splatting"</code> →
+                <code>3d-gaussian-splatting</code>, <code>"Álvaro Jiménez"</code> →
+                <code>alvaro-jimenez</code>). <code>create_page</code> then auto-prefixes the type
+                directory (<code>concept</code> → <code>concepts/…</code>), and
+                <code>_validate_slug</code> rejects <code>..</code> and absolute paths before the atomic write.
+              </p>
+            </div>
+          </details>
+          <details class="qa">
+            <summary><span class="qa-tag t-arch">retrieval</span>Why BM25 and not embeddings?</summary>
+            <div class="qa-body">
+              <p>
+                Determinism and cost. BM25 scores are pure functions with stable ordering — testable
+                offline, zero API calls, and the index can't drift from the pages. The wiki is curated
+                and small, so lexical retrieval is sufficient; embeddings would add a model dependency
+                for marginal recall. Each hit also carries <code>matched_via</code> provenance
+                (<code>title</code> / <code>tags</code> / <code>section:&lt;h&gt;</code> / <code>body</code>)
+                that agents and <code>match_page</code> rely on — expansion hits are explicitly excluded
+                from match decisions.
+              </p>
+            </div>
+          </details>
+          <details class="qa">
+            <summary><span class="qa-tag t-arch">retrieval</span>How does bounded link expansion work?</summary>
+            <div class="qa-body">
+              <p>
+                Starting from the direct BM25 hits, a one-hop BFS walks resolved outbound links and adds
+                each target with a fixed <code>EXPAND_SCORE = 0.1</code> — at most 2 per source page and
+                k in total. Because the score is fixed and low, direct hits always outrank expansions.
+                It's bounded, deterministic, and gives the agent graph context without unbounded crawling.
+              </p>
+            </div>
+          </details>
+          <details class="qa">
+            <summary><span class="qa-tag t-arch">retrieval</span>Why can <code>[[Málaga]]</code> resolve to <code>entities/málaga.md</code>?</summary>
+            <div class="qa-body">
+              <p>
+                Link resolution is three steps: exact slug match in <code>by_slug</code> → slugified
+                basename or <code>endswith</code> match (so <code>[[MLX]]</code> finds
+                <code>entities/mlx</code>) → a unicode-preserving lowercase+hyphens fallback that keeps
+                accents (<code>[[Málaga]]</code> → <code>málaga</code>). Targets that resolve in none of
+                the three ways are dropped from outbound links and flagged as <code>broken-link</code> by
+                the health check.
+              </p>
+            </div>
+          </details>
+        </div>
+
+        <h3 class="qa-group-title">Consistency &amp; safety</h3>
+        <div id="qa-cons">
+          <button class="expand-all" type="button" data-target="#qa-cons">Expand all</button>
+          <details class="qa">
+            <summary><span class="qa-tag t-safe">safety</span>Why is <code>index.md</code> a derived view? What breaks if you hand-edit it?</summary>
+            <div class="qa-body">
+              <p>
+                Because it's the <em>output</em> of a pure function over the pages — if it were
+                maintained separately, it would drift from the pages and the model would waste calls
+                chasing inconsistencies. <code>regenerate_index</code> rebuilds it wholesale: pages are
+                grouped by type, summaries are distilled from first-section body text (~160 chars at a
+                word boundary), and <code>lint-report-*</code> pages are excluded. Hand-editing invites
+                drift; that's why the ingest prompt forbids an <code>update_index</code> tool outright.
+              </p>
+            </div>
+          </details>
+          <details class="qa">
+            <summary><span class="qa-tag t-safe">safety</span>What happens when the LLM writes a page with no frontmatter?</summary>
+            <div class="qa-body">
+              <p>
+                Loading never raises. <code>load_wiki</code> synthesizes a frontmatter: <code>type</code>
+                from the directory (<code>entities/</code> → <code>entity</code>), <code>title</code> from
+                the first H1 (or the slug basename), <code>updated</code> from the file's mtime. The
+                health check still flags <code>missing-frontmatter</code> as
+                <span class="badge b-red">critical</span> — graceful degradation, truthful reporting.
+              </p>
+            </div>
+          </details>
+          <details class="qa">
+            <summary><span class="qa-tag t-safe">safety</span>How are writes atomic?</summary>
+            <div class="qa-body">
+              <p>
+                Every page write goes through a temp file in the same directory
+                (<code>tempfile.mkstemp(dir=parent, suffix=".md.tmp")</code>) followed by
+                <code>Path.replace()</code>; on any exception the temp file is unlinked. A crash leaves
+                the old or the new file, never a torn one. <code>write_index</code> uses the same pattern
+                for <code>index.md</code>.
+              </p>
+            </div>
+          </details>
+          <details class="qa">
+            <summary><span class="qa-tag t-safe">safety</span>How is "stale" computed and why is that clever?</summary>
+            <div class="qa-body">
+              <p>
+                A page is <code>stale</code> when its <code>fm.updated</code> is more than 90 days older
+                than the <em>newest page's</em> date — not the wall clock. A wiki that simply hasn't
+                changed in a year doesn't flag everything as stale; only pages that fell behind the
+                corpus do.
+              </p>
+            </div>
+          </details>
+          <details class="qa">
+            <summary><span class="qa-tag t-safe">safety</span>What 7 things does the health check audit?</summary>
+            <div class="qa-body">
+              <p>
+                <code>missing-frontmatter</code> (critical); <code>orphan</code>,
+                <code>missing-index</code>, <code>broken-link</code>, <code>empty</code> (high);
+                <code>missing-related</code>, <code>stale</code> (medium). All computed from the
+                canonical model with zero LLM calls; issues sort by <code>(kind, slug)</code>, and
+                <code>lint-report-*</code> pages are excluded from the audit, from inbound-link
+                computation, and from orphan detection.
+              </p>
+            </div>
+          </details>
+          <details class="qa">
+            <summary><span class="qa-tag t-safe">safety</span>How does <code>match_page</code> avoid ambiguity?</summary>
+            <div class="qa-body">
+              <p>
+                <code>exact</code> requires <code>slugify(name)</code> to be a <code>by_slug</code> key
+                or the <em>unique</em> basename of a nested slug. An ambiguous basename deliberately
+                falls through to search — and when two or more direct hits surface, the decision is
+                <code>conflict</code>, flagging the name for a human instead of guessing.
+              </p>
+            </div>
+          </details>
+        </div>
+
+        <h3 class="qa-group-title">How it's tested</h3>
+        <div id="qa-test">
+          <button class="expand-all" type="button" data-target="#qa-test">Expand all</button>
+          <details class="qa">
+            <summary><span class="qa-tag t-eval">testing</span>How is this engine tested with no LLM at all?</summary>
+            <div class="qa-body">
+              <p>
+                Every engine function is pure, so unit tests cover the IO, parser, index, search, match,
+                and health modules directly. Level 1 adds schema conformance, link integrity, and the
+                path-guard security matrix; Level 2 drives the agents with scripted fake models that call
+                the <em>real</em> engine and assert on disk state (idempotent index regeneration,
+                parseable log entries, zero health issues after ingest). The eval corpora are copied to
+                temp dirs per test, so the committed fixtures stay immutable.
+              </p>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <!-- ============ 19. Self-check quiz ============ -->
+      <section class="card" id="s19">
+        <h2>19. Self-check quiz</h2>
+        <p>
+          Recall first, then reveal. If you can answer these from memory, you own this page.
+        </p>
+        <div class="quiz-item">
+          <p class="quiz-q">1. What does <code>slugify("Álvaro Jiménez")</code> produce?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> <code>alvaro-jimenez</code> — NFKD strips accents before lowercasing and hyphenating.</p></div>
+        </div>
+        <div class="quiz-item">
+          <p class="quiz-q">2. Which directory does a <code>concept</code> page live in?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> <code>concepts/&lt;slug&gt;.md</code>. Types map to directories; <code>overview</code> lives at the wiki root.</p></div>
+        </div>
+        <div class="quiz-item">
+          <p class="quiz-q">3. What is <code>EXPAND_SCORE</code> and why does it matter?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> 0.1 — the fixed low score for link-expansion hits, so direct BM25 hits always outrank them.</p></div>
+        </div>
+        <div class="quiz-item">
+          <p class="quiz-q">4. How many health-check kinds are there, and which is critical?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> 7; <code>missing-frontmatter</code> is critical. Orphan/missing-index/broken-link/empty are high; missing-related/stale are medium.</p></div>
+        </div>
+        <div class="quiz-item">
+          <p class="quiz-q">5. What is excluded from index regeneration and the health audit?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> <code>lint-report-*</code> pages — derived artifacts, not content.</p></div>
+        </div>
+        <div class="quiz-item">
+          <p class="quiz-q">6. What is the default BM25 <code>k</code> for <code>wiki_search</code>?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> 8 direct hits, with expansion capped at k total and ≤ 2 per source page.</p></div>
+        </div>
+        <div class="quiz-item">
+          <p class="quiz-q">7. What makes a page an <code>orphan</code>?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> Zero <em>resolved</em> inbound links from other content pages — orphans are defined on the resolved graph, never raw link text.</p></div>
+        </div>
+        <div class="quiz-item">
+          <p class="quiz-q">8. How is <code>stale</code> measured?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> <code>fm.updated</code> more than 90 days behind the newest page's date — relative to the corpus, not the clock.</p></div>
+        </div>
+        <div class="quiz-item">
+          <p class="quiz-q">9. What happens if a page has malformed or missing frontmatter?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> <code>load_wiki</code> synthesizes it (type from directory, title from H1/basename, updated from mtime) — loading never raises.</p></div>
+        </div>
+        <div class="quiz-item">
+          <p class="quiz-q">10. Why can the index never drift from the pages?</p>
+          <button class="btn-quiz" type="button">Show answer</button>
+          <div class="quiz-reveal"><p><strong>Answer:</strong> It's a derived view rebuilt by <code>regenerate_index</code>; no agent has an <code>update_index</code> tool, and all writes are atomic.</p></div>
+        </div>
+      </section>
+
       <footer>
         Agentic RAG · the deterministic wiki engine · code references verified against
         <code>src/agentic_rag</code> · agent layer documented in
@@ -935,6 +1465,65 @@ except BaseException:
     },
     securityLevel: 'loose'
   });
+</script>
+<script>
+  // Scroll progress bar + back-to-top
+  const progress = document.getElementById("progress");
+  const toTop = document.getElementById("toTop");
+  const onScroll = () => {
+    const h = document.documentElement;
+    const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+    if (progress) progress.style.width = pct + "%";
+    if (toTop) toTop.classList.toggle("show", h.scrollTop > 600);
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+  if (toTop) toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+
+  // Expand / collapse all Q&A within a group
+  document.querySelectorAll(".expand-all").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const group = document.querySelector(btn.dataset.target);
+      if (!group) return;
+      const all = group.querySelectorAll("details.qa");
+      const anyClosed = Array.from(all).some((d) => !d.open);
+      all.forEach((d) => (d.open = anyClosed));
+      btn.textContent = anyClosed ? "Collapse all" : "Expand all";
+    });
+  });
+
+  // Quiz reveal
+  document.querySelectorAll(".quiz-item .btn-quiz").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const item = btn.closest(".quiz-item");
+      item.classList.toggle("show");
+      btn.textContent = item.classList.contains("show") ? "Hide answer" : "Show answer";
+    });
+  });
+
+  // Active TOC highlight
+  const tocLinks = document.querySelectorAll('nav.toc a[href^="#"]');
+  if (tocLinks.length && "IntersectionObserver" in window) {
+    const map = new Map();
+    tocLinks.forEach((a) => {
+      const el = document.getElementById(a.getAttribute("href").slice(1));
+      if (el) map.set(el, a);
+    });
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          const link = map.get(e.target);
+          if (!link) return;
+          if (e.isIntersecting) {
+            tocLinks.forEach((l) => l.style.removeProperty("color"));
+            link.style.color = "var(--accent)";
+          }
+        });
+      },
+      { rootMargin: "-20% 0px -70% 0px" }
+    );
+    map.forEach((_, el) => obs.observe(el));
+  }
 </script>
 <noscript>
   <p style="text-align:center;color:#94a3b8;">JavaScript is disabled — Mermaid diagrams won't render, but all text content is readable.</p>

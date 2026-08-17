@@ -218,7 +218,7 @@ uv run streamlit run frontend/app.py
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (offline, fast — real-LLM tiers are deselected by default)
 uv run pytest
 
 # Run with verbose output
@@ -230,19 +230,23 @@ uv run pytest tests/integration/   # Scripted fake-model agent flows
 uv run pytest tests/levels/level1 -q   # Level 1: wiki schema, path guard, link integrity
 uv run pytest tests/levels/level2 -q   # Level 2: tool selection, schemas, efficiency, state + DAG trajectory
 uv run pytest tests/levels/level3 -q   # Level 3: recall@8 + calibrated faithfulness/relevancy judges, contradictions
-uv run pytest tests/levels/ -q    # Full levels suite (deterministic tiers; real-LLM tiers auto-skip)
-uv run pytest tests/acceptance/   # Acceptance tests (real LLM, requires OPENAI_API_KEY)
+uv run pytest tests/levels/ -q    # Full levels suite (deterministic tiers)
+
+# Run ONLY the real-LLM tiers (live agents + DeepEval judges — slow, costs tokens)
+uv run pytest -m requires_llm
 
 # Run with coverage
 uv run pytest --cov=agentic_rag --cov-report=html
 ```
 
-The real-LLM tiers (level2 trajectory acceptance + level3 judge calibration) auto-skip
-when `OPENAI_API_KEY` is unset; `tests/levels/conftest.py` loads the repo `.env` into the
-environment, so with your key in `.env` they run as part of the suite.
+The six real-LLM tests (level2 trajectory acceptance + level3 judge calibration) are
+**opt-in**: they are deselected by the default ``addopts -m 'not requires_llm'`` so a plain
+``pytest`` finishes in seconds. Run them with ``pytest -m requires_llm``; without an
+``OPENAI_API_KEY`` they skip (``tests/levels/conftest.py`` loads the repo ``.env`` into the
+environment, so with your key in ``.env`` they actually run).
 
-Current state: **524 passed / 2 skipped** (the 2 skipped are acceptance tests that need a
-live `OPENAI_API_KEY`; the levels real-LLM tiers ran because the key is in `.env`).
+Current state (headless): **512 passed** (unit 307, integration 28, levels 177) in ~5s; **6
+real-LLM tests opt-in** via ``pytest -m requires_llm``.
 
 ### Test Structure
 
@@ -259,18 +263,16 @@ tests/
 │   ├── test_fix_scripted.py
 │   ├── test_query_grounded.py
 │   └── test_cli.py
-├── levels/                # Layered agent-behavior suite (deterministic tiers; real-LLM tiers auto-skip)
+├── levels/                # Layered agent-behavior suite (deterministic tiers; real-LLM tiers opt-in)
 │   ├── level1/            # Wiki schema conformance, path-guard matrix, link integrity
 │   ├── level2/            # Tool selection, argument schemas, turn efficiency, state consistency,
 │   │                      #   DAG trajectory contract + real-LLM trajectory acceptance tier
 │   ├── level3/            # Recall@8 on curated/hard queries, calibrated faithfulness/relevancy
 │   │                      #   judges (real-LLM tier), contradiction handling
-│   ├── conftest.py        # Loads .env into os.environ so real-LLM tiers run with OPENAI_API_KEY
+│   ├── conftest.py        # Loads .env into os.environ; defines the requires_llm opt-in decorator
 │   └── test_corpus_selfcheck.py
-├── acceptance/            # Real LLM tests (requires API key; skipped by default)
-│   ├── test_wiki_health.py
-│   └── test_ingest_real_source.py
-└── fixtures/              # Test fixtures and FakeChatModel
+└── fixtures/              # Test fixtures, FakeChatModel, DeepEval judge helpers
+```
 ```
 
 ### Adding a New Tool

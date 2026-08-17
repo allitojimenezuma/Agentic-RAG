@@ -38,6 +38,12 @@ packages = ["src/agentic_rag"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Default `pytest` stays offline and fast: real-LLM tiers are opt-in via
+# `pytest -m requires_llm` (see tests/levels/conftest.py: requires_llm).
+addopts = "-m 'not requires_llm'"
+markers = [
+    "requires_llm: real-LLM tests (live agents + DeepEval judges); opt in with pytest -m requires_llm",
+]
 
 [dependency-groups]
 dev = [
