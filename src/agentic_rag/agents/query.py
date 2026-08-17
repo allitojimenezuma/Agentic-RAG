@@ -35,7 +35,7 @@ def build_query_agent(settings) -> object:
     wiki_index = get_index_summary(settings.wiki_path)
     tools = [wiki_search, wiki_read_page, wiki_summary]
     agent = build_agent(
-        model=get_model(settings, cache_key="wiki-query"),
+        model=get_model(settings),
         tools=tools,
         system_prompt=build_query_prompt(agents_md, wiki_index=wiki_index),
         model_name=settings.openai_model,

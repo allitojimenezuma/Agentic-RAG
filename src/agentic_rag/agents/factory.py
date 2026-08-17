@@ -10,7 +10,10 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from agentic_rag.token_tracker import TokenTracker
 from agentic_rag.middleware.guardrails import path_guard_middleware
-from agentic_rag.middleware.logging import set_tracker, audit_logging_middleware, token_capture_middleware
+from agentic_rag.middleware.logging import (
+    audit_logging_middleware,
+    make_token_capture,
+)
 
 
 
@@ -36,12 +39,17 @@ def build_agent(
         A compiled agent runnable with _token_tracker attribute.
     """
 
-    # Create and attach token tracker
+    # Create the token tracker and bind a capture middleware to THIS agent's
+    # tracker (no module globals: several agents can share one process, e.g.
+    # the Streamlit frontend, and each must record its own usage).
     tracker = TokenTracker(model_name)
-    set_tracker(tracker)
 
     # Always include logging, guardrails, and token capture middleware
-    all_middleware = [audit_logging_middleware, path_guard_middleware, token_capture_middleware] + (middleware or [])
+    all_middleware = [
+        audit_logging_middleware,
+        path_guard_middleware,
+        make_token_capture(tracker),
+    ] + (middleware or [])
 
     agent = create_agent(
         model=model,

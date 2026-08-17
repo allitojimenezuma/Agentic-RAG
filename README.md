@@ -209,7 +209,7 @@ sidebar thread selector + "New chat"). The ingest page also offers a picker of f
 present under `raw/` — the UI only reads `raw/`; drop source documents there yourself first.
 
 ```bash
-uv sync --extra ui
+uv sync
 uv run streamlit run frontend/app.py
 ```
 

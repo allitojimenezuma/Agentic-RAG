@@ -11,27 +11,12 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
 
 from langchain.agents.middleware import AgentMiddleware, after_model
 
 from agentic_rag.token_tracker import TokenTracker
 
 logger = logging.getLogger("agentic_rag.tools")
-
-# Global tracker per agent (set when agent is created)
-_current_tracker: Optional[TokenTracker] = None
-
-
-def set_tracker(tracker: TokenTracker) -> None:
-    """Set the current token tracker for the session."""
-    global _current_tracker
-    _current_tracker = tracker
-
-
-def get_tracker() -> Optional[TokenTracker]:
-    """Get the current token tracker."""
-    return _current_tracker
 
 
 class AuditLoggingMiddleware(AgentMiddleware):
@@ -77,35 +62,39 @@ class AuditLoggingMiddleware(AgentMiddleware):
 audit_logging_middleware = AuditLoggingMiddleware()
 
 
-@after_model
-def token_capture_middleware(state, runtime):
-    """Capture token usage from LLM responses after each model call.
+def make_token_capture(tracker: TokenTracker) -> AgentMiddleware:
+    """Build an after-model middleware that records LLM usage on ``tracker``.
 
-    This hook runs after every LLM call and extracts token usage from the
-    last AI message's response_metadata.
+    One instance per compiled agent: the tracker is bound at build time rather
+    than read from a module global, so each agent records its own usage even
+    when several agents share one process (e.g. the Streamlit frontend). The
+    hook runs after every LLM call and extracts token usage from the last AI
+    message's ``response_metadata``.
     """
-    if not _current_tracker:
-        return
 
-    messages = state.get("messages", [])
-    if not messages:
-        return
+    @after_model(name="token_capture")
+    def _capture(state, runtime) -> None:
+        messages = state.get("messages", [])
+        if not messages:
+            return
 
-    last_msg = messages[-1]
-    if not hasattr(last_msg, "response_metadata"):
-        return
+        last_msg = messages[-1]
+        if not hasattr(last_msg, "response_metadata"):
+            return
 
-    usage = last_msg.response_metadata.get("token_usage", {})
-    if not usage:
-        # Try alternatives: some providers use different keys
-        usage = last_msg.response_metadata.get("usage", {})
+        usage = last_msg.response_metadata.get("token_usage", {}) or {}
+        if not usage:
+            # Some providers use a different key.
+            usage = last_msg.response_metadata.get("usage", {}) or {}
 
-    if usage:
-        input_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
-        output_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
-        if input_tokens or output_tokens:
-            _current_tracker.record_call(
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                duration=0.0,  # duration tracked per-call is not meaningful here
-            )
+        if usage:
+            input_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
+            if input_tokens or output_tokens:
+                tracker.record_call(
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    duration=0.0,  # duration tracked per-call is not meaningful here
+                )
+
+    return _capture

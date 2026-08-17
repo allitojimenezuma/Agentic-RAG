@@ -9,16 +9,14 @@ from typing import Optional
 
 logger = logging.getLogger("agentic_rag.tokens")
 
-# Pricing per model (USD per 1M tokens) — update as needed
+# Pricing per model (USD per 1M tokens) for cost estimation. Only models with
+# published, verifiable prices are listed; anything else costs $0.00 (token
+# counts are always recorded — pricing only affects the estimated cost).
 MODEL_PRICING = {
     "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
     "gpt-4.1": {"input": 2.00, "output": 8.00},
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "gpt-4o": {"input": 2.50, "output": 10.00},
-    "glm-5.2": {"input": 1.40, "output": 4.40},
-    "deepseek-v4-pro": {"input": 0.44, "output": 0.87},
-    "deepseek-v4-flash": {"input": 0.14, "output": 0.28},
-    # Add more models as needed
 }
 
 

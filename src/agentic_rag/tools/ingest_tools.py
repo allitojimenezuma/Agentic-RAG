@@ -59,7 +59,7 @@ def _strip_embedded_frontmatter(content: str) -> str:
 def read_source(source_path: str) -> str:
     """Read and convert a source file to markdown using MarkItDown. Supports pdf, docx, pptx, xlsx, html, csv, json, xml, ipynb, images, epub, and more."""
     logger.debug("Reading source file: %s", source_path)
-    loader = SourceLoader(settings=type("S", (), {"markitdown_llm_describe_images": False})())
+    loader = SourceLoader()
     try:
         result = loader.load(source_path)
     except (FileNotFoundError, ValueError, OSError) as e:

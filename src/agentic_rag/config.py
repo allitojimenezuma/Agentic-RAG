@@ -31,9 +31,6 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_dir: Path | None = None  # None = console only
 
-    # MarkItDown
-    markitdown_llm_describe_images: bool = False
-
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
