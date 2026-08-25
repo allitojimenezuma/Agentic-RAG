@@ -29,3 +29,7 @@ LangChain-RAG.html
 # Local-only project docs (not tracked)
 docs/
 archive/
+
+# Local-only lock files (not tracked)
+skills-lock.json
+uv.lock
