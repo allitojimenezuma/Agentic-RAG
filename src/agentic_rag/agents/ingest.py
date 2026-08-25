@@ -34,7 +34,7 @@ def build_ingest_agent(settings) -> object:
     Args:
         settings: Settings instance with openai_model, agents_md_path, wiki_path.
     """
-    init_shared_tools(settings.wiki_path)
+    init_shared_tools(settings.wiki_path, settings.raw_sources_path)
     agents_md = load_agents_md(settings.agents_md_path)
     wiki_index = get_index_summary(settings.wiki_path)
     tools = [

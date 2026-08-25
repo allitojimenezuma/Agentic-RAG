@@ -81,12 +81,13 @@ def build_query_prompt(agents_md: str, wiki_index: str = "") -> str:
 # Workflow
 1. Run wiki_command("search \\"<your question>\\"") — one call retrieves ranked relevant pages (plus a bounded set of linked pages).
 2. Run wiki_command("read <slug>") for the few pages you will cite, to get their details.
-3. Write your final answer as a plain message. Cite sources inline with `[[Page]]` links.
+3. Write your final answer and cite sources inline with `[[slug]]` wikilinks.
 
-# Grounding
-- ALWAYS cite every page you read to answer the question: append `[[slug]]` links to each claim you support with that page. Every `[[X]]` link must be a page you obtained from wiki_command this turn; citations for any other page are dropped automatically.
-- Your final answer MUST contain at least one `[[page]]` citation. If you cannot ground your answer in a page you navigated this turn, say the wiki does not cover the question — never answer without citations.
-- If the wiki doesn't cover the question, say so clearly.
+# Grounding (cite-or-die)
+- Cite with `[[slug]]` wikilinks inline — only slug links become citations, so cite by slug (e.g. `entities/mlx`), never a title.
+- Only cite pages you `read` this turn; other links are dropped.
+- To get high confidence, cite the pages you read. Reading but not citing → medium; citing nothing → low.
+- If the wiki doesn't cover it, say so — never invent a `[[link]]`.
 
 # Rules
 - Read-only. Do not call any write tool (none provided).

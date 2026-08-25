@@ -14,18 +14,37 @@ logger = logging.getLogger(__name__)
 
 # Set once when agent is built via init_shared_tools()
 _WIKI_PATH: Path = Path("./wiki")
+_RAW_PATH: Path = Path("./raw")
 
 
-def init_shared_tools(wiki_path: str | Path) -> None:
-    """Initialize the wiki path for all shared tools. Called once at agent build time."""
-    global _WIKI_PATH
+def init_shared_tools(
+    wiki_path: str | Path, raw_path: str | Path | None = None
+) -> None:
+    """Initialize the wiki path (and raw sources path) for all shared tools.
+
+    Called once at agent build time. ``raw_path`` defaults to ``./raw`` and is
+    only meaningful for the ingest agent, whose ``read_source`` tool is confined
+    to that directory.
+    """
+    global _WIKI_PATH, _RAW_PATH
     _WIKI_PATH = Path(wiki_path)
-    logger.debug("Shared tools wiki_path set to %s", _WIKI_PATH)
+    if raw_path is not None:
+        _RAW_PATH = Path(raw_path)
+    logger.debug("Shared tools wiki_path=%s raw_path=%s", _WIKI_PATH, _RAW_PATH)
 
 
 def get_wiki_path() -> Path:
     """Get the current wiki path. Used by tool modules that import it."""
     return _WIKI_PATH
+
+
+def get_raw_path() -> Path:
+    """Get the configured raw sources directory.
+
+    ``read_source`` (ingest agent) is restricted to reading files under this
+    directory so the agent cannot read arbitrary repository files.
+    """
+    return _RAW_PATH
 
 
 def get_index_summary(wiki_path: Path | None = None) -> str:

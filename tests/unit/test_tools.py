@@ -119,9 +119,11 @@ class TestNavReadErrors:
         )
         assert result.startswith("Error: Wiki page not found: nonexistent")
 
-    def test_read_source_missing_file_returns_error(self, wiki_path: Path, tmp_path: Path) -> None:
-        init_shared_tools(wiki_path)
-        result = read_source.invoke({"source_path": str(tmp_path / "missing.pdf")})
+    def test_read_source_missing_file_returns_error(self, tmp_path: Path) -> None:
+        raw = tmp_path / "raw"
+        raw.mkdir()
+        init_shared_tools(tmp_path, raw_path=raw)
+        result = read_source.invoke({"source_path": str(raw / "missing.pdf")})
         assert result.startswith("Error: could not read source")
 
     def test_delete_wiki_page_missing_returns_error(self, wiki_path: Path) -> None:
@@ -135,11 +137,32 @@ class TestNavReadErrors:
 
 class TestReadSource:
     def test_loads_markdown_file(self, tmp_path: Path) -> None:
-        src = tmp_path / "sample.md"
+        raw = tmp_path / "raw"
+        raw.mkdir()
+        init_shared_tools(tmp_path, raw_path=raw)
+        src = raw / "sample.md"
         src.write_text("# Hello\n\nThis is a test.")
         result = read_source.invoke({"source_path": str(src)})
         assert "Hello" in result
         assert "This is a test." in result
+
+    def test_blocks_path_outside_raw(self, tmp_path: Path) -> None:
+        """read_source must refuse to read arbitrary files (e.g. source code)."""
+        raw = tmp_path / "raw"
+        raw.mkdir()
+        init_shared_tools(tmp_path, raw_path=raw)
+        code_file = tmp_path / "cli.py"
+        code_file.write_text("SECRET = 'nope'")
+        result = read_source.invoke({"source_path": str(code_file)})
+        assert result.startswith("Error: could not read source")
+        assert "outside the raw sources directory" in result
+
+    def test_missing_file_under_raw_returns_error(self, tmp_path: Path) -> None:
+        raw = tmp_path / "raw"
+        raw.mkdir()
+        init_shared_tools(tmp_path, raw_path=raw)
+        result = read_source.invoke({"source_path": str(raw / "missing.pdf")})
+        assert result.startswith("Error: could not read source")
 
 
 class TestCreatePage:

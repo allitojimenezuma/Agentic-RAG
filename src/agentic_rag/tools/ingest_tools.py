@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime
+from pathlib import Path
 
 from langchain_core.tools import tool
 
@@ -18,7 +19,7 @@ from agentic_rag.io.wiki_io import (
     write_page as _write_page,
 )
 from agentic_rag.schemas.wiki import Frontmatter, LogEntry
-from agentic_rag.tools.shared import get_wiki_path
+from agentic_rag.tools.shared import get_raw_path, get_wiki_path
 
 logger = logging.getLogger(__name__)
 
@@ -55,13 +56,37 @@ def _strip_embedded_frontmatter(content: str) -> str:
     return content
 
 
+def _resolve_raw_source(source_path: str) -> str:
+    """Resolve source_path, confined to the raw sources directory.
+
+    The ingest agent may only read files under the configured raw sources
+    directory (``raw/``) so it cannot read arbitrary repository files such as
+    ``src/agentic_rag/cli.py``. http(s) URLs are allowed (SourceLoader handles
+    them). Raises ``ValueError`` with a user-facing message for any path that
+    resolves outside raw/.
+    """
+    if source_path.startswith("http://") or source_path.startswith("https://"):
+        return source_path  # URL — no filesystem containment check
+    raw_root = get_raw_path().resolve()
+    candidate = Path(source_path)
+    if not candidate.is_absolute():
+        candidate = (Path.cwd() / candidate).resolve()
+    if candidate.is_relative_to(raw_root):
+        return str(candidate)
+    raise ValueError(
+        f"source_path '{source_path}' is outside the raw sources directory "
+        f"({raw_root}). The ingest agent may only read files under raw/."
+    )
+
+
 @tool
 def read_source(source_path: str) -> str:
-    """Read and convert a source file to markdown using MarkItDown. Supports pdf, docx, pptx, xlsx, html, csv, json, xml, ipynb, images, epub, and more."""
+    """Read and convert a source file to markdown using MarkItDown. Supports pdf, docx, pptx, xlsx, html, csv, json, xml, ipynb, images, epub, and more. Only files inside the raw/ directory (or http/https URLs) are allowed."""
     logger.debug("Reading source file: %s", source_path)
     loader = SourceLoader()
     try:
-        result = loader.load(source_path)
+        resolved = _resolve_raw_source(source_path)
+        result = loader.load(resolved)
     except (FileNotFoundError, ValueError, OSError) as e:
         # Never crash the agent run on a bad source path — return a recoverable error.
         return f"Error: could not read source '{source_path}': {e}"
