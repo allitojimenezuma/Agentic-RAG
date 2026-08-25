@@ -177,7 +177,6 @@ def _cmd_search(args: list[str]) -> str:
         raise ValueError("usage: search \"<query>\" [--k N] [--type TYPE] [--tags a,b]")
     query = positionals[0]
 
-    from agentic_rag.tools.grounding import record_navigated
 
     try:
         k = int(flags.get("k", "8"))
@@ -191,7 +190,6 @@ def _cmd_search(args: list[str]) -> str:
     if not hits:
         return f"No relevant pages found for '{query}'."
 
-    record_navigated(h.slug for h in hits)
     direct = [h for h in hits if h.matched_via != "expand-link"]
     linked = [h for h in hits if h.matched_via == "expand-link"]
     lines: list[str] = []

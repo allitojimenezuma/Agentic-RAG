@@ -25,3 +25,7 @@ LangChain-RAG.html
 
 # macOS
 .DS_Store
+
+# Local-only project docs (not tracked)
+docs/
+archive/
