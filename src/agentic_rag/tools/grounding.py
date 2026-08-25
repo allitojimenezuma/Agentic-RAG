@@ -1,7 +1,8 @@
 """Cite-or-die finalization + per-invocation navigation capture.
 
 The nav surface (``wiki_command``: search/read/scan/links) records every slug it
-return into the module-level ``NavCapture`` via ``record_navigated``. The
+returns into the per-run ``NavCapture`` (bound through the LangChain run config,
+never a module global) via ``record_navigated``. The
 query agent has NO finalization tool: ``build_final_answer`` synthesizes the
 ``QueryAnswer`` from the model's own final message, extracting ``[[Page]]``
 links as citations and validating them against the same navigated-set gate
@@ -20,10 +21,6 @@ logger = logging.getLogger(__name__)
 
 _WIKILINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
-# Set once per agent invocation via new_nav_capture().
-_NAV_CAPTURE: NavCapture | None = None
-
-
 class NavCapture:
     """Per-invocation mutable store of slugs navigated this turn."""
 
@@ -34,19 +31,47 @@ class NavCapture:
 
 
 def new_nav_capture() -> NavCapture:
-    """Create a fresh NavCapture and register it as the module-global active capture."""
-    global _NAV_CAPTURE
-    capture = NavCapture()
-    _NAV_CAPTURE = capture
-    logger.debug("Created new NavCapture")
-    return capture
+    """Create a fresh NavCapture for one agent invocation.
+
+    The capture is later bound to the run via
+    ``config['configurable']['nav_capture']`` (see ``cli.py`` and
+    ``frontend/query_driver.py``) so ``record_navigated`` can find it **without a
+    shared module global**. No module-level mutable state is touched here, which
+    keeps concurrent query turns fully isolated: each run owns its own capture
+    object instead of contending on one process-wide global.
+    """
+    return NavCapture()
 
 
 def record_navigated(slugs: Iterable[str]) -> None:
-    """Record navigated slugs into the active capture. NO-OP if none is active."""
-    if _NAV_CAPTURE is None:
+    """Record navigated slugs into the capture bound to the current run.
+
+    The active capture is read from the LangChain run config
+    (``config['configurable']['nav_capture']``), set per-invocation by the CLI
+    and the Streamlit driver. This replaces the old module-level global so two
+    concurrent query turns no longer share (and corrupt) one navigated set —
+    cite-or-die grounding stays correct under concurrency.
+
+    NO-OP when no capture is configured: the non-query agents (ingest/lint/fix),
+    scripted test flows, and standalone ``wiki_command`` calls record nothing.
+    Never raises.
+    """
+    capture = _active_capture()
+    if capture is None:
         return
-    _NAV_CAPTURE.navigated.update(slugs)
+    capture.navigated.update(slugs)
+
+
+def _active_capture() -> NavCapture | None:
+    """Best-effort lookup of the per-run NavCapture from the LangChain config."""
+    try:
+        from langchain_core.runnables import ensure_config
+
+        configurable = ensure_config().get("configurable") or {}
+        return configurable.get("nav_capture")
+    except Exception:
+        logger.debug("No running config with a nav_capture; recording skipped")
+        return None
 
 
 def validate_citations(answer: QueryAnswer, navigated_slugs: set[str]) -> QueryAnswer:

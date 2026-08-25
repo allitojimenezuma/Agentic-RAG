@@ -83,6 +83,12 @@ def _build_grounded_agent(wiki: Path):
                 content="",
                 tool_calls=[ToolCall(name="wiki_command", args={"command": 'search "mlx"'}, id="tc-1")],
             ),
+            # Open the page so it is actually navigated (cite-or-die only grounds
+            # pages the agent read, not every search hit).
+            AIMessage(
+                content="",
+                tool_calls=[ToolCall(name="wiki_command", args={"command": 'read entities/mlx'}, id="tc-2")],
+            ),
             AIMessage(
                 content=(
                     "MLX is a machine learning framework by Apple "
@@ -105,7 +111,7 @@ class TestGroundedQueryAgent:
 
     def test_final_answer_drops_fabricated_citation(self, grounded_wiki):
         agent = _build_grounded_agent(grounded_wiki)
-        config = {"configurable": {"thread_id": str(uuid4())}}
+        config = {"configurable": {"thread_id": str(uuid4()), "nav_capture": agent._nav_capture}}
         result = agent.invoke(
             {"messages": [{"role": "user", "content": "What is MLX?"}]},
             config=config,

@@ -154,7 +154,10 @@ async def stream_query(
 
     agent._nav_capture = new_nav_capture()  # fresh cite-or-die capture for this turn
 
-    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": recursion_limit}
+    config = {
+        "configurable": {"thread_id": thread_id, "nav_capture": agent._nav_capture},
+        "recursion_limit": recursion_limit,
+    }
 
     # Per-tool-call accumulation state for this turn.
     accumulated: dict[Any, str] = {}  # key -> accumulated args JSON string

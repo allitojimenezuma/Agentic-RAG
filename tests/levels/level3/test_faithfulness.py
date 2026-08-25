@@ -59,14 +59,6 @@ from tests.fixtures.fake_llm import ScriptedChatModel
 from tests.levels.conftest import requires_llm
 
 
-@pytest.fixture(autouse=True)
-def _reset_nav_capture():
-    """Reset the module-global capture around each test (mirrors the unit
-    suite's ``tests/unit/test_grounding.py`` pattern)."""
-    grounding._NAV_CAPTURE = None
-    yield
-    grounding._NAV_CAPTURE = None
-
 
 # --- cite-or-die: fabricated links never become citations ----------------------
 
@@ -194,7 +186,7 @@ def test_end_to_end_nav_capture_citations_are_navigated(eval_wiki) -> None:
 
     result = agent.invoke(
         {"messages": [{"role": "user", "content": "What is MLX?"}]},
-        config={"configurable": {"thread_id": str(uuid4())}},
+        config={"configurable": {"thread_id": str(uuid4()), "nav_capture": agent._nav_capture}},
     )
 
     navigated = agent._nav_capture.navigated

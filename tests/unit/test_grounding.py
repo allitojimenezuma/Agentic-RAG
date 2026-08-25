@@ -2,19 +2,27 @@
 
 from __future__ import annotations
 
+import contextlib
 import pytest
 from langchain_core.messages import AIMessage
+from langchain_core.runnables.config import var_child_runnable_config
 
 from agentic_rag.schemas.query import QueryAnswer, SourceCitation
 from agentic_rag.tools import grounding
 
 
-@pytest.fixture(autouse=True)
-def _reset_nav_capture():
-    """Reset the module-global capture around each test."""
-    grounding._NAV_CAPTURE = None
-    yield
-    grounding._NAV_CAPTURE = None
+@contextlib.contextmanager
+def _running_config(config):
+    """Set the LangChain running config for a block (mirrors how record_navigated
+    reads the active NavCapture from ``ensure_config()['configurable']['nav_capture']
+    during a real agent run), so we can unit-test capture recording directly."""
+    token = var_child_runnable_config.set(config)
+    try:
+        yield
+    finally:
+        var_child_runnable_config.reset(token)
+
+
 
 
 def _qa(citations: list[SourceCitation], confidence: str = "high", suggestion: str = "") -> QueryAnswer:
@@ -93,11 +101,11 @@ class TestNavCapture:
     def test_record_navigated_adds_to_active_capture(self):
         capture = grounding.new_nav_capture()
 
-        grounding.record_navigated(["entities/mlx", "entities/mlx"])
-        grounding.record_navigated(["concepts/array-fire"])
+        with _running_config({"configurable": {"nav_capture": capture}}):
+            grounding.record_navigated(["entities/mlx", "entities/mlx"])
+            grounding.record_navigated(["concepts/array-fire"])
 
         assert capture.navigated == {"entities/mlx", "concepts/array-fire"}
-        assert grounding._NAV_CAPTURE is capture
 
 
 def _ai(content: str) -> AIMessage:

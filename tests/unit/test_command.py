@@ -101,15 +101,19 @@ class TestScan:
 
 
 class TestSearch:
-    def test_search_records_navigated_slugs(self, tmp_path) -> None:
+    def test_search_does_not_record_navigated_slugs(self, tmp_path) -> None:
         init_shared_tools(tmp_path)
         _populate(tmp_path)
-        grounding.new_nav_capture()
-        out = run_wiki_commands('search "Apple machine learning"')
+        cap = grounding.new_nav_capture()
+        out = wiki_command.invoke(
+            'search "Apple machine learning"',
+            config={"configurable": {"nav_capture": cap}},
+        )
         assert "entities/mlx" in out
-        # Every hit (direct + linked) is recorded for cite-or-die.
-        assert grounding._NAV_CAPTURE is not None
-        assert "entities/mlx" in grounding._NAV_CAPTURE.navigated
+        # Search must NOT mark hits as navigated: only `read` does. cite-or-die
+        # therefore only grounds pages the agent actually opened, not every
+        # keyword match.
+        assert cap.navigated == set()
 
     def test_search_no_hits(self, tmp_path) -> None:
         init_shared_tools(tmp_path)
@@ -141,10 +145,9 @@ class TestRead:
     def test_read_records_navigated_slug(self, tmp_path) -> None:
         init_shared_tools(tmp_path)
         _populate(tmp_path)
-        grounding.new_nav_capture()
-        run_wiki_commands("read mlx")
-        assert grounding._NAV_CAPTURE is not None
-        assert "entities/mlx" in grounding._NAV_CAPTURE.navigated
+        cap = grounding.new_nav_capture()
+        wiki_command.invoke("read mlx", config={"configurable": {"nav_capture": cap}})
+        assert "entities/mlx" in cap.navigated
 
     def test_read_missing_page_suggests_similar(self, tmp_path) -> None:
         init_shared_tools(tmp_path)

@@ -149,8 +149,15 @@ def query(question: str = typer.Argument(..., help="Question to ask the wiki")):
     from agentic_rag.agents.query import build_query_agent
 
     agent = build_query_agent(settings)
+    # The real query agent sets `_nav_capture`; plain/patched agents may not.
+    # Preserve the original fallback: only bind nav_capture when present so
+    # record_navigated has something to write to (and finalization can read it).
+    nav_capture = getattr(agent, "_nav_capture", None)
     config = {
-        "configurable": {"thread_id": str(uuid4())},
+        "configurable": {
+            "thread_id": str(uuid4()),
+            **({"nav_capture": nav_capture} if nav_capture is not None else {}),
+        },
         "recursion_limit": settings.recursion_limit,
     }
 

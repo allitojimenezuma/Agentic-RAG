@@ -92,6 +92,13 @@ class TestStreamQueryScriptedTurn:
                         ToolCall(name="wiki_command", args={"command": 'search "What is MLX?"'}, id="tc-1")
                     ],
                 ),
+                # Open the page so it is navigated and citable.
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        ToolCall(name="wiki_command", args={"command": 'read entities/mlx'}, id="tc-2")
+                    ],
+                ),
                 AIMessage(
                     content=(
                         f"{MLX_ANSWER} "
@@ -104,17 +111,19 @@ class TestStreamQueryScriptedTurn:
         events = await _collect(agent, "What is MLX?")
 
         kinds = [e.kind for e in events]
-        assert kinds == ["tool_start", "tool_end", "answer_token", "final"]
+        assert kinds == ["tool_start", "tool_end", "tool_start", "tool_end", "answer_token", "final"]
 
-        # ToolStart for wiki_command, with best-effort args.
+        # ToolStart for wiki_command: search then read.
         starts = [e for e in events if e.kind == "tool_start"]
-        assert [e.name for e in starts] == ["wiki_command"]
+        assert [e.name for e in starts] == ["wiki_command", "wiki_command"]
         assert starts[0].args == {'command': 'search "What is MLX?"'}
+        assert starts[1].args == {'command': 'read entities/mlx'}
 
-        # ToolEnd for wiki_command.
+        # ToolEnd for wiki_command (search output then read output).
         ends = [e for e in events if e.kind == "tool_end"]
-        assert [e.name for e in ends] == ["wiki_command"]
+        assert [e.name for e in ends] == ["wiki_command", "wiki_command"]
         assert "entities/mlx" in ends[0].output
+        assert "entities/mlx" in ends[1].output
 
         # The final message streams live as AnswerTokens.
         tokens = [e for e in events if e.kind == "answer_token"]
@@ -145,6 +154,13 @@ class TestStreamQueryScriptedTurn:
                         ToolCall(name="wiki_command", args={"command": 'search "MLX"'}, id="tc-1")
                     ],
                 ),
+                # Open the page so it is navigated and citable.
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        ToolCall(name="wiki_command", args={"command": 'read entities/mlx'}, id="tc-2")
+                    ],
+                ),
                 AIMessage(
                     content="MLX is Apple's ML framework ([[entities/mlx]])."
                 ),
@@ -152,9 +168,9 @@ class TestStreamQueryScriptedTurn:
         )
 
         events = await _collect(agent, "What is MLX?")
-        # During turn 1 the capture was populated by wiki_command.
-        assert grounding._NAV_CAPTURE is not None
-        assert "entities/mlx" in grounding._NAV_CAPTURE.navigated
+        # During turn 1 the capture was populated by the `read` of wiki_command.
+        assert agent._nav_capture is not None
+        assert "entities/mlx" in agent._nav_capture.navigated
         assert [c.slug for c in events[-1].answer.citations] == ["entities/mlx"]
 
         # Simulate residue from an earlier turn: the active capture already saw
@@ -175,7 +191,9 @@ class TestStreamQueryScriptedTurn:
         events2 = await _collect(agent2, "Again, what is MLX?")
         # The slug was navigated in a PREVIOUS turn only -> dropped.
         assert [c.slug for c in events2[-1].answer.citations] == []
-        assert grounding._NAV_CAPTURE is not poisoned
+        # stream_query installed a FRESH capture for turn 2 (not the poisoned one),
+        # so a link only seen in a prior turn is dropped.
+        assert agent2._nav_capture is not poisoned
 
 
 class _FakeAgent:
@@ -432,14 +450,15 @@ class TestStreamQueryFallbacks:
             def get_state(self, config):
                 return SimpleNamespace(values={"messages": []})
 
+        probe = _ProbeAgent(seen)
         events = [
             event
-            async for event in stream_query(_ProbeAgent(seen), "hello", "tid-42", 7)
+            async for event in stream_query(probe, "hello", "tid-42", 7)
         ]
 
         assert seen["inputs"] == {"messages": [{"role": "user", "content": "hello"}]}
         assert seen["config"] == {
-            "configurable": {"thread_id": "tid-42"},
+            "configurable": {"thread_id": "tid-42", "nav_capture": probe._nav_capture},
             "recursion_limit": 7,
         }
         final = events[-1]
@@ -454,7 +473,92 @@ class TestStreamQueryFallbacks:
         events[-1]  # noqa: B018 — stream fully consumed
 
         assert fake._nav_capture is not None
-        assert grounding._NAV_CAPTURE is fake._nav_capture
+
+
+class TestConcurrentNavCapture:
+    """Concurrency guard for the NavCapture fix.
+
+    Two overlapping stream_query turns must own independent cite-or-die
+    captures. This is the exact regression the per-run config change prevents:
+    with the old module-level global, concurrent queries shared (and corrupted)
+    one navigated set."""
+
+    @pytest.fixture
+    def wiki_two_entities(self, tmp_path: Path) -> Path:
+        wiki = tmp_path / "wiki"
+        for d in ("entities", "concepts", "sources", "comparisons"):
+            (wiki / d).mkdir(parents=True)
+        (wiki / "entities" / "mlx.md").write_text(
+            "---\n"
+            "slug: entities/mlx\n"
+            "type: entity\n"
+            "title: MLX\n"
+            "sources:\n"
+            "  - s.md\n"
+            "updated: 2025-01-01\n"
+            "---\n\n# MLX\n\nMLX is Apple's ML framework.\n"
+        )
+        (wiki / "entities" / "other.md").write_text(
+            "---\n"
+            "slug: entities/other\n"
+            "type: entity\n"
+            "title: Other\n"
+            "sources:\n"
+            "  - s.md\n"
+            "updated: 2025-01-01\n"
+            "---\n\n# Other\n\nOther thing.\n"
+        )
+        return wiki
+
+    async def test_concurrent_streams_have_isolated_captures(self, wiki_two_entities: Path):
+        init_shared_tools(str(wiki_two_entities))
+
+        agent_a = _build_query_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        ToolCall(name="wiki_command", args={"command": 'search "MLX"'}, id="a-1")
+                    ],
+                ),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        ToolCall(name="wiki_command", args={"command": 'read entities/mlx'}, id="a-2")
+                    ],
+                ),
+                AIMessage(content="MLX answer ([[entities/mlx]])."),
+            ]
+        )
+        agent_b = _build_query_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        ToolCall(name="wiki_command", args={"command": 'search "Other"'}, id="b-1")
+                    ],
+                ),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        ToolCall(name="wiki_command", args={"command": 'read entities/other'}, id="b-2")
+                    ],
+                ),
+                AIMessage(content="Other answer ([[entities/other]])."),
+            ]
+        )
+
+        # Run both streams concurrently so their tool calls interleave.
+        await asyncio.gather(
+            _collect(agent_a, "What is MLX?"),
+            _collect(agent_b, "What is Other?"),
+        )
+
+        # Each turn owns a distinct capture object...
+        assert agent_a._nav_capture is not agent_b._nav_capture
+        # ...and each capture only holds the slug its own query navigated.
+        assert agent_a._nav_capture.navigated == {"entities/mlx"}
+        assert agent_b._nav_capture.navigated == {"entities/other"}
 
 
 def test_query_answer_model_roundtrip():
